@@ -15,7 +15,7 @@ struct VersionInfo
 
 // This minimum should match the version installed by
 // Engine/Source/Programs/PrereqInstaller/Resources/VCRedist/VC_redist.x64.exe
-static const VersionInfo MinRedistVersion = { 14, 38, 33130, 0 };
+static const VersionInfo MinRedistVersion = { 14, 40, 33810, 0 };
 
 bool IsVersionValid(const VersionInfo& Version, const VersionInfo& MinVersion)
 {
@@ -123,6 +123,49 @@ bool IsDllValid(const WCHAR* Name, const VersionInfo& RequiredVersion)
 	return IsDllValid(nullptr, Name, RequiredVersion);
 }
 
+bool HasAppxPackagedVCRuntime()
+{
+	static const WCHAR* PackageFamilyNameVCLibs = TEXT("Microsoft.VCLibs.140.00.UWPDesktop_8wekyb3d8bbwe");
+
+	// try to find the GetCurrentPackageInfo function
+	HMODULE hModule = GetModuleHandleW(TEXT("kernel32.dll"));
+	typedef LONG(WINAPI *GetCurrentPackageInfoProc)(const UINT32, UINT32*, BYTE*, UINT32*);
+	GetCurrentPackageInfoProc fnGetCurrentPackageInfo = hModule ? (GetCurrentPackageInfoProc)GetProcAddress(hModule, "GetCurrentPackageInfo") : nullptr;
+
+	// attempt to enumerate the package dependencies & check if there is a dependency on the VCLibs package
+	bool bHasVCLibs = false;
+	if (fnGetCurrentPackageInfo != nullptr)
+	{
+		UINT32 BufferLength = 0;
+		LONG Result = fnGetCurrentPackageInfo(PACKAGE_FILTER_DIRECT, &BufferLength, nullptr, nullptr);
+
+		if (Result == ERROR_INSUFFICIENT_BUFFER)
+		{
+			UINT32 Count = 0;
+			PACKAGE_INFO* PackageInfo = (PACKAGE_INFO*)malloc(BufferLength);
+			Result = fnGetCurrentPackageInfo(PACKAGE_FILTER_DIRECT, &BufferLength, (BYTE*)PackageInfo, &Count);
+
+			if (Result == ERROR_SUCCESS && PackageInfo != nullptr)
+			{
+				for (UINT32 Index = 0; Index < Count; Index++)
+				{
+					if (wcscmp(PackageInfo[Index].packageFamilyName, PackageFamilyNameVCLibs ) == 0)
+					{
+						// note: not checking PackageInfo[Index].packageId.version against MinRedistVersion because unfortunately the Windows Store version trails behind MSVC
+						bHasVCLibs = true;
+						break;
+					}
+				}
+			}
+			free(PackageInfo);
+		}
+	}
+
+	return bHasVCLibs;
+}
+
+
+
 int InstallMissingPrerequisites(const WCHAR* BaseDirectory, const WCHAR* ExecDirectory)
 {
 	// Look for missing prerequisites
@@ -137,6 +180,12 @@ int InstallMissingPrerequisites(const WCHAR* BaseDirectory, const WCHAR* ExecDir
 		// Check the file version of bundled redist dlls
 		if (IsDllValid(ExecDirectory, L"msvcp140_2.dll", MinRedistVersion) &&
 			IsDllValid(ExecDirectory, L"vcruntime140_1.dll", MinRedistVersion))
+		{
+			bInstallVCRedist = false;
+		}
+
+		// Check if we are part of an appx package with an embedded dependency on the VC runtime libraries
+		if (bInstallVCRedist && HasAppxPackagedVCRuntime())
 		{
 			bInstallVCRedist = false;
 		}
@@ -169,8 +218,18 @@ int InstallMissingPrerequisites(const WCHAR* BaseDirectory, const WCHAR* ExecDir
 				if (IsVersionValid(InstalledVersion, MinRedistVersion))
 				{
 					// it is possible that the redist has been uninstalled but the registry entries have not been removed
-					// test that some relatively new dlls are able to be loaded
-					if (IsDllValid(L"msvcp140_2.dll", MinRedistVersion) &&
+					// test that some relatively new dlls are able to be loaded from system32
+					WCHAR SystemRoot[MAX_PATH] = { 0 };
+					GetEnvironmentVariable(L"SystemRoot", SystemRoot, MAX_PATH);
+					WCHAR System32Path[MAX_PATH] = { 0 };
+					PathCombine(System32Path, SystemRoot, L"system32");
+					if (IsDllValid(System32Path, L"msvcp140_2.dll", MinRedistVersion) &&
+						IsDllValid(System32Path, L"vcruntime140_1.dll", MinRedistVersion))
+					{
+						bInstallVCRedist = false;
+					}
+					// test that some relatively new dlls are able to be loaded with no path if not found in system32
+					else if (IsDllValid(L"msvcp140_2.dll", MinRedistVersion) &&
 						IsDllValid(L"vcruntime140_1.dll", MinRedistVersion))
 					{
 						bInstallVCRedist = false;

@@ -119,10 +119,42 @@ public:
 	// Helper function to disable clearing transient package references
 	void SetIsRunningUnitTest(bool bIsRunning) { bIsRunningUnitTest = bIsRunning; }
 
+	// Will find all public function variant refs, and private function variant refs from loaded assets
+	TArray<FRigVMVariantRef> GatherAllFunctionVariantRefs();
+
+	// Will find the public function variant refs inside this asset, and private function variant refs if the asset is loaded
+	TArray<FRigVMVariantRef> GatherFunctionVariantRefsForAsset(const FAssetData& InAssetData);
+
+	// Will find all the function variants matching the given variant guid
+	TArray<FRigVMVariantRef> FindFunctionVariantRefs(const FGuid& InGuid);
+
+	// Will find all asset variant refs
+	TArray<FRigVMVariantRef> GatherAllAssetVariantRefs();
+
+	// Will find all the asset variants matching the given variant guid
+	TArray<FRigVMVariantRef> FindAssetVariantRefs(const FGuid& InGuid);
+
+#if WITH_EDITOR
+	// Returns all known public function identifiers used in the project
+	TArray<FRigVMGraphFunctionIdentifier> GetAllFunctionIdentifiers(bool bOnlyPublic = true) const;
+#endif
+
+	// Returns all known public function identifiers used in the project
+	TArray<FRigVMGraphFunctionIdentifier> GetUsedFunctionIdentifiers(bool bOnlyPublic = true) const;
+
+	// Returns all known function references
+	FRigVMFunctionReferenceArray GetAllFunctionReferences() const;
+
 private:
 
 	// disable default constructor
 	URigVMBuildData();
+
+	static TArray<UClass*> FindAllRigVMAssetClasses();
+
+	void SetupRigVMGraphFunctionPointers();
+	void TearDownRigVMGraphFunctionPointers();
+	static TArray<FRigVMGraphFunctionHeader> GetFunctionHeadersForAsset(const FAssetData& InAssetData);
 	
 	static bool bInitialized;
 
@@ -137,5 +169,6 @@ private:
 	friend class URigVMController;
 	friend struct FRigVMClient;
 	friend class URigVMCompiler;
+	friend class FRigVMDeveloperModule;
 };
 

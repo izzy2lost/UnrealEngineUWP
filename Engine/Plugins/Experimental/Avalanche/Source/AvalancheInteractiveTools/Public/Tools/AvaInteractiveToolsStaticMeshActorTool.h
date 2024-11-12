@@ -26,7 +26,7 @@ public:
 
 protected:
 	UPROPERTY()
-	UStaticMesh* StaticMesh;
+	TObjectPtr<UStaticMesh> StaticMesh;
 
 	//~ Begin UAvaInteractiveToolsToolBase
 	virtual AActor* SpawnActor(TSubclassOf<AActor> InActorClass, EAvaViewportStatus InViewportStatus,

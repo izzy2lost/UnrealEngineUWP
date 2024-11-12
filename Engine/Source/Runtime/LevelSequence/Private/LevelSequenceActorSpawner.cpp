@@ -136,15 +136,14 @@ UObject* FLevelSequenceActorSpawner::SpawnObject(FMovieSceneSpawnable& Spawnable
 		if (ExistingObject)
 		{
 			FName DefunctName = MakeUniqueObjectName(WorldContext->PersistentLevel, ExistingObject->GetClass());
-			ExistingObject->Rename(*DefunctName.ToString(), nullptr, REN_ForceNoResetLoaders);
+			ExistingObject->Rename(*DefunctName.ToString(), nullptr);
 		}
 	}
 
 	// Spawn the puppet actor
 	FActorSpawnParameters SpawnInfo;
 	{
-		SpawnInfo.Name = *SpawnName.ToString().Replace(TEXT(" "), TEXT("_"));
-		SpawnInfo.Name = MakeUniqueObjectName(WorldContext->PersistentLevel, ObjectTemplate->GetClass(), SpawnInfo.Name);
+		SpawnInfo.Name = SpawnName;
 		SpawnInfo.ObjectFlags = ObjectFlags;
 		SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		// @todo: Spawning with a non-CDO template is fraught with issues
@@ -243,8 +242,12 @@ UObject* FLevelSequenceActorSpawner::SpawnObject(FMovieSceneSpawnable& Spawnable
 	SpawnedActor->FinishSpawning(SpawnTransform, bIsDefaultTransform);
 
 #if WITH_EDITOR
-	// Don't set the actor label in PIE as this requires flushing async loading.
-	if (WorldContext->WorldType == EWorldType::Editor)
+	const IConsoleVariable* AllowSetActorLabelCvar = IConsoleManager::Get().FindConsoleVariable(TEXT("LevelSequence.EnableReadableActorLabelsForSpawnables"));
+	const bool bAllowSetActorLabel = AllowSetActorLabelCvar && AllowSetActorLabelCvar->GetBool();
+	
+	// Historically, setting the actor label has caused performance issues in some scenarios (by causing async loading flushes); however, there's no
+	// evidence for this anymore, so the cvar is here to turn off this behavior if needed.
+	if ((WorldContext->WorldType == EWorldType::Editor) || bAllowSetActorLabel)
 	{
 		SpawnedActor->SetActorLabel(Spawnable.GetName());
 	}

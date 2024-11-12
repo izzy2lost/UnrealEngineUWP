@@ -79,6 +79,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "File")
 	bool bIncludeReferencedAssets = true;
 
+	// If retargeting additive animations, they will have their additive settings reset so that the retargeter evaluates the motion in a non-additive way.
+	// Setting this flag to true will ensure that the resulting animation sequences will retain their additive settings after the retarget operation.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "File")
+	bool bRetainAdditiveFlags = true;
+
 	// TODO - Kiaran Feb 2024 - Naively leaving out non-retargeted keys results in flipped skeletons, needs work.
 	// Will not produce keys on bones that are not animated, reducing size on disk of the resulting files.
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Animation")

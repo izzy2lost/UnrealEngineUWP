@@ -33,7 +33,9 @@ export class AgentStore {
     private _pools: PoolData[] = [];
 
     // don't need this for now
-    modifiedAfterDate: Date = new Date(0);
+    modifiedAfterDate?: Date;
+
+    inflight?: boolean;
 
     @action
     private _setPools(data: PoolData[]) {
@@ -54,9 +56,11 @@ export class AgentStore {
                     toSet.push(updatedAgent);
                 }
             });            
-            this._agents = toSet.filter(a => true /*!!a.deleted*/);
-            this.agentsUpdated++;
+            this._agents = toSet.filter(a => true /*!!a.deleted*/);            
+        } else {
+            this._agents = [];
         }
+        this.agentsUpdated++;
     }
 
     async updateAgent(agentId: string): Promise<GetAgentResponse> {
@@ -114,12 +118,23 @@ export class AgentStore {
 
     }
 
-    async update(slim = false): Promise<void> {
+    async update(slim:boolean = false, invalidateCache: boolean = false): Promise<void> {
         return new Promise<void>((resolve, reject) => {
+
+            if (this.inflight !== undefined && slim) {                
+                resolve();
+                return;
+            }
+
+            if (invalidateCache) {
+                this.modifiedAfterDate = undefined;
+            }
+
+            this.inflight = true;
 
             const filter = "id,name,sessionId,sessionExpiresAt,online,enabled,ephemeral,comment,version,forceVersion,pools,capabilities,leases,acl,updateTime,deleted,pendingConform,pendingFullConform,conformAttemptCount,lastConformTime,nextConformTime,lastShutdownReason,pendingShutdown,status";
             const promises: any[] = [];
-            promises.push(backend.getAgents({ includeDeleted: false, modifiedAfter: this.modifiedAfterDate?.toISOString(), filter:filter    }));
+            promises.push(backend.getAgents({ includeDeleted: false, modifiedAfter: this.modifiedAfterDate?.toISOString(), filter:filter,invalidateCache:invalidateCache}));
             if (!slim) {
                 promises.push(backend.getPools());
             }
@@ -132,6 +147,8 @@ export class AgentStore {
                 resolve();
             }).catch(reason => {
                 console.error(`Error getting agents and pools: ${reason}`);
+            }).finally(() => {
+                this.inflight = undefined;
             });
         });
     }

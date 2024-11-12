@@ -35,14 +35,23 @@
 #include "Factories/FbxSkeletalMeshImportData.h"
 
 #include "Rendering/SkeletalMeshModel.h"
+#include "MeshPaintHelpers.h"
 #include "MeshPaintMode.h"
+#include "MeshPaintVisualize.h"
 #include "MeshTexturePaintingTool.h"
+#include "MeshVertexPaintingTool.h"
 #include "InterchangeAssetImportData.h"
 #include "InterchangeGenericAssetsPipeline.h"
 #include "InterchangePythonPipelineBase.h"
 
+#include "Math/Color.h"
+#include "StaticMeshLODResourcesToDynamicMesh.h"
+#include "Sampling/MeshMapBaker.h"
+#include "Sampling/MeshPropertyMapEvaluator.h"
+#include "VT/MeshPaintVirtualTexture.h"
 
-void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMode, EMeshPaintDataColorViewMode ColorViewMode, FEditorViewportClient* ViewportClient)
+
+void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMode, EMeshPaintDataColorViewMode ColorViewMode, FEditorViewportClient* ViewportClient, UInteractiveTool const* ActiveTool)
 {
 	if (ViewportClient->IsPerspective())
 	{
@@ -61,10 +70,15 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 					// If we're transitioning to normal mode then restore the backup
 					// Clear the flags relevant to vertex color modes
 					ViewportClient->EngineShowFlags.SetVertexColors(false);
+					ViewportClient->CurrentNaniteVisualizationMode = NAME_None;
 
 					// Restore the vertex color mode flags that were set when we last entered vertex color mode
 					ApplyViewMode(ViewportClient->GetViewMode(), ViewportClient->IsPerspective(), ViewportClient->EngineShowFlags);
-					GVertexColorViewMode = EVertexColorViewMode::Color;
+					
+					MeshPaintVisualize::SetPaintMode(EMeshPaintVisualizePaintMode::VertexColor);
+					MeshPaintVisualize::SetShowMode(EMeshPaintVisualizeShowMode::ShowAll);
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Color);
+					MeshPaintVisualize::SetTextureAsset(nullptr);
 				}
 			}
 			else
@@ -76,67 +90,65 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 				ViewportClient->EngineShowFlags.SetPostProcessing(false);
 				ViewportClient->EngineShowFlags.SetHMDDistortion(false);
 
+				MeshPaintVisualize::SetShowMode(EMeshPaintVisualizeShowMode::ShowSelected);
+
 				switch (ColorViewMode)
 				{
 				case EMeshPaintDataColorViewMode::RGB:
-				{
-					GVertexColorViewMode = EVertexColorViewMode::Color;
-				}
-				break;
-
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Color);
+					break;
 				case EMeshPaintDataColorViewMode::Alpha:
-				{
-					GVertexColorViewMode = EVertexColorViewMode::Alpha;
-				}
-				break;
-
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Alpha);
+					break;
 				case EMeshPaintDataColorViewMode::Red:
-				{
-					GVertexColorViewMode = EVertexColorViewMode::Red;
-				}
-				break;
-
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Red);
+					break;
 				case EMeshPaintDataColorViewMode::Green:
-				{
-					GVertexColorViewMode = EVertexColorViewMode::Green;
-				}
-				break;
-
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Green);
+					break;
 				case EMeshPaintDataColorViewMode::Blue:
-				{
-					GVertexColorViewMode = EVertexColorViewMode::Blue;
+					MeshPaintVisualize::SetChannelMode(EVertexColorViewMode::Blue);
+					break;
 				}
-				break;
-				}
+
 				UTexture* SelectedTexture = nullptr;
-				float UVChannel = 0.0f; // Keep as float since it must be a fed to the material as a scalar parameter
+				int32 UVChannel = 0;
+
 				if (ActiveMode == EMeshPaintActiveMode::Texture)
 				{
-					UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>();
-					UMeshTexturePaintingToolProperties* Settings = UMeshPaintMode::GetTextureToolProperties();
-					if (MeshPaintingSubsystem && MeshPaintingSubsystem->OverridePaintTexture.IsValid())
+					UMeshTextureAssetPaintingTool const* TextureTool = Cast<UMeshTextureAssetPaintingTool>(ActiveTool);
+					if (TextureTool != nullptr)
 					{
-						SelectedTexture = MeshPaintingSubsystem->OverridePaintTexture.Get();
-					}
-					
-					if (Settings)
-					{
-						if (!SelectedTexture)
-						{
-							SelectedTexture = Settings->PaintTexture;
-						}
-						UVChannel = Settings->UVChannel;
-					}
-
-					const UMeshComponent* LastPaintedComponent = MeshPaintingSubsystem ? MeshPaintingSubsystem->LastPaintedComponent : nullptr;
-					if (LastPaintedComponent)
-					{
-						GVertexViewModeOverrideOwnerName = *LastPaintedComponent->GetOwner()->GetName();
+						SelectedTexture = TextureTool->GetSelectedPaintTextureWithOverride();
+						UVChannel = TextureTool->GetSelectedUVChannel(nullptr);
 					}
 				}
 
-				GVertexViewModeOverrideTexture = SelectedTexture;
-				GVertexViewModeOverrideUVChannel = UVChannel;
+				static FName NAME_VertexColor("VertexColor");
+				static FName NAME_MeshPaintTexture("MeshPaintTexture");
+
+				switch (ActiveMode)
+				{
+				case EMeshPaintActiveMode::VertexColor:
+				case EMeshPaintActiveMode::VertexWeights:
+					MeshPaintVisualize::SetPaintMode(EMeshPaintVisualizePaintMode::VertexColor);
+					ViewportClient->EngineShowFlags.SetVisualizeNanite(true);
+					ViewportClient->CurrentNaniteVisualizationMode = NAME_VertexColor;
+					break;
+				case EMeshPaintActiveMode::TextureColor:
+					MeshPaintVisualize::SetPaintMode(EMeshPaintVisualizePaintMode::TextureColor);
+					ViewportClient->EngineShowFlags.SetVisualizeNanite(true);
+					ViewportClient->CurrentNaniteVisualizationMode = NAME_MeshPaintTexture;
+					break;
+				case EMeshPaintActiveMode::Texture:
+					MeshPaintVisualize::SetPaintMode(EMeshPaintVisualizePaintMode::TextureAsset);
+					ViewportClient->EngineShowFlags.SetVisualizeNanite(SelectedTexture != nullptr);
+					ViewportClient->CurrentNaniteVisualizationMode = SelectedTexture != nullptr ? NAME_MeshPaintTexture : NAME_None;
+					break;
+				}
+
+				MeshPaintVisualize::SetTextureAsset(SelectedTexture);
+				MeshPaintVisualize::SetTextureCoordinateIndex(UVChannel);
 			}
 		}
 	}
@@ -269,6 +281,95 @@ void UMeshPaintModeSubsystem::ImportVertexColorsFromTexture(UMeshComponent* Mesh
 			// Able to import file but incorrect format
 		}
 	}
+}
+
+void UMeshPaintModeSubsystem::ImportVertexColorsFromMeshPaintTexture(UMeshComponent* MeshComponent)
+{
+	if (UTexture2D* Texture = Cast<UTexture2D>(MeshComponent->GetMeshPaintTexture()))
+	{
+#if WITH_EDITOR
+		// We may need to wait for the texture to compile before importing.
+		// This is most likely to happen when we are immediately propagating texture color painting to vertex colors.
+		Texture->BlockOnAnyAsyncBuild();
+#endif
+
+		UImportVertexColorOptions* Options = NewObject<UImportVertexColorOptions>();
+ 		Options->UVIndex = MeshComponent->GetMeshPaintTextureCoordinateIndex();
+
+		if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(MeshComponent))
+		{
+			ImportVertexColorsToStaticMeshComponent(StaticMeshComponent, Options, Texture);
+		}
+	}
+}
+
+void UMeshPaintModeSubsystem::ImportMeshPaintTextureFromVertexColors(UMeshComponent* MeshComponent)
+{
+	UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(MeshComponent);
+	if (StaticMeshComponent == nullptr)
+	{
+		return;
+	}
+
+	UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh();
+	if (StaticMesh == nullptr)
+	{
+		return;
+	}
+
+	const int32 LodIndex = 0;
+
+	FStaticMeshComponentLODInfo* InstanceMeshLODInfo = StaticMeshComponent->LODData.IsValidIndex(LodIndex) ? &StaticMeshComponent->LODData[LodIndex] : nullptr;
+	const bool bHasPerInstanceVertexColors = InstanceMeshLODInfo != nullptr && InstanceMeshLODInfo->OverrideVertexColors != nullptr;
+
+	UE::Geometry::FStaticMeshLODResourcesToDynamicMesh::ConversionOptions ConversionOptions;
+	ConversionOptions.bWantTangents = false;
+	ConversionOptions.bWantMaterialIDs = false;
+
+	UE::Geometry::FDynamicMesh3 DynamicMesh;
+	UE::Geometry::FStaticMeshLODResourcesToDynamicMesh Converter;
+	Converter.Convert(
+		&StaticMesh->GetRenderData()->LODResources[LodIndex],
+		ConversionOptions,
+		DynamicMesh,
+		bHasPerInstanceVertexColors,
+		[InstanceMeshLODInfo](int32 Index)
+		{
+			return InstanceMeshLODInfo->OverrideVertexColors->VertexColor(Index);
+		});
+
+	const int32 TextureSize = StaticMeshComponent->GetMeshPaintTextureResolution();
+
+	const UE::Geometry::FDynamicMeshAABBTree3 DetailSpatial(&DynamicMesh);
+	UE::Geometry::FMeshBakerDynamicMeshSampler DetailSampler(&DynamicMesh, &DetailSpatial);
+
+	TSharedPtr<UE::Geometry::FMeshPropertyMapEvaluator, ESPMode::ThreadSafe> PropertyEval = MakeShared<UE::Geometry::FMeshPropertyMapEvaluator, ESPMode::ThreadSafe>();
+	PropertyEval->Property = UE::Geometry::EMeshPropertyMapType::VertexColor;
+
+	UE::Geometry::FMeshMapBaker Baker;
+	Baker.SetTargetMesh(&DynamicMesh);
+	Baker.SetDetailSampler(&DetailSampler);
+	Baker.AddEvaluator(PropertyEval);
+	Baker.SetTargetMeshUVLayer(StaticMeshComponent->GetMeshPaintTextureCoordinateIndex());
+	Baker.SetDimensions(UE::Geometry::FImageDimensions(TextureSize, TextureSize));
+	Baker.SetProjectionDistance(3.0f);
+	Baker.SetSamplesPerPixel(1);
+	Baker.SetFilter(UE::Geometry::FMeshMapBaker::EBakeFilterType::BSpline);
+	Baker.SetGutterEnabled(true);
+	Baker.SetGutterSize(4);
+	Baker.Bake();
+
+	FImageView ResultImage((FLinearColor*)Baker.GetBakeResults(0)[0]->GetImageBuffer().GetData(), TextureSize, TextureSize);
+	FImage ConvertedImage;
+	ResultImage.CopyTo(ConvertedImage, ERawImageFormat::BGRA8, EGammaSpace::sRGB);
+
+	UMeshPaintVirtualTexture* NewTexture = NewObject<UMeshPaintVirtualTexture>(StaticMeshComponent->GetOutermost());
+	NewTexture->Source.Init(ConvertedImage);
+	NewTexture->OwningComponent = MakeWeakObjectPtr(StaticMeshComponent);
+	NewTexture->UpdateResource();
+
+	StaticMeshComponent->Modify();
+	StaticMeshComponent->SetMeshPaintTexture(NewTexture);
 }
 
 
@@ -568,11 +669,18 @@ bool UMeshPaintModeSubsystem::CanPropagateVertexColors(TArray<UStaticMeshCompone
 
 		if (StaticMesh != nullptr)
 		{
+			// Disallow propagation of vertex colors to cooked static mesh assets.
+			if (StaticMesh->GetOutermost()->bIsCookedForEditor)
+			{
+				bValid = false;
+				break;
+			}
+			
 			StaticMeshes.AddUnique(StaticMesh);
 		}
 
 		int32 CachedLODIndex = 0;
-		if (UMeshColorPaintingTool* ColorPaintingTool = Cast<UMeshColorPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)))
+		if (UMeshVertexColorPaintingTool* ColorPaintingTool = Cast<UMeshVertexColorPaintingTool>(UMeshPaintMode::GetMeshPaintMode()->GetToolManager()->GetActiveTool(EToolSide::Left)))
 		{
 			CachedLODIndex = ColorPaintingTool->GetCachedLODIndex();
 		}
@@ -812,10 +920,61 @@ void UMeshPaintModeSubsystem::RemovePerLODColors(const TArray<UMeshComponent*>& 
 	}
 }
 
-void UMeshPaintModeSubsystem::SwapVertexColors()
+bool UMeshPaintModeSubsystem::CanFixTextureColors(const TArray<UMeshComponent*>& Components)
 {
-	UMeshVertexPaintingToolProperties* Settings = UMeshPaintMode::GetVertexToolProperties();
-	if (Settings)
+	for (UMeshComponent* Component : Components)
+	{
+		if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component))
+		{
+			if (UTexture* Texture = StaticMeshComponent->GetMeshPaintTexture())
+			{
+				if (StaticMeshComponent->CanMeshPaintTextureColors())
+				{
+					if (StaticMeshComponent->GetMeshPaintTextureResolution() != Texture->Source.GetSizeX())
+					{
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
+}
+
+void UMeshPaintModeSubsystem::FixTextureColors(const TArray<UMeshComponent*>& Components)
+{
+	for (UMeshComponent* Component : Components)
+	{
+		if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component))
+		{
+			if (UTexture* Texture = StaticMeshComponent->GetMeshPaintTexture())
+			{
+				int32 TextureResolution = StaticMeshComponent->GetMeshPaintTextureResolution();
+				if (TextureResolution != Texture->Source.GetSizeX())
+				{
+					FImage Image;
+					if (Texture->Source.GetMipImage(Image, 0))
+					{
+						FImage ResizedImage(TextureResolution, TextureResolution, Image.NumSlices, Image.Format, Image.GammaSpace);
+						FImageCore::ResizeImage(Image, ResizedImage);
+
+						UMeshPaintVirtualTexture* NewTexture = NewObject<UMeshPaintVirtualTexture>(StaticMeshComponent->GetOutermost());
+						NewTexture->Source.Init(ResizedImage);
+						NewTexture->OwningComponent = MakeWeakObjectPtr(StaticMeshComponent);
+						NewTexture->UpdateResource();
+
+						StaticMeshComponent->Modify();
+						StaticMeshComponent->SetMeshPaintTexture(NewTexture);
+					}
+				}
+			}
+		}
+	}
+}
+
+void UMeshPaintModeSubsystem::SwapColors()
+{
+	if (UMeshPaintingToolProperties* Settings = UMeshPaintMode::GetToolProperties())
 	{
 		Settings->Modify();
 
@@ -823,38 +982,4 @@ void UMeshPaintModeSubsystem::SwapVertexColors()
 		Settings->PaintColor = Settings->EraseColor;
 		Settings->EraseColor = TempPaintColor;
 	}
-}
-
-
-
-void UMeshPaintModeSubsystem::SaveModifiedTextures()
-{
-	UMeshTexturePaintingToolProperties* Settings = UMeshPaintMode::GetTextureToolProperties();
-	if (Settings)
-	{
-		UTexture2D* SelectedTexture = Settings->PaintTexture;
-
-		if (nullptr != SelectedTexture)
-		{
-			TArray<UObject*> TexturesToSaveArray;
-			TexturesToSaveArray.Add(SelectedTexture);
-			UPackageTools::SavePackagesForObjects(TexturesToSaveArray);
-		}
-	}
-}
-
-bool UMeshPaintModeSubsystem::CanSaveModifiedTextures()
-{
-	/** Check whether or not the current selected paint texture requires saving */
-	bool bRequiresSaving = false;
-	UMeshTexturePaintingToolProperties* Settings = UMeshPaintMode::GetTextureToolProperties();
-	if (Settings)
-	{
-		const UTexture2D* SelectedTexture = Settings->PaintTexture;
-		if (nullptr != SelectedTexture)
-		{
-			bRequiresSaving = SelectedTexture->GetOutermost()->IsDirty();
-		}
-	}
-	return bRequiresSaving;
 }

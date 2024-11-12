@@ -22,10 +22,12 @@
 
 #include "NiagaraScript.generated.h"
 
+struct FAppendToClassSchemaContext;
 class UNiagaraDataInterface;
 class FNiagaraCompileRequestDataBase;
 class FNiagaraCompileRequestDuplicateDataBase;
 class UNiagaraConvertInPlaceUtilityBase;
+class UNiagaraHierarchyRoot;
 
 #define NIAGARA_INVALID_MEMORY (0xBA)
 
@@ -728,7 +730,7 @@ public:
 	bool bUsePythonScriptConversion = false;
 
 	/** Reference to a python script that is executed when the user updates from a previous version to this version. */
-	UPROPERTY(EditAnywhere, Category = Script, meta=(EditCondition="bUsePythonScriptConversion", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = Script, meta=(EditCondition="bUsePythonScriptConversion", EditConditionHides, SegmentedDisplay))
 	ENiagaraPythonUpdateScriptReference ConversionScriptExecution = ENiagaraPythonUpdateScriptReference::ScriptAsset;
 
 	/** Python script to run when converting this script to the recommended deprecation update script. */
@@ -760,7 +762,7 @@ public:
 	FText DebugDrawMessage;
 
 	/* Defines if this script is visible to the user when searching for modules to add to an emitter.  */
-	UPROPERTY(AssetRegistrySearchable, EditAnywhere, Category = Script)
+	UPROPERTY(AssetRegistrySearchable, EditAnywhere, Category = Script, meta = (SegmentedDisplay))
 	ENiagaraScriptLibraryVisibility LibraryVisibility;
 
 	/** The mode to use when deducing the type of numeric output pins from the types of the input pins. */
@@ -792,9 +794,6 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = Script, DisplayName = "Script Metadata", meta = (ToolTip = "Script Metadata"))
 	TMap<FName, FString> ScriptMetaData;
-	
-	UPROPERTY(EditAnywhere, Category = Script)
-	TArray<FNiagaraStackSection> InputSections;
 
 	/** Adjusted every time ComputeVMCompilationId is called.*/
 	UPROPERTY()
@@ -816,7 +815,11 @@ public:
 	UPROPERTY()
 	TArray<FParameterDefinitionsSubscription> ParameterDefinitionsSubscriptions;
 	NIAGARA_API TArray<ENiagaraScriptUsage> GetSupportedUsageContexts() const;
+	
+	NIAGARA_API class UNiagaraScriptSourceBase* GetSource() { return Source; }
 
+	UPROPERTY()
+	TArray<FNiagaraStackSection> InputSections_DEPRECATED;
 private:
 	friend class UNiagaraScript;
 
@@ -826,7 +829,13 @@ private:
 #endif	
 };
 
-/** Runtime script for a Niagara system */
+/** Scripts are function graphs that define the runtime execution for a Niagara system (similar to a Blueprint).
+ *
+ * There are three types of scripts:
+ * 1) Module: can be added as a standalone part to the emitter stack and encapsulates a single behavior, for example "Add Velocity"
+ * 2) Dynamic input: has a single output value and can be added to any input in the stack to compute such a value, for example "Random Vector" 
+ * 3) Function: usually reserved for helper functions; can only be called from within modules or dynamic inputs 
+ */
 UCLASS(MinimalAPI)
 class UNiagaraScript : public UNiagaraScriptBase, public FNiagaraVersionedObject
 {
@@ -877,6 +886,10 @@ public:
 
 	/** Creates a shallow transient copy of this script for compilation purposes. */
 	NIAGARA_API UNiagaraScript* CreateCompilationCopy();
+
+	/** Clears out resolved runtime data.  For scripts belonging to standalone emitters the resolved data could be references to the transient
+		NiagaraSystem used for editing.  In the future all this data will be moved to live on the System itself so this will no longer be required. */
+	NIAGARA_API void ClearResolvedData();
 
 	/** A set of rules to apply when this script is used in the stack. To create your own rules, write a custom class that extends UNiagaraValidationRule. */
 	UPROPERTY(EditAnywhere, Category = "Validation", Instanced)
@@ -1121,6 +1134,8 @@ public:
 	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	virtual void Serialize(FArchive& Ar)override;
 	virtual void PostLoad() override;
+	
+
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditChangeVersionedProperty(FPropertyChangedEvent& PropertyChangedEvent, const FGuid& Version);
@@ -1157,8 +1172,15 @@ public:
 	void SaveShaderStableKeys(const class ITargetPlatform* TP);
 
 	TArray<FName> FindShaderFormatsForCooking(const ITargetPlatform* TargetPlatform) const;
-
 #endif // WITH_EDITOR
+
+#if WITH_EDITORONLY_DATA
+	/**
+	 * Called from UNiagaraSystem::AppendToClassSchema() to collect the Script specific details for iterative cooking
+	 */
+	static void BuildClassSchema(FAppendToClassSchemaContext& Context);
+#endif
+
 	FNiagaraShaderScript* GetRenderThreadScript()
 	{
 		return ScriptResource.Get();
@@ -1448,6 +1470,11 @@ private:
 
 	/* Flag set on load based on whether we're loading from a cooked package. */
 	bool IsCooked = false;
+
+	/* Transient flag marking that the script will need to rebuild the hierarchy root based on the custom version encountered during serialize.
+	*  Note that this is required because GetLinkerCustomVersion() is not reliable when assets are being duplicated, something that happens
+	*  often to our scripts during emitter merging, for example */
+	bool bMigrateParameterDataToHierarchyRoot = false;
 #endif
 
 	/** Compiled VM bytecode and data necessary to run this script.*/

@@ -10,17 +10,17 @@ namespace AutoRTFM
 	class FHitSet final
 	{
 		// TODO: Revisit a good probe depth for the hashset.
-		static constexpr uint32_t LinearProbeDepth = 16;
+		static constexpr uint64_t LinearProbeDepth = 16;
 
 		// TODO: Revisit a good initial capacity for the hitset.
-		static constexpr uint32_t LogInitialCapacity = 4;
+		static constexpr uint64_t LogInitialCapacity = 4;
 
 	public:
 		using Key = TTaggedPtr<void>;
 
 		explicit FHitSet()
 		{
-			constexpr uint32_t InitialCapacity = 1u << LogInitialCapacity;
+			constexpr uint64_t InitialCapacity = 1u << LogInitialCapacity;
 
 			// Do not want to deal with null payloads.
 			static_assert(0 != InitialCapacity);
@@ -28,7 +28,7 @@ namespace AutoRTFM
 			// The capacity is always a power of two so that the range reduction is optimal.
 			static_assert(0 == (InitialCapacity & (InitialCapacity - 1)));
 
-			Payload = new uintptr_t[InitialCapacity]();
+			Payload = static_cast<uintptr_t*>(FMemory::MallocZeroed(InitialCapacity * sizeof(uintptr_t)));
 			ASSERT(nullptr != Payload);
 
 			SixtyFourMinusLogCapacity = 64 - LogInitialCapacity;
@@ -37,7 +37,7 @@ namespace AutoRTFM
 
 		~FHitSet()
 		{
-			delete[] Payload;
+			FMemory::Free(Payload);
 		}
 
 		// Insert something in the HitSet, returning true if the put succeeded
@@ -73,12 +73,12 @@ namespace AutoRTFM
 			Size = 0;
 		}
 
-		uint32_t GetCapacity() const
+		uint64_t GetCapacity() const
 		{
 			return Capacity();
 		}
 
-		uint32_t GetSize() const
+		uint64_t GetSize() const
 		{
 			return Size;
 		}
@@ -86,13 +86,13 @@ namespace AutoRTFM
 	private:
 		uintptr_t* Payload;
 
-		uint32_t SixtyFourMinusLogCapacity;
+		uint64_t SixtyFourMinusLogCapacity;
 
-		uint32_t Size;
+		uint64_t Size;
 
-		UE_AUTORTFM_FORCEINLINE uint32_t Capacity() const
+		UE_AUTORTFM_FORCEINLINE uint64_t Capacity() const
 		{
-			return 1u << (64 - SixtyFourMinusLogCapacity);
+			return static_cast<uint64_t>(1) << (64 - SixtyFourMinusLogCapacity);
 		}
 
 		UE_AUTORTFM_FORCEINLINE void IncreaseCapacity()
@@ -107,9 +107,9 @@ namespace AutoRTFM
 
 		void Resize()
 		{
-			const uintptr_t* const OldPayload = Payload;
-			const uint32_t OldCapacity = Capacity();
-			const uint32_t OldSize = Size;
+			uintptr_t* const OldPayload = Payload;
+			const uint64_t OldCapacity = Capacity();
+			const uint64_t OldSize = Size;
 
 			while (true)
 			{
@@ -119,7 +119,7 @@ namespace AutoRTFM
 
 				IncreaseCapacity();
 
-				Payload = new uintptr_t[Capacity()]();
+				Payload = static_cast<uintptr_t*>(FMemory::MallocZeroed(Capacity() * sizeof(uintptr_t)));
 				ASSERT(nullptr != Payload);
 
 				// Now we need to rehash and reinsert all the items. We need to
@@ -147,7 +147,7 @@ namespace AutoRTFM
 
 				if (NeedAnotherResize)
 				{
-					delete[] Payload;
+					FMemory::Free(Payload);
 					continue;
 				}
 
@@ -156,7 +156,7 @@ namespace AutoRTFM
 
 			ASSERT(OldSize == Size);
 
-			delete[] OldPayload;
+			FMemory::Free(OldPayload);
 
 			return;
 		}
@@ -227,7 +227,12 @@ namespace AutoRTFM
 			// Then, if that fails, we use a second more complicated hash with a linear probe.
 			const uintptr_t Hash = SecondHash(Raw);
 
-			for (uint32_t D = 0; D < LinearProbeDepth; D++)
+			// Clang goes way over the top with loop unrolling, and makes this code noticably
+			// slower as a result. So we disable it!
+#ifdef __clang__
+#pragma clang loop unroll(disable)
+#endif
+			for (uint64_t D = 0; D < LinearProbeDepth; D++)
 			{
 				const uintptr_t I = FirstHashInRange(Hash + D);
 

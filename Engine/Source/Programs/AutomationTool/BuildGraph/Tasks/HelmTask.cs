@@ -1,13 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
+using EpicGames.Core;
 using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
@@ -21,67 +18,67 @@ namespace AutomationTool.Tasks
 		/// Helm command line arguments
 		/// </summary>
 		[TaskParameter]
-		public string Chart;
+		public string Chart { get; set; }
 
 		/// <summary>
 		/// Name of the release
 		/// </summary>
 		[TaskParameter]
-		public string Deployment;
+		public string Deployment { get; set; }
 
 		/// <summary>
 		/// The Kubernetes namespace
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Namespace;
+		public string Namespace { get; set; }
 
 		/// <summary>
 		/// The kubectl context
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string KubeContext;
+		public string KubeContext { get; set; }
 
 		/// <summary>
 		/// The kubectl config file to use
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string KubeConfig;
+		public string KubeConfig { get; set; }
 
 		/// <summary>
 		/// Values to set for running the chart
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Values;
+		public string Values { get; set; }
 
 		/// <summary>
 		/// Values to set for running the chart
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string ValuesFile;
+		public string ValuesFile { get; set; }
 
 		/// <summary>
 		/// Environment variables to set
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Environment;
+		public string Environment { get; set; }
 
 		/// <summary>
 		/// File to parse environment variables from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EnvironmentFile;
+		public string EnvironmentFile { get; set; }
 
 		/// <summary>
 		/// Additional arguments
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// Base directory for running the command
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string WorkingDir;
+		public string WorkingDir { get; set; }
 	}
 
 	/// <summary>
@@ -90,78 +87,75 @@ namespace AutomationTool.Tasks
 	[TaskElement("Helm", typeof(HelmTaskParameters))]
 	public class HelmTask : SpawnTaskBase
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		HelmTaskParameters Parameters;
+		readonly HelmTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a Helm task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public HelmTask(HelmTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public HelmTask(HelmTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 
 			// Build the argument list
-			List<string> Arguments = new List<string>();
-			Arguments.Add("upgrade");
-			Arguments.Add(Parameters.Deployment);
-			Arguments.Add(new FileReference(Parameters.Chart).FullName);
-			Arguments.Add("--install");
-			Arguments.Add("--reset-values");
-			if(Parameters.Namespace != null)
+			List<string> arguments = new List<string>();
+			arguments.Add("upgrade");
+			arguments.Add(_parameters.Deployment);
+			arguments.Add(new FileReference(_parameters.Chart).FullName);
+			arguments.Add("--install");
+			arguments.Add("--reset-values");
+			if (_parameters.Namespace != null)
 			{
-				Arguments.Add("--namespace");
-				Arguments.Add(Parameters.Namespace);
+				arguments.Add("--namespace");
+				arguments.Add(_parameters.Namespace);
 			}
-			if (Parameters.KubeContext != null)
+			if (_parameters.KubeContext != null)
 			{
-				Arguments.Add("--kube-context");
-				Arguments.Add(Parameters.KubeContext);
+				arguments.Add("--kube-context");
+				arguments.Add(_parameters.KubeContext);
 			}
-			if (Parameters.KubeConfig != null)
+			if (_parameters.KubeConfig != null)
 			{
-				Arguments.Add("--kubeconfig");
-				Arguments.Add(Parameters.KubeConfig);
+				arguments.Add("--kubeconfig");
+				arguments.Add(_parameters.KubeConfig);
 			}
-			if (!string.IsNullOrEmpty(Parameters.Values))
+			if (!string.IsNullOrEmpty(_parameters.Values))
 			{
-				foreach (string Value in SplitDelimitedList(Parameters.Values))
+				foreach (string value in SplitDelimitedList(_parameters.Values))
 				{
-					Arguments.Add("--set");
-					Arguments.Add(Value);
+					arguments.Add("--set");
+					arguments.Add(value);
 				}
 			}
-			if (!String.IsNullOrEmpty(Parameters.ValuesFile))
+			if (!String.IsNullOrEmpty(_parameters.ValuesFile))
 			{
-				foreach (FileReference ValuesFile in ResolveFilespec(Unreal.RootDirectory, Parameters.ValuesFile, TagNameToFileSet))
+				foreach (FileReference valuesFile in ResolveFilespec(Unreal.RootDirectory, _parameters.ValuesFile, tagNameToFileSet))
 				{
-					Arguments.Add("--values");
-					Arguments.Add(ValuesFile.FullName);
+					arguments.Add("--values");
+					arguments.Add(valuesFile.FullName);
 				}
 			}
 
-			string AdditionalArguments = String.IsNullOrEmpty(Parameters.Arguments) ? String.Empty : $" {Parameters.Arguments}";
-			await SpawnTaskBase.ExecuteAsync("helm", CommandLineArguments.Join(Arguments) + AdditionalArguments, WorkingDir: Parameters.WorkingDir, EnvVars: ParseEnvVars(Parameters.Environment, Parameters.EnvironmentFile));
+			string additionalArguments = String.IsNullOrEmpty(_parameters.Arguments) ? String.Empty : $" {_parameters.Arguments}";
+			await SpawnTaskBase.ExecuteAsync("helm", CommandLineArguments.Join(arguments) + additionalArguments, workingDir: _parameters.WorkingDir, envVars: ParseEnvVars(_parameters.Environment, _parameters.EnvironmentFile));
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

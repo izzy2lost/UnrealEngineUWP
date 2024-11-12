@@ -192,10 +192,77 @@ public:
 
 };
 
+class IJointBehaviorMetadataReader : public virtual IDefinitionReader
+{
+protected:
+	virtual ~IJointBehaviorMetadataReader() = default;
+
+public:
+	virtual ETranslationRepresentation GetJointTranslationRepresentation(uint16 JointIndex) const = 0;
+	virtual ERotationRepresentation GetJointRotationRepresentation(uint16 JointIndex) const = 0;
+	virtual EScaleRepresentation GetJointScaleRepresentation(uint16 JointIndex) const = 0;
+
+};
+
+class IRBFBehaviorReader : public virtual IBehaviorReader
+{
+protected:
+	virtual ~IRBFBehaviorReader() = default;
+
+public:
+	virtual uint16 GetRBFPoseCount() const = 0;
+	virtual FString GetRBFPoseName(uint16 PoseIndex) const = 0;
+	virtual TArrayView<const uint16> GetRBFPoseJointOutputIndices(uint16 PoseIndex) const = 0;
+	virtual TArrayView<const uint16> GetRBFPoseBlendShapeChannelOutputIndices(uint16 PoseIndex) const = 0;
+	virtual TArrayView<const uint16> GetRBFPoseAnimatedMapOutputIndices(uint16 PoseIndex) const = 0;
+	virtual TArrayView<const float> GetRBFPoseJointOutputValues(uint16 PoseIndex) const = 0;
+	virtual float GetRBFPoseScale(uint16 PoseIndex) const = 0;
+	virtual uint16 GetRBFPoseControlCount() const = 0;
+	virtual FString GetRBFPoseControlName(uint16 PoseControlIndex) const = 0;
+	virtual TArrayView<const uint16> GetRBFPoseInputControlIndices(uint16 PoseIndex) const = 0;
+	virtual TArrayView<const uint16> GetRBFPoseOutputControlIndices(uint16 PoseIndex) const = 0;
+	virtual TArrayView<const float> GetRBFPoseOutputControlWeights(uint16 PoseIndex) const = 0;
+	virtual uint16 GetRBFSolverCount() const = 0;
+	virtual uint16 GetRBFSolverIndexListCount() const = 0;
+	virtual TArrayView<const uint16> GetRBFSolverIndicesForLOD(uint16 LOD) const = 0;
+	virtual FString GetRBFSolverName(uint16 SolverIndex) const = 0;
+	virtual TArrayView<const uint16> GetRBFSolverRawControlIndices(uint16 SolverIndex) const = 0;
+	virtual TArrayView<const uint16> GetRBFSolverPoseIndices(uint16 SolverIndex) const = 0;
+	virtual TArrayView<const float> GetRBFSolverRawControlValues(uint16 SolverIndex) const = 0;
+	virtual ERBFSolverType GetRBFSolverType(uint16 SolverIndex) const = 0;
+	virtual float GetRBFSolverRadius(uint16 SolverIndex) const = 0;
+	virtual EAutomaticRadius GetRBFSolverAutomaticRadius(uint16 SolverIndex) const = 0;
+	virtual float GetRBFSolverWeightThreshold(uint16 SolverIndex) const = 0;
+	virtual ERBFDistanceMethod GetRBFSolverDistanceMethod(uint16 SolverIndex) const = 0;
+	virtual ERBFNormalizeMethod GetRBFSolverNormalizeMethod(uint16 SolverIndex) const = 0;
+	virtual ERBFFunctionType GetRBFSolverFunctionType(uint16 SolverIndex) const = 0;
+	virtual ETwistAxis GetRBFSolverTwistAxis(uint16 SolverIndex) const = 0;
+
+};
+
+class ITwistSwingBehaviorReader : public virtual IDefinitionReader
+{
+protected:
+	virtual ~ITwistSwingBehaviorReader() = default;
+
+public:
+	virtual uint16 GetTwistCount() const = 0;
+	virtual ETwistAxis GetTwistSetupTwistAxis(uint16 TwistIndex) const = 0;
+	virtual TArrayView<const uint16> GetTwistInputControlIndices(uint16 TwistIndex) const = 0;
+	virtual TArrayView<const uint16> GetTwistOutputJointIndices(uint16 TwistIndex) const = 0;
+	virtual TArrayView<const float> GetTwistBlendWeights(uint16 TwistIndex) const = 0;
+	virtual uint16 GetSwingCount() const = 0;
+	virtual ETwistAxis GetSwingSetupTwistAxis(uint16 SwingIndex) const = 0;
+	virtual TArrayView<const uint16> GetSwingInputControlIndices(uint16 SwingIndex) const = 0;
+	virtual TArrayView<const uint16> GetSwingOutputJointIndices(uint16 SwingIndex) const = 0;
+	virtual TArrayView<const float> GetSwingBlendWeights(uint16 SwingIndex) const = 0;
+
+};
+
 /**
 	@brief UE interface for DNA Reader wrappers.
 */
-class IDNAReader : public IBehaviorReader, public IGeometryReader, public IMachineLearnedBehaviorReader
+class IDNAReader : public IRBFBehaviorReader, public IGeometryReader, public IMachineLearnedBehaviorReader, public IJointBehaviorMetadataReader, public ITwistSwingBehaviorReader
 {
 public:
 	virtual ~IDNAReader() = default;

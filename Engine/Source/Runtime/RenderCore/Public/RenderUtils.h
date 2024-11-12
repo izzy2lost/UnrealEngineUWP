@@ -291,9 +291,16 @@ inline bool MobileForwardEnableLocalLights(const FStaticShaderPlatform Platform)
 	return FReadOnlyCVARCache::MobileForwardLocalLights(Platform) > 0;
 }
 
+inline bool MobileForwardEnableParticleLights(const FStaticShaderPlatform Platform)
+{
+	return MobileForwardEnableLocalLights(Platform) && FReadOnlyCVARCache::MobileForwardParticleLights(Platform);
+}
+
 RENDERCORE_API bool PlatformGPUSceneUsesUniformBufferView(const FStaticShaderPlatform Platform);
 
 RENDERCORE_API bool MobileRequiresSceneDepthAux(const FStaticShaderPlatform Platform);
+
+RENDERCORE_API bool MobileAllowFramebufferFetch(const FStaticShaderPlatform Platform);
 
 RENDERCORE_API bool SupportsTextureCubeArray(ERHIFeatureLevel::Type FeatureLevel);
 
@@ -307,9 +314,15 @@ RENDERCORE_API uint32 GetPlatformShadingModelsMask(const FStaticShaderPlatform P
 
 RENDERCORE_API bool IsMobileAmbientOcclusionEnabled(const FStaticShaderPlatform Platform);
 
+RENDERCORE_API bool AreMobileScreenSpaceReflectionsEnabled(const FStaticShaderPlatform Platform);
+
 RENDERCORE_API bool IsMobileDistanceFieldEnabled(const FStaticShaderPlatform Platform);
 
 RENDERCORE_API bool IsMobileMovableSpotlightShadowsEnabled(const FStaticShaderPlatform Platform);
+
+RENDERCORE_API bool IsMobileCapsuleShadowsEnabled(const FStaticShaderPlatform Platform);
+
+RENDERCORE_API bool IsMobileCapsuleDirectShadowsEnabled(const FStaticShaderPlatform Platform);
 
 RENDERCORE_API bool MobileForwardEnableClusteredReflections(const FStaticShaderPlatform Platform);
 
@@ -354,6 +367,9 @@ RENDERCORE_API bool IsUsingDistanceFields(const FStaticShaderPlatform Platform);
 /** Returns if water should render distance field shadow a second time for the water surface. This is for a platofrm so can be used at cook time. */
 RENDERCORE_API bool IsWaterDistanceFieldShadowEnabled(const FStaticShaderPlatform Platform);
 
+/** Returns if water needs a separate main directional light texture. This is for a platofrm so can be used at cook time or at runtime. */
+RENDERCORE_API bool IsWaterSeparateMainDirLightEnabled(const FStaticShaderPlatform Platform);
+
 RENDERCORE_API bool UseGPUScene(const FStaticShaderPlatform Platform, const FStaticFeatureLevel FeatureLevel);
 
 RENDERCORE_API bool UseGPUScene(const FStaticShaderPlatform Platform);
@@ -389,12 +405,10 @@ UE_DEPRECATED(5.4, "Use version that takes FStaticShaderPlatform instead")
 RENDERCORE_API bool UseVirtualTexturing(const FStaticFeatureLevel InFeatureLevel, const ITargetPlatform* TargetPlatform = nullptr);
 
 RENDERCORE_API bool NaniteAtomicsSupported();
-RENDERCORE_API bool NaniteComputeMaterialsSupported();
-RENDERCORE_API bool NaniteLegacyMaterialsSupported();
-RENDERCORE_API bool NaniteTessellationSupported();
+RENDERCORE_API bool NaniteWorkGraphMaterialsSupported();
 RENDERCORE_API bool NaniteSplineMeshesSupported();
+RENDERCORE_API bool NaniteSkinnedMeshesSupported();
 
-RENDERCORE_API bool UseNaniteComputeMaterials();
 RENDERCORE_API bool UseNaniteFastTileClear();
 RENDERCORE_API bool UseNaniteTessellation();
 
@@ -406,6 +420,12 @@ RENDERCORE_API bool DoesTargetPlatformSupportNanite(const ITargetPlatform* Targe
  * Returns true if Nanite rendering should be used for the given shader platform.
  */
 RENDERCORE_API bool UseNanite(EShaderPlatform ShaderPlatform, bool bCheckForAtomicSupport = true, bool bCheckForProjectSetting = true);
+
+/**
+ * Returns true if Virtual Shadow Maps should be used for the given shader platform.
+ * Note: Virtual Shadow Maps require Nanite support.
+ */
+RENDERCORE_API bool UseVirtualShadowMaps(EShaderPlatform ShaderPlatform);
 
 /**
  * Returns true if Virtual Shadow Maps should be used for the given shader platform.
@@ -528,6 +548,13 @@ extern RENDERCORE_API bool IsRayTracingAllowed();
 // This function may only be called at runtime, never during cooking.
 extern RENDERCORE_API ERayTracingMode GetRayTracingMode();
 
+// Returns 'true' when using TLAS references to determine ray tracing geometry residency
+// In which case the runtime should track which ray tracing geometries are referenced in the TLAS
+RENDERCORE_API bool IsRayTracingUsingReferenceBasedResidency();
+
+// Returns 'true' when ray tracing can be toggled on/off at runtime.
+RENDERCORE_API bool IsRayTracingEnableOnDemandSupported();
+
 // Returns 'true' when static lighting is enabled for the project
 inline bool IsStaticLightingAllowed()
 {
@@ -538,8 +565,12 @@ extern RENDERCORE_API bool DoesPlatformSupportLumenGI(EShaderPlatform Platform, 
 
 extern RENDERCORE_API bool DoesProjectSupportLumenRayTracedTranslucentRefraction();
 
+RENDERCORE_API bool DoesProjectSupportExpFogMatchesVolumetricFog();
+
 /** Whether or not the platform supports the scene spline texture for spline meshes */
 RENDERCORE_API bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform);
+
+RENDERCORE_API bool RenderRectLightsAsSpotLights(const FStaticFeatureLevel FeatureLevel);
 
 namespace Substrate
 {
@@ -616,3 +647,6 @@ FORCEINLINE float Log2ToEV100(float LuminanceMax, float Log2)
 {
 	return Log2 - FMath::Log2(LuminanceMax);
 }
+
+// Whether or not VRS is supported via r.VRS.Support and the current platform's DDPI
+RENDERCORE_API bool HardwareVariableRateShadingSupportedByPlatform(EShaderPlatform ShaderPlatform);

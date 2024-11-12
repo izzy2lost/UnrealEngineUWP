@@ -83,6 +83,36 @@ bool UInterchangeSceneImportAssetFactory::SetSourceFilename(const UObject* Objec
 	return false;
 }
 
+void UInterchangeSceneImportAssetFactory::BackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UInterchangeSceneImportAsset* SceneImportAsset = Cast<UInterchangeSceneImportAsset>(Object))
+	{
+		UE::Interchange::FFactoryCommon::BackupSourceData(SceneImportAsset->AssetImportData);
+	}
+#endif
+}
+
+void UInterchangeSceneImportAssetFactory::ReinstateSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UInterchangeSceneImportAsset* SceneImportAsset = Cast<UInterchangeSceneImportAsset>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ReinstateSourceData(SceneImportAsset->AssetImportData);
+	}
+#endif
+}
+
+void UInterchangeSceneImportAssetFactory::ClearBackupSourceData(const UObject* Object) const
+{
+#if WITH_EDITORONLY_DATA
+	if (const UInterchangeSceneImportAsset* SceneImportAsset = Cast<UInterchangeSceneImportAsset>(Object))
+	{
+		UE::Interchange::FFactoryCommon::ClearBackupSourceData(SceneImportAsset->AssetImportData);
+	}
+#endif
+}
+
 UInterchangeFactoryBase::FImportAssetResult UInterchangeSceneImportAssetFactory::BeginImportAsset_GameThread(const FImportAssetObjectParams& Arguments)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSceneImportAssetFactory::BeginImportAsset_GameThread);

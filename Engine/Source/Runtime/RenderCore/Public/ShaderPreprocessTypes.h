@@ -13,6 +13,9 @@ struct FShaderCompilerEnvironment;
 struct FShaderCompilerError;
 struct FShaderCompilerInput;
 
+RENDERCORE_API FShaderSource::FViewType GetShaderSourceDebugHashPrefix();
+RENDERCORE_API FStringView GetShaderSourceDebugHashPrefixWide();
+
 /*
 * Helper class used to remap compiler diagnostic messages from stripped preprocessed source (i.e. source with all whitespace normalized
 * and comments and line directives removed) back to line numbers/locations from the original source. 
@@ -70,6 +73,11 @@ public:
 		return Empty;
 	}
 
+	FShaderSource::FViewType GetSourceView() const
+	{
+		return PreprocessedSource.GetView();
+	}
+
 	FAnsiStringView GetSourceViewAnsi() const
 	{
 #if SHADER_SOURCE_ANSI
@@ -109,17 +117,21 @@ public:
 		// if the unstripped source is requested, check if the "original source" field has been populated
 		// if not then stripping hasn't occurred so there's only one preprocessed source; return it
 #if SHADER_SOURCE_ANSI
+		// convert and store wide versions of requested source if view is requested. 
+		// this is only used in debug paths (debug output and viewing source in-editor)
+		// and the job should be freed shortly after, so the memory overhead is not a concern
 		if (OriginalPreprocessedSource.IsEmpty())
 		{
+			if (WideSource.IsEmpty())
+			{
+				WideSource = FString(PreprocessedSource.GetView());
+			}
 			return FStringView(WideSource);
 		}
 		else
 		{
 			if (WideSourceUnstripped.IsEmpty())
 			{
-				// convert and store wide version of unstripped source if view is requested. 
-				// this is only called in debug paths (a particular case of shader debug dumps,
-				// and visualizing shader source in the editor) so the overhead doesn't matter.
 				WideSourceUnstripped = FString(OriginalPreprocessedSource.GetView());
 			}
 			return FStringView(WideSourceUnstripped);
@@ -163,6 +175,16 @@ public:
 			}
 		}
 		return false;
+	}
+
+	inline void VisitDirectives(TFunction<void(const FString*)> Action) const
+	{
+		const int32 NumberOfDirectives = PragmaDirectives.Num();
+		for (int32 i = 0; i < NumberOfDirectives; i++)
+		{
+			const FString& CurrentDirective = PragmaDirectives[i];
+			Action(&CurrentDirective);
+		}
 	}
 
 	inline void VisitDirectivesWithPrefix(const TCHAR* Prefix, TFunction<void(const FString*)> Action) const

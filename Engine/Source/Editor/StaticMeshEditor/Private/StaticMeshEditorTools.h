@@ -11,7 +11,7 @@
 #include "Widgets/SWidget.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SBoxPanel.h"
-#include "Engine/MeshMerging.h"
+#include "MeshReductionSettings.h"
 #include "Engine/StaticMesh.h"
 #include "IDetailCustomization.h"
 #include "StaticMeshResources.h"
@@ -22,7 +22,7 @@ struct FAssetData;
 class FAssetThumbnailPool;
 class FDetailWidgetRow;
 class FLevelOfDetailSettingsLayout;
-class FNaniteSettingsLayout;
+class FNaniteStaticMeshLayout;
 class FStaticMeshEditor;
 class IDetailCategoryBuilder;
 class IDetailChildrenBuilder;
@@ -64,7 +64,7 @@ private:
 	TSharedPtr<FLevelOfDetailSettingsLayout> LevelOfDetailSettings;
 
 	/** Nanite settings for the details panel. */
-	TSharedPtr<FNaniteSettingsLayout> NaniteSettings;
+	TSharedPtr<FNaniteStaticMeshLayout> NaniteSettings;
 
 	/** Static mesh editor */
 	class FStaticMeshEditor& StaticMeshEditor;
@@ -676,118 +676,3 @@ private:
 	FDelegateHandle OnAssetPostLODImportDelegateHandle;
 };
 
-/**
- * Window for Nanite settings.
- */
-class FNaniteSettingsLayout : public TSharedFromThis<FNaniteSettingsLayout>
-{
-public:
-	FNaniteSettingsLayout(FStaticMeshEditor& StaticMeshEditor);
-	virtual ~FNaniteSettingsLayout();
-
-	const FMeshNaniteSettings& GetSettings() const;
-	void UpdateSettings(const FMeshNaniteSettings& InSettings);
-
-	void AddToDetailsPanel(IDetailLayoutBuilder& DetailBuilder);
-
-	/** Returns true if settings have been changed and an Apply is needed to update the asset. */
-	bool IsApplyNeeded() const;
-
-	/** Apply current Nanite settings to the mesh. */
-	void ApplyChanges();
-
-	/** Position Precision range selectable in the UI. */
-	static const int32 DisplayPositionPrecisionAuto = MIN_int32;
-	static const int32 DisplayPositionPrecisionMin = -6;
-	static const int32 DisplayPositionPrecisionMax = 13;
-
-	static int32 PositionPrecisionIndexToValue(int32 Index);
-	static int32 PositionPrecisionValueToIndex(int32 Value);
-
-	/** Display string to show in menus. */
-	static FString PositionPrecisionValueToDisplayString(int32 Value);
-
-
-	/** Normal Precision range selectable in the UI. */
-	static const int32 DisplayNormalPrecisionAuto = -1;
-	static const int32 DisplayNormalPrecisionMin = 5;
-	static const int32 DisplayNormalPrecisionMax = 15;
-
-	static int32 NormalPrecisionIndexToValue(int32 Index);
-	static int32 NormalPrecisionValueToIndex(int32 Value);
-
-	/** Display string to show in menus. */
-	static FString NormalPrecisionValueToDisplayString(int32 Value);
-
-	/** Tangent Precision range selectable in the UI. */
-	static const int32 DisplayTangentPrecisionAuto = -1;
-	static const int32 DisplayTangentPrecisionMin = 4;
-	static const int32 DisplayTangentPrecisionMax = 12;
-
-	static int32 TangentPrecisionIndexToValue(int32 Index);
-	static int32 TangentPrecisionValueToIndex(int32 Value);
-
-	/** Display string to show in menus. */
-	static FString TangentPrecisionValueToDisplayString(int32 Value);
-
-	/** Residency range selectable in the UI. */
-	static const int32 DisplayMinimumResidencyMinimalIndex = 0;
-	static const int32 DisplayMinimumResidencyExpRangeMin = 5;
-	static const int32 DisplayMinimumResidencyExpRangeMax = 15;
-	static const int32 DisplayMinimumResidencyFullIndex = DisplayMinimumResidencyExpRangeMax - DisplayMinimumResidencyExpRangeMin + 2;
-
-	static uint32 MinimumResidencyIndexToValue(int32 Index);
-	static int32 MinimumResidencyValueToIndex(uint32 Value);
-
-	/** Display string to show in menus. */
-	static FString MinimumResidencyValueToDisplayString(uint32 Value);
-private:
-	FReply OnApply();
-
-	ECheckBoxState IsEnabledChecked() const;
-	void OnEnabledChanged(ECheckBoxState NewState);
-
-	void OnPositionPrecisionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo);
-	void OnNormalPrecisionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo);
-	void OnTangentPrecisionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo);
-	void OnResidencyChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo);
-
-	float GetKeepPercentTriangles() const;
-	void OnKeepPercentTrianglesChanged(float NewValue);
-	void OnKeepPercentTrianglesCommitted(float NewValue, ETextCommit::Type TextCommitType);
-
-	float GetTrimRelativeError() const;
-	void OnTrimRelativeErrorChanged(float NewValue);
-
-	float GetFallbackPercentTriangles() const;
-	void OnFallbackPercentTrianglesChanged(float NewValue);
-	void OnFallbackPercentTrianglesCommitted(float NewValue, ETextCommit::Type TextCommitType);
-
-	float GetFallbackRelativeError() const;
-	void OnFallbackRelativeErrorChanged(float NewValue);
-
-	int32 GetDisplacementUVChannel() const;
-	void OnDisplacementUVChannelChanged(int32 NewValue);
-
-	FString GetHiResSourceFilename() const;
-	void SetHiResSourceFilename(const FString& NewSourceFile);
-
-	bool DoesHiResDataExists() const;
-	bool IsHiResDataEmpty() const;
-	
-	FReply OnImportHiRes();
-	FReply OnRemoveHiRes();
-	FReply OnReimportHiRes();
-	FReply OnReimportHiResWithNewFile();
-
-private:
-	/** The Static Mesh Editor this tool is associated with. */
-	FStaticMeshEditor& StaticMeshEditor;
-
-	FMeshNaniteSettings NaniteSettings;
-
-	TArray<TSharedPtr<FString> > PositionPrecisionOptions;
-	TArray<TSharedPtr<FString> > NormalPrecisionOptions;
-	TArray<TSharedPtr<FString> > TangentPrecisionOptions;
-	TArray<TSharedPtr<FString> > ResidencyOptions;
-};

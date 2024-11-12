@@ -87,6 +87,12 @@ public:
 	/** Constructor when we know what feature level this resource should support */
 	RENDERCORE_API FRenderResource(ERHIFeatureLevel::Type InFeatureLevel);
 
+	/** Misc copy/assignment */
+	RENDERCORE_API FRenderResource(const FRenderResource&);
+	RENDERCORE_API FRenderResource(FRenderResource&&);
+	RENDERCORE_API FRenderResource& operator=(const FRenderResource& Other);
+	RENDERCORE_API FRenderResource& operator=(FRenderResource&& Other);
+
 	/** Destructor used to catch unreleased resources. */
 	RENDERCORE_API virtual ~FRenderResource();
 
@@ -395,6 +401,10 @@ public:
 
 	RENDERCORE_API FTexture();
 	RENDERCORE_API virtual ~FTexture();
+	RENDERCORE_API FTexture(const FTexture&);
+	RENDERCORE_API FTexture(FTexture&&);
+	RENDERCORE_API FTexture& operator=(const FTexture& Other);
+	RENDERCORE_API FTexture& operator=(FTexture&& Other);
 
 	const FTextureRHIRef& GetTextureRHI() { return TextureRHI; }
 
@@ -472,6 +482,8 @@ class FVertexBuffer : public FRenderResource
 {
 public:
 	RENDERCORE_API FVertexBuffer();
+	RENDERCORE_API FVertexBuffer(const FVertexBuffer&);
+	RENDERCORE_API FVertexBuffer& operator=(const FVertexBuffer& Other);
 	RENDERCORE_API virtual ~FVertexBuffer();
 
 	// FRenderResource interface.
@@ -505,6 +517,8 @@ class FIndexBuffer : public FRenderResource
 {
 public:
 	RENDERCORE_API FIndexBuffer();
+	RENDERCORE_API FIndexBuffer(const FIndexBuffer&);
+	RENDERCORE_API FIndexBuffer& operator=(const FIndexBuffer& Other);
 	RENDERCORE_API virtual ~FIndexBuffer();
 
 	// FRenderResource interface.

@@ -2,10 +2,9 @@
 
 #include "NNE.h"
 
-#include "EngineAnalytics.h"
-#include "Kismet/GameplayStatics.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/SecureHash.h"
+#include "Modules/ModuleManager.h"
 
 DEFINE_LOG_CATEGORY(LogNNE);
 
@@ -83,27 +82,11 @@ namespace UE::NNE
 
 	ERegisterRuntimeStatus RegisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime)
 	{
-		const ERegisterRuntimeStatus Result = FRegistry::GetInstance().Add(Runtime);
-
 #ifdef WITH_EDITOR
 		FModuleManager::Get().LoadModule(TEXT("NNEEditor"));
 #endif
 
-		const FString RuntimeName = Runtime->GetRuntimeName();
-
-		FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddLambda([RuntimeName]()
-		{
-			if (FEngineAnalytics::IsAvailable())
-			{
-				TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
-					TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
-					TEXT("HashedRuntimeName"), FMD5::HashAnsiString(*RuntimeName)
-				);
-				FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.RegisterRuntime"), Attributes);
-			}
-		});
-
-		return Result;
+		return FRegistry::GetInstance().Add(Runtime);
 	}
 
 	EUnregisterRuntimeStatus UnregisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime)

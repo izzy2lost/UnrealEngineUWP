@@ -5,10 +5,6 @@
 #include "HAL/Platform.h"
 
 ////////////////////////////////////////////////////////////////////////////////
-/* Indicates if the external store is supported or if an instance should be
-   self-hosted by something */
-#define WITH_TRACE_STORE 0
-
 namespace UE {
 namespace Trace {
 

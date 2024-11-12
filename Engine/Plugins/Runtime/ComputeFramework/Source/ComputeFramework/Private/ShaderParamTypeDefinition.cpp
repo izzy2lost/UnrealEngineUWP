@@ -754,18 +754,20 @@ FShaderFunctionDefinition& FShaderFunctionDefinition::SetName(FString InName)
 	return *this;
 }
 
-FShaderFunctionDefinition& FShaderFunctionDefinition::AddParam(FShaderValueTypeHandle InValueType)
+FShaderFunctionDefinition& FShaderFunctionDefinition::AddParam(FShaderValueTypeHandle InValueType, EShaderParamModifier InModifier)
 {
 	FShaderParamTypeDefinition Def;
 	Def.ValueType = InValueType;
+	Def.Modifier = InModifier;
 	ParamTypes.Add(Def);
 	return *this;
 }
 
-FShaderFunctionDefinition& FShaderFunctionDefinition::AddParam(EShaderFundamentalType InType, int32 InRowCount, int32 InColumnCount)
+FShaderFunctionDefinition& FShaderFunctionDefinition::AddParam(EShaderFundamentalType InType, int32 InRowCount, int32 InColumnCount, EShaderParamModifier InModifier)
 {
 	FShaderParamTypeDefinition Def;
-	
+	Def.Modifier = InModifier;
+
 	if (InRowCount > 0 && InColumnCount > 0)
 	{
 		Def.ValueType = FShaderValueType::Get(InType, InRowCount, InColumnCount);
@@ -793,9 +795,9 @@ FShaderFunctionDefinition& FShaderFunctionDefinition::AddReturnType(FShaderValue
 	AddParam(InValueType);
 
 	// Return type is expected to be the first param.
-	if (ParamTypes.Num() > 1)
+	for (int I = ParamTypes.Num() - 1; I > 0; --I)
 	{
-		ParamTypes.Swap(0, ParamTypes.Num() - 1);
+		ParamTypes.Swap(I, I - 1);
 	}
 	return *this;
 }
@@ -810,9 +812,9 @@ FShaderFunctionDefinition& FShaderFunctionDefinition::AddReturnType(EShaderFunda
 	AddParam(InType, InRowCount, InColumnCount);
 
 	// Return type is expected to be the first param.
-	if (ParamTypes.Num() > 1)
+	for (int I = ParamTypes.Num() - 1; I > 0; --I)
 	{
-		ParamTypes.Swap(0, ParamTypes.Num() - 1);
+		ParamTypes.Swap(I, I - 1);
 	}
 	return *this;
 }

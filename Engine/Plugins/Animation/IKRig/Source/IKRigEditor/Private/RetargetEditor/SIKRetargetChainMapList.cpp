@@ -340,8 +340,6 @@ void SIKRetargetChainMapList::Construct(
 			{
 				OnItemClicked(Item);
 			})
-
-			.ItemHeight( 22.0f )
 			.HeaderRow
 			(
 				SNew( SHeaderRow )

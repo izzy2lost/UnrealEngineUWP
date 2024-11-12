@@ -411,6 +411,11 @@ bool HasSphericalVisibility(FLumenMaterialData In)
 	return HasBackfaceDiffuse(In) || IsHair(In);
 }
 
+bool SupportsScreenTraces(FLumenMaterialData In, bool bAllowHairScreenTraces)
+{
+	return !IsHair(In) || bAllowHairScreenTraces;
+}
+
 bool HasBentNormal(FLumenMaterialData In)
 {
 #if GBUFFER_HAS_DIFFUSE_SAMPLE_OCCLUSION

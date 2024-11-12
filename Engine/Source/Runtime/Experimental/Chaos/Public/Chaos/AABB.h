@@ -25,6 +25,12 @@ namespace Chaos
 		int8 VertexIndex1;
 	};
 
+	struct CHAOS_API FAABBFace
+	{
+		int8 VertexIndex[4];
+		int8 EdgeIndex[4];
+	};
+
 	template<class T, int d>
 	class TAABB
 	{
@@ -114,7 +120,6 @@ namespace Chaos
 
 		FORCEINLINE TAABB<T, d> GetIntersection(const TAABB<T, d>& Other) const
 		{
-			TVector<T, 3> Tmp;
 			return TAABB<T, d>(MMin.ComponentwiseMax(Other.MMin), MMax.ComponentwiseMin(Other.MMax));
 		}
 
@@ -527,17 +532,17 @@ namespace Chaos
 		*	This algorithm produces the following index scheme, where the
 		*	bottom left vertex is the "min" vertex and the top right is "max":
 		*	
-		*	        *-----11------*
+		*	        6-----11------7
 		*	       /|            /|
 		*	      9 |          10 |
 		*	     /  6          /  7
-		*	    *------8------*   |
+		*	    4------8------5   |
 		*	    |   |         |   |
-		*	    |   *------5--|---*
+		*	    |   2------5--|---3
 		*	    2  /          4  /
 		*	    | 1           | 3
 		*	    |/            |/
-		*	    *------0------*
+		*	    0------0------1
 		*/
 		FORCEINLINE FAABBEdge GetEdge(const int32 Index) const
 		{
@@ -552,6 +557,22 @@ namespace Chaos
 			};
 			return Edges[Index];
 		}
+
+		FORCEINLINE FAABBFace GetFace(const int32 Index) const
+		{
+			// See "GetVertex(int32)"
+			check(0 <= Index && Index < 6);
+			static constexpr FAABBFace Faces[]
+			{
+				{{ 0, 1, 5, 4 }, {0, 4, 8, 2}},
+				{{ 1, 3, 7, 5 }, {3, 7, 10, 4}},
+				{{ 4, 5, 7, 6 }, {8, 10, 11, 9}},
+				{{ 0, 2, 3, 1 }, {1, 5, 3, 0}},
+				{{ 0, 4, 6, 2 }, {2, 9, 6, 1}},
+				{{ 2, 6, 7, 3 }, {6, 11, 7, 5}}
+			};
+			return Faces[Index];
+		}		
 
 		FORCEINLINE int LargestAxis() const
 		{

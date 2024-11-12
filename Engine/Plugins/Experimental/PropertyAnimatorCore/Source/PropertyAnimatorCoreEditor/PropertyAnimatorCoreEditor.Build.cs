@@ -19,18 +19,22 @@ public class PropertyAnimatorCoreEditor : ModuleRules
 	        new string[]
 	        {
 		        "ApplicationCore",
+				"AssetDefinition",
 		        "CoreUObject",
 		        "EditorSubsystem",
 		        "EditorWidgets",
 		        "Engine",
 		        "InputCore",
+				"LevelSequence",
+				"MovieScene",
+				"MovieSceneTools",
 		        "OperatorStackEditor",
 		        "Projects",
 				"PropertyAnimatorCore",
 				"PropertyEditor",
+				"Sequencer",
 		        "SlateCore",
 		        "Slate",
-		        "StructUtils",
 		        "ToolMenus",
 		        "UnrealEd"
 	        }

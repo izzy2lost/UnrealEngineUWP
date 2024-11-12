@@ -19,9 +19,9 @@ public:
 	void Initialize(TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, const TArray<uint8>& InBuffer, const FIntPoint& InSampleDim);
 
 #if PLATFORM_WINDOWS
-	void Initialize(TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, FTexture2DRHIRef InTexture, const FIntPoint& InSampleDim, TRefCountPtr<ID3D12Fence> InFence, uint64 InFenceValue);
+	void Initialize(TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, FTextureRHIRef InTexture, const FIntPoint& InSampleDim, TRefCountPtr<ID3D12Fence> InFence, uint64 InFenceValue);
 #else
-	void Initialize(TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, FTexture2DRHIRef InTexture, const FIntPoint& InSampleDim, FGPUFenceRHIRef InFence, uint64 InFenceValue);
+	void Initialize(TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, FTextureRHIRef InTexture, const FIntPoint& InSampleDim, FGPUFenceRHIRef InFence, uint64 InFenceValue);
 #endif // PLATFORM_WINDOWS
 
 	// FVideoDecoderOutputPC interface.
@@ -41,7 +41,7 @@ public:
 
 private:
 	/** Texture from WebRTC with accompaning sync data. */
-	FTexture2DRHIRef Texture;
+	FTextureRHIRef Texture;
 	
 #if PLATFORM_WINDOWS
 	TRefCountPtr<ID3D12Fence> Fence;

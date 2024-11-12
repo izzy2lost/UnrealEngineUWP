@@ -47,6 +47,41 @@ FVector2D GetVectorFromSlopeAndLength(float Slope, float Length)
 	return FVector2D(x, y);
 }
 
+void PopulateGridLineValues(float PhysicalSize, double ViewMin, double ViewMax, uint8 InMinorDivisions, TArray<double>& OutMajorGridLines, TArray<double>& OutMinorGridLines)
+{
+	const double PixelsPerValue = PhysicalSize / FMath::Max(ViewMax - ViewMin, 1e-10);
+	const double GridPixelSpacing = PhysicalSize / 5.0;
+
+	const double Order = FMath::Pow(10.0, FMath::FloorToInt(FMath::LogX(10.0, GridPixelSpacing / PixelsPerValue)));
+
+	static const int32 DesirableBases[]  = { 2, 5 };
+	static const int32 NumDesirableBases = UE_ARRAY_COUNT(DesirableBases);
+
+	const int32 Scale = FMath::RoundToInt(GridPixelSpacing / PixelsPerValue / Order);
+	int32 Base = DesirableBases[0];
+	for (int32 BaseIndex = 1; BaseIndex < NumDesirableBases; ++BaseIndex)
+	{
+		if (FMath::Abs(Scale - DesirableBases[BaseIndex]) < FMath::Abs(Scale - Base))
+		{
+			Base = DesirableBases[BaseIndex];
+		}
+	}
+
+	double MajorGridStep = FMath::Pow(static_cast<float>(Base), FMath::FloorToFloat(FMath::LogX(static_cast<float>(Base), static_cast<float>(Scale)))) * Order;
+
+	const double FirstMajorLine = FMath::FloorToDouble(ViewMin / MajorGridStep) * MajorGridStep;
+	const double LastMajorLine = FMath::CeilToDouble(ViewMax / MajorGridStep) * MajorGridStep;
+
+	for (double CurrentMajorLine = FirstMajorLine; CurrentMajorLine <= LastMajorLine; CurrentMajorLine += MajorGridStep)
+	{
+		OutMajorGridLines.Add(CurrentMajorLine);
+		for (int32 Step = 1; Step < InMinorDivisions; ++Step)
+		{
+			OutMinorGridLines.Add(CurrentMajorLine + Step * MajorGridStep / InMinorDivisions);
+		}
+	}
+}
+
 void ConstructYGridLines(const FCurveEditorScreenSpace& ViewSpace, uint8 InMinorDivisions, TArray<float>& OutMajorGridLines, TArray<float>& OutMinorGridLines, FText GridLineLabelFormatY, TArray<FText>* OutMajorGridLabels)
 {
 	const double GridPixelSpacing = ViewSpace.GetPhysicalHeight() / 5.0;

@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Math/Vector.h"
+
 namespace UE::Chaos::ClothAsset
 {
 	/** User defined attribute types. */

@@ -17,7 +17,7 @@
 #include "UObject/UObjectHash.h"
 #include "Engine/MemberReference.h"
 #include "Engine/BlueprintGeneratedClass.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "FieldNotification/FieldNotificationLibrary.h"
 #include "INotifyFieldValueChanged.h"
 #include "Kismet2/CompilerResultsLog.h"
@@ -528,7 +528,7 @@ void FKismetCompilerUtilities::ConsignToOblivion(UClass* OldClass, bool bForceNo
 		}
 
 		const FString BaseName = FString::Printf(TEXT("DEADCLASS_%s_C_%d"), *OldClass->ClassGeneratedBy->GetName(), ConsignToOblivionCounter++);
-		OldClass->Rename(*BaseName, GetTransientPackage(), (REN_DontCreateRedirectors|REN_NonTransactional|(bForceNoResetLoaders ? REN_ForceNoResetLoaders : 0)));
+		OldClass->Rename(*BaseName, GetTransientPackage(), (REN_DontCreateRedirectors | REN_NonTransactional));
 
 		// Make sure MetaData doesn't have any entries to the class we just renamed out of package
 		OwnerOutermost->GetMetaData()->RemoveMetaDataOutsidePackage();
@@ -763,7 +763,7 @@ bool FKismetCompilerUtilities::ValidateSelfCompatibility(const UEdGraphPin* Pin,
 	return true;
 }
 
-UEdGraphPin* FKismetCompilerUtilities::GenerateAssignmentNodes(class FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph, UK2Node_CallFunction* CallBeginSpawnNode, UEdGraphNode* SpawnNode, UEdGraphPin* CallBeginResult, const UClass* ForClass )
+UEdGraphPin* FKismetCompilerUtilities::GenerateAssignmentNodes(class FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph, UK2Node* CallBeginSpawnNode, UEdGraphNode* SpawnNode, UEdGraphPin* CallBeginResult, const UClass* ForClass, const UEdGraphPin* CallBeginClassInput)
 {
 	static const FName ObjectParamName(TEXT("Object"));
 	static const FName ValueParamName(TEXT("Value"));
@@ -772,14 +772,24 @@ UEdGraphPin* FKismetCompilerUtilities::GenerateAssignmentNodes(class FKismetComp
 	const UEdGraphSchema_K2* Schema = CompilerContext.GetSchema();
 	UEdGraphPin* LastThen = CallBeginSpawnNode->GetThenPin();
 
+	// If the class input pin is linked, then 'ForClass' represents a base type, but the actual type might be a derived class
+	// that won't get resolved until runtime. In that case, we can't use the base type's CDO to avoid generating assignment
+	// statements for unlinked parameter inputs that match the base type's default value for those parameters, since the
+	// derived type might store a different default value, which would otherwise be used if we don't explicitly assign it.
+	const bool bIsClassInputPinLinked = CallBeginClassInput && CallBeginClassInput->LinkedTo.Num() > 0;
+
 	// Create 'set var by name' nodes and hook them up
 	for (int32 PinIdx = 0; PinIdx < SpawnNode->Pins.Num(); PinIdx++)
 	{
 		// Only create 'set param by name' node if this pin is linked to something
 		UEdGraphPin* OrgPin = SpawnNode->Pins[PinIdx];
-		const bool bHasDefaultValue = !OrgPin->DefaultValue.IsEmpty() || !OrgPin->DefaultTextValue.IsEmpty() || OrgPin->DefaultObject;
-		if (NULL == CallBeginSpawnNode->FindPin(OrgPin->PinName) &&
-			(OrgPin->LinkedTo.Num() > 0 || bHasDefaultValue))
+
+		if (OrgPin->Direction == EGPD_Output)
+		{
+			continue;
+		}
+		
+		if (!CallBeginSpawnNode->FindPin(OrgPin->PinName))
 		{
 			FProperty* Property = FindFProperty<FProperty>(ForClass, OrgPin->PinName);
 			// NULL property indicates that this pin was part of the original node, not the 
@@ -789,24 +799,44 @@ UEdGraphPin* FKismetCompilerUtilities::GenerateAssignmentNodes(class FKismetComp
 				continue;
 			}
 
-			if( OrgPin->LinkedTo.Num() == 0 )
+			if (OrgPin->LinkedTo.Num() == 0)
 			{
-				// We don't want to generate an assignment node unless the default value 
-				// differs from the value in the CDO:
-				FString DefaultValueAsString;
-					
-				if (FBlueprintCompilationManager::GetDefaultValue(ForClass, Property, DefaultValueAsString))
+				FString DefaultValueErrorString = Schema->IsCurrentPinDefaultValid(OrgPin);
+				if (!DefaultValueErrorString.IsEmpty())
 				{
+					// Some types require a connection for assignment (e.g. arrays).
+					continue;
+				}
+				// If the property is not editable in blueprint, always check the native CDO to handle cases like Instigator properly
+				else if (!bIsClassInputPinLinked || Property->HasAnyPropertyFlags(CPF_DisableEditOnTemplate) || !Property->HasAnyPropertyFlags(CPF_Edit))
+				{
+					// We don't want to generate an assignment node unless the default value 
+					// differs from the value in the CDO:
+					FString DefaultValueAsString;
+
+					if (!FBlueprintCompilationManager::GetDefaultValue(ForClass, Property, DefaultValueAsString))
+					{
+						if (ForClass->ClassDefaultObject)
+						{
+							FBlueprintEditorUtils::PropertyValueToString(Property, (uint8*)ForClass->ClassDefaultObject.Get(), DefaultValueAsString);
+						}
+					}
+
+					// First check the string representation of the default value
 					if (Schema->DoesDefaultValueMatch(*OrgPin, DefaultValueAsString))
 					{
 						continue;
 					}
-				}
-				else if(ForClass->ClassDefaultObject)
-				{
-					FBlueprintEditorUtils::PropertyValueToString(Property, (uint8*)ForClass->ClassDefaultObject.Get(), DefaultValueAsString);
 
-					if (DefaultValueAsString == OrgPin->GetDefaultAsString())
+					FString UseDefaultValue;
+					TObjectPtr<UObject> UseDefaultObject = nullptr;
+					FText UseDefaultText;
+					constexpr bool bPreserveTextIdentity = true;
+
+					// Next check if the converted default value would be the same to handle cases like None for object pointers
+					Schema->GetPinDefaultValuesFromString(OrgPin->PinType, OrgPin->GetOwningNodeUnchecked(), DefaultValueAsString, UseDefaultValue, UseDefaultObject, UseDefaultText, bPreserveTextIdentity);
+
+					if (OrgPin->DefaultValue.Equals(UseDefaultValue, ESearchCase::CaseSensitive) && OrgPin->DefaultObject == UseDefaultObject && OrgPin->DefaultTextValue.IdenticalTo(UseDefaultText))
 					{
 						continue;
 					}
@@ -1263,21 +1293,21 @@ FProperty* FKismetCompilerUtilities::CreatePrimitiveProperty(FFieldVariant Prope
 					{
 						NewPropertyObj->SetPropertyFlags(CPF_TObjectPtrWrapper);
 					}
-				}
 
-				// Is the property a reference to something that should default to instanced?
-				if (SubType->HasAnyClassFlags(CLASS_DefaultToInstanced))
-				{
-					NewPropertyObj->SetPropertyFlags(CPF_InstancedReference);
-
-					// Actor components should only be instanced by the SCS editor.
-					// 
-					// Default actor components are outered to the generated BP class instead of the CDO.
-					// If we set "EditInline" on actor components, we would actually outer them to the CDO.
-					// This would lead to various serialization and instancing issues.
-					if (!SubType->IsChildOf<UActorComponent>())
+					// Is the property a reference to something that should default to instanced?
+					if (SubType->HasAnyClassFlags(CLASS_DefaultToInstanced))
 					{
-						NewPropertyObj->SetMetaData(TEXT("EditInline"), TEXT("true"));
+						NewPropertyObj->SetPropertyFlags(CPF_InstancedReference);
+
+						// Actor components should only be instanced by the SCS editor.
+						// 
+						// Default actor components are outered to the generated BP class instead of the CDO.
+						// If we set "EditInline" on actor components, we would actually outer them to the CDO.
+						// This would lead to various serialization and instancing issues.
+						if (!SubType->IsChildOf<UActorComponent>())
+						{
+							NewPropertyObj->SetMetaData(TEXT("EditInline"), TEXT("true"));
+						}
 					}
 				}
 

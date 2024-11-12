@@ -17,20 +17,23 @@
 #include "DynamicMesh/DynamicMeshAABBTree3.h"
 #include "DynamicMesh/DynamicMeshOctree3.h"
 #include "DynamicMesh/DynamicMeshAttributeSet.h"
-#include "DynamicMesh/DynamicMeshChangeTracker.h"
 #include "DynamicMesh/MeshNormals.h"
 #include "TransformTypes.h"
 #include "ToolDataVisualizer.h"
 #include "GroupTopology.h"
+#include "Dataflow/DataflowObjectInterface.h"
+#include "Changes/IndexedAttributeChange.h"
+
 #include "ClothWeightMapPaintTool.generated.h"
 
 class UMeshElementsVisualizer;
 class UWeightMapEraseBrushOpProps;
 class UWeightMapPaintBrushOpProps;
 class UWeightMapSmoothBrushOpProps;
-class UClothEditorContextObject;
+class UDataflowContextObject;
 class UPolygonSelectionMechanic;
-struct FChaosClothAssetAddWeightMapNode;
+struct FChaosClothAssetWeightMapNode;
+enum class EChaosClothAssetWeightMapOverrideType : uint8;
 
 DECLARE_STATS_GROUP(TEXT("WeightMapPaintTool"), STATGROUP_WeightMapPaintTool, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("WeightMapPaintTool_UpdateROI"), WeightMapPaintTool_UpdateROI, STATGROUP_WeightMapPaintTool);
@@ -119,6 +122,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = Display)
 	EClothEditorWeightMapDisplayType ColorMap = EClothEditorWeightMapDisplayType::BlackAndWhite;
 
+	UPROPERTY(EditAnywhere, Category = Display)
+	bool bHighlightZeroAndOne = false;
+
 	UPROPERTY(EditAnywhere, Category = ActionType, meta = (DisplayName = "Action"))
 	EClothEditorWeightMapPaintInteractionType SubToolType = EClothEditorWeightMapPaintInteractionType::Brush;
 
@@ -130,6 +136,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = Brush, meta = (DisplayName = "Brush Size", UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "10.0", 
 		HideEditConditionToggle, EditConditionHides, EditCondition = "SubToolType == EClothEditorWeightMapPaintInteractionType::Brush"))
 	float BrushSize = 0.25f;
+
+	/** Relative size of falloff region inside the brush */
+	UPROPERTY(EditAnywhere, Category = Brush, meta = (UIMin = 0, ClampMin = 0, UIMax = 1, ClampMax = 1,
+		HideEditConditionToggle, EditCondition = "SubToolType == EClothEditorWeightMapPaintInteractionType::Brush && PrimaryBrushType == EClothEditorWeightMapPaintBrushType::Smooth"))
+	float Falloff = 0.5;
 
 	/** Allow the Brush to hit the back-side of the mesh */
 	UPROPERTY(EditAnywhere, Category = Brush, meta = (HideEditConditionToggle, EditConditionHides, EditCondition = "SubToolType == EClothEditorWeightMapPaintInteractionType::Brush"))
@@ -252,6 +263,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = UpdateNode, meta = (DisplayName = "Name"))
 	FString Name;
 
+	UPROPERTY(EditAnywhere, Category = UpdateNode)
+	EChaosClothAssetWeightMapOverrideType MapOverrideType;
+
 private:
 
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -315,7 +329,16 @@ public:
 
 	virtual void CommitResult(UBaseDynamicMeshComponent* Component, bool bModifiedTopology) override;
 
-	void SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject);
+	void SetDataflowContextObject(TObjectPtr<UDataflowContextObject> InDataflowContextObject);
+
+private:
+
+	// Initialization support
+	void InitializeSculptMeshFromTarget();
+	void UpdateShowHideProperties();
+
+	// Make sure things are set up correctly after initialization or re-initialization
+	void PostSetupCheck() const;
 
 public:
 
@@ -364,6 +387,7 @@ protected:
 	virtual int32 FindHitTargetMeshTriangle(const FRay3d& LocalRay) override;
 
 	virtual void OnBeginStroke(const FRay& WorldRay) override;
+	virtual void OnCancelStroke() override;
 	virtual void OnEndStroke() override;
 
 	virtual TUniquePtr<FMeshSculptBrushOp>& GetActiveBrushOp();
@@ -471,11 +495,13 @@ protected:
 	TObjectPtr<UMeshElementsVisualizer> MeshElementsDisplay;
 
 	UPROPERTY()
-	TObjectPtr<UClothEditorContextObject> ClothEditorContextObject = nullptr;
+	TObjectPtr<UDataflowContextObject> DataflowContextObject = nullptr;
 
 	// realtime visualization
 	void OnDynamicMeshComponentChanged(UDynamicMeshComponent* Component, const FMeshVertexChange* Change, bool bRevert);
 	FDelegateHandle OnDynamicMeshComponentChangedHandle;
+
+	TConstArrayView<float> InputWeightMap;
 
 	UE::Geometry::FDynamicMeshWeightAttribute* ActiveWeightMap;
 	double GetCurrentWeightValue(int32 VertexId) const;
@@ -524,9 +550,29 @@ protected:
 	bool SyncMeshWithWeightBuffer(FDynamicMesh3* Mesh);
 	bool SyncWeightBufferWithMesh(const FDynamicMesh3* Mesh);
 
-	TUniquePtr<UE::Geometry::FDynamicMeshChangeTracker> ActiveWeightEditChangeTracker;
+
+	// Undo/Redo change support
+
+	class FNodeBufferWeightChange : public TCustomIndexedValuesChange<float, int32>
+	{
+	public:
+		virtual FString ToString() const override
+		{
+			return FString(TEXT("Cloth Vertex Scalar Weight Change"));
+		}
+	};
+	TUniquePtr<TIndexedValuesChangeBuilder<float, FNodeBufferWeightChange>> ActiveChangeBuilder;
 	void BeginChange();
 	void EndChange();
+
+	// The corresponding FChaosClothAssetWeightMapNode has a buffer of scalar weights. Depending on bHaveDynamicMeshToWeightConversion, the 
+	// indexing of this buffer might be different than the mesh vertex indexing. This function returns the corresponding index in the node buffer for
+	// a given mesh vertex index.
+	int32 MeshIndexToNodeIndex(int32 MeshVertexIndex) const;
+
+	// Update the active weight map attribute from the map of indices/values. The inputs are given in "node buffer format" (see function above).
+	void UpdateMapValuesFromNodeValues(const TArray<int32>& Indices, const TArray<float>& Values);
+
 
 	FColor GetColorForWeightValue(double WeightValue);
 
@@ -544,12 +590,13 @@ protected:
 	virtual bool ShowWorkPlane() const override { return false; }
 
 	friend class UClothEditorWeightMapPaintToolBuilder;
+	void NotifyTargetChanged();
 
 	bool bAnyChangeMade = false;
 
 	// Node graph editor support
 
-	FChaosClothAssetAddWeightMapNode* WeightMapNodeToUpdate = nullptr;
+	FChaosClothAssetWeightMapNode* WeightMapNodeToUpdate = nullptr;
 
 	void UpdateSelectedNode();
 

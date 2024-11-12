@@ -14,7 +14,9 @@
 #include "Styling/StyleColors.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
+#include "StateTreeEditorNodeUtils.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -138,7 +140,8 @@ void FStateTreeEditorDataDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 	}
 	
 	// Parameters category
-	IDetailCategoryBuilder& ParametersCategory = DetailBuilder.EditCategory(TEXT("Parameters"), LOCTEXT("EditorDataDetailsParameters", "Parameters"));
+	const FText ParametersDisplayName = LOCTEXT("EditorDataDetailsParameters", "Parameters");
+	IDetailCategoryBuilder& ParametersCategory = DetailBuilder.EditCategory(TEXT("Parameters"), ParametersDisplayName);
 	ParametersCategory.SetSortOrder(2);
 	{
 		// Show parameters as a category.
@@ -147,21 +150,39 @@ void FStateTreeEditorDataDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 		check(RootParametersProperty);
 		RootParametersProperty->MarkHiddenByCustomization();
 
-		TSharedPtr<IPropertyHandle> ParametersProperty = RootParametersProperty->GetChildHandle(TEXT("Parameters")); // FInstancedPropertyBag
-		check(ParametersProperty);
+		TSharedPtr<IPropertyHandle> PropertyBagParametersProperty = RootParametersProperty->GetChildHandle(TEXT("Parameters")); // FInstancedPropertyBag
+		check(PropertyBagParametersProperty);
 
-		TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox)
-			.IsEnabled(PropUtils, &IPropertyUtilities::IsPropertyEditingEnabled);
+		const TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox)
+			.IsEnabled(PropUtils, &IPropertyUtilities::IsPropertyEditingEnabled)
+			+ SHorizontalBox::Slot()
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			.Padding(FMargin(4.f, 0.f, 0.f, 0.f))
+			[
+				SNew(SImage)
+					.ColorAndOpacity(UE::StateTree::Colors::Blue)
+					.Image(FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Parameters"))
+			]
+			+SHorizontalBox::Slot()
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(4.f, 0.f, 0.f, 0.f))
+			.AutoWidth()
+			[
+				SNew(STextBlock)
+				.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Category")
+				.Text(ParametersDisplayName)
+			]
+			+SHorizontalBox::Slot()
+			.FillWidth(1.f)
+			.HAlign(HAlign_Right)
+			.VAlign(VAlign_Center)
+			[
+				FPropertyBagDetails::MakeAddPropertyWidget(PropertyBagParametersProperty, PropUtils, EPropertyBagPropertyType::Bool, FLinearColor(UE::StateTree::Colors::Blue)).ToSharedRef()
+			];
+		ParametersCategory.HeaderContent(HeaderContentWidget, /*FullRowContent*/true);
 
-		HeaderContentWidget->AddSlot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		[
-			FPropertyBagDetails::MakeAddPropertyWidget(ParametersProperty, PropUtils).ToSharedRef()
-		];
-		ParametersCategory.HeaderContent(HeaderContentWidget);
-
-		TSharedRef<FPropertyBagInstanceDataDetails> InstanceDetails = MakeShareable(new FPropertyBagInstanceDataDetails(ParametersProperty, PropUtils, false));
+		TSharedRef<FPropertyBagInstanceDataDetails> InstanceDetails = MakeShareable(new FPropertyBagInstanceDataDetails(PropertyBagParametersProperty, PropUtils, false));
 		ParametersCategory.AddCustomBuilder(InstanceDetails);
 	}
 
@@ -171,7 +192,16 @@ void FStateTreeEditorDataDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 	const FName EvalCategoryName(TEXT("Evaluators"));
 	if (Schema && Schema->AllowEvaluators())
 	{
-		MakeArrayCategory(DetailBuilder, EvalCategoryName, LOCTEXT("EditorDataDetailsEvaluators", "Evaluators"), /*SortOrder*/3, EvaluatorsProperty);
+		UE::StateTreeEditor::EditorNodeUtils::MakeArrayCategory(
+			DetailBuilder,
+			EvaluatorsProperty,
+			EvalCategoryName,
+			LOCTEXT("EditorDataDetailsEvaluators", "Evaluators"),
+			FName("StateTreeEditor.Evaluators"),
+			UE::StateTree::Colors::Bronze,
+			UE::StateTree::Colors::Bronze.WithAlpha(192),
+			LOCTEXT("EditorDataDetailsEvaluatorsAddTooltip", "Add new Evaluator"),
+			/*SortOrder*/3);
 	}
 	else
 	{
@@ -181,8 +211,18 @@ void FStateTreeEditorDataDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 	// Global Tasks category
 	TSharedPtr<IPropertyHandle> GlobalTasksProperty = DetailBuilder.GetProperty(TEXT("GlobalTasks"));
 	check(GlobalTasksProperty.IsValid());
-	const FName GlobalTasksCategoryName(TEXT("GlobalTasks"));
-	MakeArrayCategory(DetailBuilder, GlobalTasksCategoryName, LOCTEXT("EditorDataDetailsGlobalTasks", "Global Tasks"), /*SortOrder*/4, GlobalTasksProperty);
+	const FName GlobalTasksCategoryName(TEXT("Global Tasks"));
+
+	UE::StateTreeEditor::EditorNodeUtils::MakeArrayCategory(
+		DetailBuilder,
+		GlobalTasksProperty,
+		GlobalTasksCategoryName,
+		LOCTEXT("EditorDataDetailsGlobalTasks", "Global Tasks"),
+		FName("StateTreeEditor.Tasks"),
+		UE::StateTree::Colors::Cyan,
+		UE::StateTree::Colors::Cyan.WithAlpha(192),
+		LOCTEXT("EditorDataDetailsGlobalTasksAddTooltip", "Add new Global Task"),
+		/*SortOrder*/4);
 
 	// Refresh the UI when the Schema changes.	
 	TSharedPtr<IPropertyHandle> SchemaProperty = DetailBuilder.GetProperty(TEXT("Schema"));

@@ -527,6 +527,7 @@ namespace BuildPatchServices
 
 		virtual IChunkDataAccess* LoadFromArchive(FArchive& Archive, EChunkLoadResult& OutLoadResult) const override
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(Chunk_LoadFromArchive);
 			if (Archive.IsLoading())
 			{
 				return Load(Archive, OutLoadResult);
@@ -556,14 +557,26 @@ namespace BuildPatchServices
 		virtual EChunkSaveResult SaveToMemory(TArray<uint8>& Memory, const IChunkDataAccess* ChunkDataAccess) const override
 		{
 			FMemoryWriter MemoryWriter(Memory);
-			return Save(MemoryWriter, ChunkDataAccess);
+			return Save(MemoryWriter, ChunkDataAccess, true);
 		}
 
 		virtual EChunkSaveResult SaveToArchive(FArchive& Archive, const IChunkDataAccess* ChunkDataAccess) const override
 		{
 			if (Archive.IsSaving())
 			{
-				return Save(Archive, ChunkDataAccess);
+				return Save(Archive, ChunkDataAccess, true);
+			}
+			else
+			{
+				return EChunkSaveResult::BadArchive;
+			}
+		}
+
+		virtual EChunkSaveResult SaveToArchiveUncompressed(FArchive& Archive, const IChunkDataAccess* ChunkDataAccess) const override
+		{
+			if (Archive.IsSaving())
+			{
+				return Save(Archive, ChunkDataAccess, false);
 			}
 			else
 			{
@@ -629,7 +642,10 @@ namespace BuildPatchServices
 							*Header = HeaderCheck;
 
 							// Read the data.
-							Reader.Serialize(Data, Header->DataSizeCompressed);
+							{
+								TRACE_CPUPROFILER_EVENT_SCOPE(Chunk_Serialize);
+								Reader.Serialize(Data, Header->DataSizeCompressed);
+							}
 							if (Reader.IsError() == false)
 							{
 								OutLoadResult = EChunkLoadResult::Success;
@@ -671,7 +687,12 @@ namespace BuildPatchServices
 									}
 								}
 								// Verify.
-								if (OutLoadResult == EChunkLoadResult::Success && (Header->HashType & EChunkHashFlags::RollingPoly64) != EChunkHashFlags::None)
+
+								// If we have both hashes, only check Sha1 instead of both.
+								bool bHasRollingHash = EnumHasAnyFlags(Header->HashType, EChunkHashFlags::RollingPoly64);
+								bool bHasSha1Hash = EnumHasAnyFlags(Header->HashType, EChunkHashFlags::Sha1);
+
+								if (OutLoadResult == EChunkLoadResult::Success && bHasRollingHash && !bHasSha1Hash) // Don't bother verifying the rolling hash if we have a sha1
 								{
 									if (Header->DataSizeCompressed != Header->DataSizeUncompressed || Header->RollingHash != FRollingHash::GetHashForDataSet(Data, Header->DataSizeUncompressed))
 									{
@@ -679,8 +700,9 @@ namespace BuildPatchServices
 									}
 								}
 								FSHAHash ShaHashCheck;
-								if (OutLoadResult == EChunkLoadResult::Success && (Header->HashType & EChunkHashFlags::Sha1) != EChunkHashFlags::None)
+								if (OutLoadResult == EChunkLoadResult::Success && bHasSha1Hash)
 								{
+									TRACE_CPUPROFILER_EVENT_SCOPE(Chunk_ShaHash);
 									FSHA1::HashBuffer(Data, Header->DataSizeUncompressed, ShaHashCheck.Hash);
 									if (!(ShaHashCheck == Header->SHAHash))
 									{
@@ -729,7 +751,7 @@ namespace BuildPatchServices
 			return ChunkData;
 		}
 
-		EChunkSaveResult Save(FArchive& Writer, const IChunkDataAccess* ChunkDataAccess) const
+		EChunkSaveResult Save(FArchive& Writer, const IChunkDataAccess* ChunkDataAccess, bool bTryCompress) const
 		{
 			EChunkSaveResult SaveResult;
 			const uint8* ChunkDataSource;
@@ -739,7 +761,7 @@ namespace BuildPatchServices
 			bool bDataIsCompressed = false;
 			TArray<uint8> TempCompressedData;
 			int32 CompressedSize = ChunkAccessHeader->DataSizeUncompressed;
-			if (FeatureLevel >= EFeatureLevel::ChunkCompressionSupport)
+			if (FeatureLevel >= EFeatureLevel::ChunkCompressionSupport && bTryCompress)
 			{
 				TempCompressedData.Empty(ChunkAccessHeader->DataSizeUncompressed);
 				TempCompressedData.AddUninitialized(ChunkAccessHeader->DataSizeUncompressed);

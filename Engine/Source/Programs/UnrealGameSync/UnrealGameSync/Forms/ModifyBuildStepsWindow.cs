@@ -74,9 +74,9 @@ namespace UnrealGameSync
 			{
 				if (item != null)
 				{
-					using BuildStepWindow editStep = new BuildStepWindow((BuildStep)item.Tag, _targetNames, _baseDirectory, _variables);
+					using BuildStepWindow editStep = new BuildStepWindow((BuildStep)item.Tag!, _targetNames, _baseDirectory, _variables);
 					editStep.ShowDialog();
-					item.Text = ((BuildStep)item.Tag).Description;
+					item.Text = ((BuildStep)item.Tag!).Description;
 					break;
 				}
 			}
@@ -104,7 +104,7 @@ namespace UnrealGameSync
 			{
 				if (item != null)
 				{
-					_steps.Add((BuildStep)item.Tag);
+					_steps.Add((BuildStep)item.Tag!);
 				}
 			}
 			Close();
@@ -116,7 +116,7 @@ namespace UnrealGameSync
 
 			bool hasSelection = (selectedIndex != -1);
 			EditStepButton.Enabled = hasSelection;
-			RemoveStepButton.Enabled = hasSelection && !_projectSteps.Contains(((BuildStep)BuildStepList.SelectedItems[0].Tag).UniqueId);
+			RemoveStepButton.Enabled = hasSelection && !_projectSteps.Contains(((BuildStep)BuildStepList.SelectedItems[0].Tag!).UniqueId);
 
 			MoveUp.Enabled = (selectedIndex >= 1);
 			MoveDown.Enabled = (selectedIndex >= 0 && selectedIndex < BuildStepList.Items.Count - 1);
@@ -140,7 +140,7 @@ namespace UnrealGameSync
 			}
 			else
 			{
-				BuildStep task = (BuildStep)e.Item.Tag;
+				BuildStep task = (BuildStep)e.Item.Tag!;
 
 				bool enabled;
 				if (e.ColumnIndex == 1)
@@ -188,7 +188,7 @@ namespace UnrealGameSync
 				int columnIndex = hitTest.Item.SubItems.IndexOf(hitTest.SubItem);
 				if (columnIndex >= 1 && columnIndex <= 3)
 				{
-					BuildStep task = (BuildStep)hitTest.Item.Tag;
+					BuildStep task = (BuildStep)hitTest.Item.Tag!;
 					if (columnIndex == 1)
 					{
 						task.NormalSync ^= true;
@@ -254,7 +254,7 @@ namespace UnrealGameSync
 			{
 				if (item != null)
 				{
-					BuildStep step = (BuildStep)item.Tag;
+					BuildStep step = (BuildStep)item.Tag!;
 					step.OrderIndex = _steps.Count;
 					_steps.Add(step);
 				}

@@ -166,7 +166,7 @@ struct FMultiUserChangeStreamRequest
 	
 	/** Property changes to make to objects. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
-	TMap<UObject*, FMultiUserPropertyChange> PropertyChanges;
+	TMap<TObjectPtr<UObject>, FMultiUserPropertyChange> PropertyChanges;
 
 	/** Objects that should be unregistered (they will also stop replicating if added here) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")

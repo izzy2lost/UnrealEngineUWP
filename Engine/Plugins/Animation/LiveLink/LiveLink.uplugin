@@ -26,10 +26,6 @@
 			"Optional": true
 		},
 		{
-			"Name": "StructUtils",
-			"Enabled": true
-		},
-		{
 			"Name": "ContentBrowserAssetDataSource",
 			"Enabled":  true
 		}

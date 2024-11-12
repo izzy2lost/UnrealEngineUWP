@@ -4,12 +4,33 @@
 
 #include "InstancedActorsTypes.h"
 #include "InstancedActorsReplication.h"
+#include "MassEntityConfigAsset.h"
 #include "MassEntityTemplate.h"
 
 #include "InstancedActorsData.generated.h"
 
 class AInstancedActorsManager;
 struct FInstancedActorsSettings;
+
+namespace UE::InstancedActors
+{
+struct FExemplarActorData
+{
+	~FExemplarActorData();
+
+	TObjectPtr<AActor> Actor;
+private:
+	FExemplarActorData(AActor& InActor, UInstancedActorsSubsystem& InInstancedActorSubsystem)
+		: Actor(InActor)
+		, InstancedActorsSubsystem(InInstancedActorSubsystem)
+	{
+	}
+
+	UInstancedActorsSubsystem& InstancedActorsSubsystem;
+
+	friend class ::UInstancedActorsSubsystem;
+};
+} // UE::InstancedActors
 
 // @todo there's a lot of public variables in this class, and properties are mixed with functions. A refactor is coming soon.
 
@@ -36,6 +57,9 @@ public:
 	// Called early in AInstancedActorsManager::EndPlay to reconstruct cooked data state from runtime Mass entities as best we can,
 	// then despawn all Mass entities and reset any other runtime instance data
 	void DespawnEntities();
+
+	// Called from the parent's AInstancedActorsManager::EndPlay. Can release the entity template and exemplar Actor from memory 
+	void Deinitialize();
 
 	UFUNCTION(BlueprintPure, Category = InstancedActors)
 	AInstancedActorsManager* GetManager() const;
@@ -177,6 +201,9 @@ public:
 	// @see IA.CompactInstances console command
 	bool RemoveInstance(const FInstancedActorsInstanceHandle& InstanceToRemove);
 
+	// Iterates all ISMCs created in GetOrCreateActorInstanceData.
+	// @param InFunction						The function to call for each ISMC.
+	void ForEachEditorPreviewISMC(TFunctionRef<bool(UInstancedStaticMeshComponent& /*ISMComponent*/)> InFunction) const;
 #endif
 
 	// Removes RuntimeRemoveInstances as if they were never present i.e: these removals are not persisted as
@@ -347,6 +374,8 @@ public:
 
 	int32 GetInstanceDataID() const { return (int32)ID; }
 
+	const FBox& GetCachedLocalBounds() const { return CachedLocalBounds; }
+
 	FMassEntityHandle GetEntityHandleForIndex(const FInstancedActorsInstanceIndex Index) const
 	{
 		return Entities.IsValidIndex(Index.GetIndex()) ? Entities[Index.GetIndex()] : FMassEntityHandle();
@@ -357,16 +386,27 @@ public:
 	int32 GetEntityIndexFromCollisionIndex(const UInstancedStaticMeshComponent& ISMComponent, const int32 CollisionIndex) const;
 
 protected:
+	FMassEntityHandle GetEntityHandleForIndex(const int32 Index) const
+	{
+		return Entities.IsValidIndex(Index) ? Entities[Index] : FMassEntityHandle();
+	}
+
 	//~ Begin UObject Overrides
 	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
 	virtual void PostLoad() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+#if UE_WITH_IRIS
+	virtual void RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Context, UE::Net::EFragmentRegistrationFlags RegistrationFlags) override;
+#endif
 	virtual bool IsNameStableForNetworking() const override { return true; }
 	//~ End UObject Overrides
 
 	// Called on BeginPlay to create default entity template
 	void CreateEntityTemplate(const AActor& ExemplarActor);
 	virtual void ModifyEntityTemplate(FMassEntityTemplateData& ModifiedTemplate, const AActor& ExemplarActor);
+
+	// Called from Deinitialize to destroy the owned FMassEntityTemplate  
+	void ReleaseEntityTemplate();
 
 	// Helper function used in ApplyInstanceDeltas to apply a single delta
 	// @see ApplyInstanceDeltas
@@ -422,20 +462,23 @@ protected:
 	// ISMCs created in GetOrCreateActorInstanceData to match default visualizations ISMComponents for editor only preview of instances
 	UPROPERTY()
 	TArray<TObjectPtr<UInstancedStaticMeshComponent>> EditorPreviewISMComponents;
-
-	// Editor time cached bounds for AssetClass, used during editor-only instance creation and deletion to
-	// expand / contract Bounds
-	UPROPERTY()
-	FBox AssetBounds = FBox(ForceInit);
 #endif
+
+	UPROPERTY()
+	FBox CachedLocalBounds = FBox(ForceInit);
 
 private:
 	// Represents the shared fragment registered with MassEntityManager, that points back to this UInstancedActorsData instance
-	FSharedStruct SharedInstancedActorDataStruct;
+	TStructView<FInstancedActorsDataSharedFragment> SharedInstancedActorDataStruct;
 
 	// List of FInstancedActorsDelta's to apply to instances, replicated via fast array replication to clients.
 	// Formed at runtime via player actions and persisted / restored by game's persistence system
 	// @see Serialize
 	UPROPERTY(Replicated, SaveGame, Transient)
 	FInstancedActorsDeltaList InstanceDeltas;
+
+	UPROPERTY(Transient)
+	FMassEntityConfig EntityConfig;
+
+	TSharedPtr<UE::InstancedActors::FExemplarActorData> ExemplarActorData;
 };

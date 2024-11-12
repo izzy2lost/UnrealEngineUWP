@@ -40,6 +40,10 @@ FVirtualStackAllocator::FVirtualStackAllocator(size_t RequestedStackSize, EVirtu
 		NextUncommittedPage = VirtualMemory.GetVirtualPointer();
 		NextAllocationStart = NextUncommittedPage;
 		RecentHighWaterMark = NextUncommittedPage;
+
+#if PLATFORM_HAS_ASAN_INCLUDE
+		ASAN_POISON_MEMORY_REGION(NextUncommittedPage, TotalReservationSize);
+#endif
 	}
 }
 
@@ -85,9 +89,12 @@ void* FVirtualStackAllocator::Allocate(size_t Size, size_t Alignment)
 		}
 
 		NextAllocationStart = AllocationEnd;
+
+#if PLATFORM_HAS_ASAN_INCLUDE
+		ASAN_UNPOISON_MEMORY_REGION(AllocationStart, Size);
+#endif
 	}
  
-
     return AllocationStart;
 }
 

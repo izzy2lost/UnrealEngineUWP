@@ -44,6 +44,10 @@ public:
 	virtual TArray<URigVMPin*> GetAggregateInputs() const override;
 	virtual TArray<URigVMPin*> GetAggregateOutputs() const override;
 
+protected:
+
+	virtual FString GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const override;
+
 private:
 
 	virtual void InvalidateCache() override;

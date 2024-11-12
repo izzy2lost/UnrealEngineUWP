@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
+using UnrealBuildTool.Rules;
 
 public class PluginReferenceViewer : ModuleRules
 {
@@ -31,6 +32,7 @@ public class PluginReferenceViewer : ModuleRules
 				"Projects",
 				"ApplicationCore",
 				"UnrealEd",
+				"GameplayTags",
 				"GraphEditor",
 				"EditorWidgets",
 				"ToolMenus",

@@ -122,9 +122,10 @@ namespace EpicGames.UHT.Types
 		/// <summary>
 		/// Construct a new instance
 		/// </summary>
+		/// <param name="headerFile">Header file being parsed</param>
 		/// <param name="outer">Outer type</param>
 		/// <param name="lineNumber">Line number where definition begins</param>
-		protected UhtStruct(UhtType outer, int lineNumber) : base(outer, lineNumber)
+		protected UhtStruct(UhtHeaderFile headerFile, UhtType outer, int lineNumber) : base(headerFile, outer, lineNumber)
 		{
 		}
 

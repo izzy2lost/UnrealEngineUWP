@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Expressions/Input/TG_Expression_Material.h"
+#include "UObject/ObjectSaveContext.h"
+#include "Misc/TransactionObjectEvent.h"
 
 #if WITH_EDITOR
 void UTG_Expression_Material::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -8,13 +10,14 @@ void UTG_Expression_Material::PostEditChangeProperty(FPropertyChangedEvent& Prop
 	// First catch if Material changes
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Material, Material))
 	{
-		UE_LOG(LogTextureGraph, Log, TEXT("Material Expression PostEditChangeProperty."));
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("Material Expression PostEditChangeProperty."));
 		SetMaterialInternal(Material);
+		FeedbackPinValue(GET_MEMBER_NAME_CHECKED(UTG_Expression_Material, RenderedAttribute), RenderedAttribute);
 	}
 	// Second catch if AttributeName changes
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Material, RenderedAttribute))
 	{
-		UE_LOG(LogTextureGraph, Log, TEXT("Material Expression PostEditChangeProperty."));
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("Material Expression PostEditChangeProperty."));
 		SetRenderedAttribute(RenderedAttribute);
 	}
 
@@ -31,10 +34,42 @@ void UTG_Expression_Material::PostEditUndo()
 	Super::PostEditUndo();
 }
 
+void UTG_Expression_Material::OnReferencedObjectPreSave(UObject* Object, FObjectPreSaveContext SaveContext)
+{
+	// every editor should check if your texture graph is dependent on the object being saved
+	UMaterialInterface* MaterialBeingSaved = Cast<UMaterialInterface>(Object);
+	// if object being saved is our linked TextureGraph, we re-create
+	if (MaterialBeingSaved && Material && (MaterialBeingSaved == Material))
+	{
+
+		SetMaterialInternal(MaterialBeingSaved);
+	}
+}
+
 #endif
+
+UTG_Expression_Material::UTG_Expression_Material()
+{
+#if WITH_EDITOR
+	// listener for UObject saves, so we can synchronise when linked TextureGraphs get updated 
+	PreSaveHandle = FCoreUObjectDelegates::OnObjectPreSave.AddUObject(this, &UTG_Expression_Material::OnReferencedObjectPreSave);
+#endif
+}
+UTG_Expression_Material::~UTG_Expression_Material()
+{
+#if WITH_EDITOR
+	FCoreUObjectDelegates::OnObjectPreSave.Remove(PreSaveHandle);
+#endif
+}
 
 void UTG_Expression_Material::Initialize()
 {
+	// If the referenced material is valid, then we need to recreate a dubplicate
+	if (Material)
+	{
+		MaterialCopy = DuplicateObject(Material, this);
+	}
+
 	Super::Initialize();
 	SetRenderedAttribute(RenderedAttribute); // reassign the RenderedAttribute to make sure it is the correct one
 }
@@ -44,18 +79,21 @@ void UTG_Expression_Material::SetMaterialInternal(UMaterialInterface* InMaterial
 	if (!InMaterial)
 	{
 		Material = nullptr;
+		MaterialCopy = nullptr;
 	}
 	else if (InMaterial->IsA<UMaterial>())
 	{
 		// create a material instance
 		Material = InMaterial;
+		MaterialCopy = DuplicateObject(Material, this);
 	}
 	else if (InMaterial->IsA<UMaterialInstance>())
 	{
 		Material = InMaterial;
+		MaterialCopy = DuplicateObject(Material, this);
 	}
 
-	Super::SetMaterialInternal(InMaterial);
+	Super::SetMaterialInternal(MaterialCopy);
 
 	SetRenderedAttribute(RenderedAttribute);
 }
@@ -71,7 +109,7 @@ void UTG_Expression_Material::SetMaterial(UMaterialInterface* InMaterial)
 	if (InMaterial == Material)
 	{
 		// Just check that the MaterialInstance is valid, if not reassign below
-		if ((!Material) || (Material && MaterialInstance))
+		if ((!Material) || (Material && MaterialCopy && MaterialInstance))
 			return;
 	}
 

@@ -47,7 +47,7 @@ FAvaModifiersEditorStyle::FAvaModifiersEditorStyle()
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 
-	UActorModifierCoreSubsystem::OnModifierClassRegisteredDelegate.AddRaw(this, &FAvaModifiersEditorStyle::OnModifierClassRegistered);
+	UActorModifierCoreSubsystem::OnModifierClassRegistered().AddRaw(this, &FAvaModifiersEditorStyle::OnModifierClassRegistered);
 }
 
 const FSlateColor& FAvaModifiersEditorStyle::GetModifierCategoryColor(FName CategoryName)
@@ -80,7 +80,7 @@ void FAvaModifiersEditorStyle::OnModifierClassRegistered(const FActorModifierCor
 
 FAvaModifiersEditorStyle::~FAvaModifiersEditorStyle()
 {
-	UActorModifierCoreSubsystem::OnModifierClassRegisteredDelegate.RemoveAll(this);
+	UActorModifierCoreSubsystem::OnModifierClassRegistered().RemoveAll(this);
 
 	FSlateStyleRegistry::UnRegisterSlateStyle(*this);
 }

@@ -4,6 +4,7 @@
 #include "MoverComponent.h"
 #include "MoverSimulationTypes.h"
 #include "MovementModeStateMachine.h"
+#include "MotionWarpingMoverAdapter.h"
 #include "DefaultMovementSet/Modes/WalkingMode.h"
 #include "DefaultMovementSet/Modes/FallingMode.h"
 #include "DefaultMovementSet/Modes/FlyingMode.h"
@@ -11,6 +12,7 @@
 #include "MoveLibrary/MovementUtils.h"
 #include "MoveLibrary/FloorQueryUtils.h"
 #include "MoverLog.h"
+#include "InstantMovementEffect.h"
 #include "Backends/MoverNetworkPredictionLiaison.h"
 #include "Components/MeshComponent.h"
 #include "Components/PrimitiveComponent.h"
@@ -21,6 +23,9 @@
 #include "Misc/TransactionObjectEvent.h"
 #include "Blueprint/BlueprintExceptionInfo.h"
 #include "UObject/ObjectSaveContext.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "MotionWarpingComponent.h"
+
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -64,38 +69,28 @@ void UMoverComponent::InitializeComponent()
 {
 	TGuardValue<bool> InInitializeComponentGuard(bInInitializeComponent, true);
 
-	// RootComponent is null in OnRegister for blueprint (non-native) root components.
-	if (!UpdatedComponent)
-	{
-		// Auto-register owner's root component if found.
-		if (AActor* MyActor = GetOwner())
-		{
-			if (USceneComponent* NewUpdatedComponent = MyActor->GetRootComponent())
-			{
-				SetUpdatedComponent(NewUpdatedComponent);
-			}
-			else
-			{
-				ensureMsgf(false, TEXT("No root component found on %s. Simulation initialization will most likely fail."), *GetPathNameSafe(MyActor));
-			}
-		}
-	}
+	const UWorld* MyWorld = GetWorld();
 
-	// Instantiate out sister backend component that will actually talk to the system driving the simulation
-	if (BackendClass)
+	if (MyWorld && MyWorld->IsGameWorld())
 	{
-		UActorComponent* NewLiaisonComp = NewObject<UActorComponent>(GetOwner(), BackendClass, TEXT("BackendLiaisonComponent"));
-		BackendLiaisonComp = CastChecked<IMoverBackendLiaisonInterface>(NewLiaisonComp);
-		if (BackendLiaisonComp.Get())
+		FindDefaultUpdatedComponent();
+
+		// Instantiate out sister backend component that will actually talk to the system driving the simulation
+		if (BackendClass)
 		{
-			NewLiaisonComp->RegisterComponent();
-			NewLiaisonComp->InitializeComponent();
-			NewLiaisonComp->SetNetAddressable();
+			UActorComponent* NewLiaisonComp = NewObject<UActorComponent>(GetOwner(), BackendClass, TEXT("BackendLiaisonComponent"));
+			BackendLiaisonComp = CastChecked<IMoverBackendLiaisonInterface>(NewLiaisonComp);
+			if (BackendLiaisonComp.Get())
+			{
+				NewLiaisonComp->RegisterComponent();
+				NewLiaisonComp->InitializeComponent();
+				NewLiaisonComp->SetNetAddressable();
+			}
 		}
-	}
-	else
-	{
-		UE_LOG(LogMover, Error, TEXT("No backend class set on %s. Mover actor will not function."), *GetNameSafe(GetOwner()));
+		else
+		{
+			UE_LOG(LogMover, Error, TEXT("No backend class set on %s. Mover actor will not function."), *GetNameSafe(GetOwner()));
+		}
 	}
 
 	Super::InitializeComponent();
@@ -107,6 +102,7 @@ void UMoverComponent::UninitializeComponent()
 	if (UActorComponent* LiaisonAsComp = Cast<UActorComponent>(BackendLiaisonComp.Get()))
 	{
 		LiaisonAsComp->DestroyComponent();
+		BackendLiaisonComp = nullptr;
 	}
 
 	Super::UninitializeComponent();
@@ -117,33 +113,9 @@ void UMoverComponent::OnRegister()
 {
 	TGuardValue<bool> InOnRegisterGuard(bInOnRegister, true);
 
-	UpdatedCompAsPrimitive = Cast<UPrimitiveComponent>(UpdatedComponent);
 	Super::OnRegister();
 
-	const UWorld* MyWorld = GetWorld();
-
-	if (MyWorld && MyWorld->IsGameWorld())
-	{
-		const AActor* MyActor = GetOwner();
-
-		USceneComponent* NewUpdatedComponent = UpdatedComponent;
-		if (!UpdatedComponent)
-		{
-			// Auto-register owner's root component if found.
-			if (MyActor)
-			{
-				NewUpdatedComponent = MyActor->GetRootComponent();
-			}
-		}
-
-		SetUpdatedComponent(NewUpdatedComponent);
-
-		// If no primary visual component is already set, fall back to searching for any kind of mesh
-		if (!PrimaryVisualComponent && MyActor)
-		{
-			PrimaryVisualComponent = MyActor->FindComponentByClass<UMeshComponent>();
-		}
-	}
+	FindDefaultUpdatedComponent();
 }
 
 
@@ -191,6 +163,43 @@ void UMoverComponent::PostLoad()
 void UMoverComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	FindDefaultUpdatedComponent();
+	ensureMsgf(UpdatedComponent != nullptr, TEXT("No root component found on %s. Simulation initialization will most likely fail."), *GetPathNameSafe(GetOwner()));
+
+	if (const AActor* MyActor = GetOwner())
+	{
+		// If no primary visual component is already set, fall back to searching for any kind of mesh,
+		// favoring a direct scene child of the UpdatedComponent.
+		if (!PrimaryVisualComponent)
+		{
+			if (UpdatedComponent)
+			{
+				for (USceneComponent* ChildComp : UpdatedComponent->GetAttachChildren())
+				{
+					if (ChildComp->IsA<UMeshComponent>())
+					{
+						SetPrimaryVisualComponent(ChildComp);
+						break;
+					}
+				}
+			}
+
+			if (!PrimaryVisualComponent)
+			{
+				SetPrimaryVisualComponent(MyActor->FindComponentByClass<UMeshComponent>());
+			}
+		}
+
+		ensureMsgf(UpdatedComponent && (PrimaryVisualComponent != UpdatedComponent), TEXT("A Mover actor (%s) must have an UpdatedComponent and cannot have a PrimaryVisualComponent that is the same as UpdatedComponent"), *GetNameSafe(MyActor));
+
+		// Optional motion warping support
+		if (UMotionWarpingComponent* WarpingComp = MyActor->FindComponentByClass<UMotionWarpingComponent>())
+		{
+			UMotionWarpingMoverAdapter* WarpingAdapter = WarpingComp->CreateOwnerAdapter<UMotionWarpingMoverAdapter>();
+			WarpingAdapter->SetMoverComp(this);
+		}
+	}
 
 	// If an InputProducer isn't already set, check the actor and its components for one
 	if (!InputProducer)
@@ -219,6 +228,16 @@ void UMoverComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, F
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
+void UMoverComponent::BindProcessGeneratedMovement(FMover_ProcessGeneratedMovement ProcessGeneratedMovementEvent)
+{
+	ProcessGeneratedMovement = ProcessGeneratedMovementEvent;
+}
+
+void UMoverComponent::UnbindProcessGeneratedMovement()
+{
+	ProcessGeneratedMovement.Clear();
+}
+
 void UMoverComponent::ProduceInput(const int32 DeltaTimeMS, FMoverInputCmdContext* Cmd)
 {
 	Cmd->InputCollection.Empty();
@@ -236,6 +255,9 @@ void UMoverComponent::ProduceInput(const int32 DeltaTimeMS, FMoverInputCmdContex
 
 void UMoverComponent::RestoreFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState)
 {
+	const FMoverSyncState& InvalidSyncState = GetSyncState();
+	const FMoverAuxStateContext& InvalidAuxState = CachedLastAuxState;
+	OnSimulationPreRollback(&InvalidSyncState, SyncState, &InvalidAuxState, AuxState);
 	SetFrameStateFromContext(SyncState, AuxState, /* rebase? */ true);
 	OnSimulationRollback(SyncState, AuxState);
 }
@@ -260,6 +282,99 @@ void UMoverComponent::FinalizeFrame(const FMoverSyncState* SyncState, const FMov
 		CachedLastSimTickTimeStep.BaseSimTimeMs = BackendLiaisonComp->GetCurrentSimTimeMs();
 		CachedLastSimTickTimeStep.ServerFrame = BackendLiaisonComp->GetCurrentSimFrame();
 		bHasValidCachedState = true;
+	}
+}
+
+void UMoverComponent::FinalizeSmoothingFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState)
+{
+	if (PrimaryVisualComponent)
+	{
+		if (SmoothingMode == EMoverSmoothingMode::VisualComponentOffset)
+		{
+			// Offset the visual component so it aligns with the smoothed state transform, while leaving the actual root component in place
+			if (const FMoverDefaultSyncState* MoverState = SyncState->SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
+			{
+				FTransform ActorTransform = FTransform(MoverState->GetOrientation_WorldSpace(), MoverState->GetLocation_WorldSpace(), FVector::OneVector);
+				PrimaryVisualComponent->SetWorldTransform(BaseVisualComponentTransform * ActorTransform);	// smoothed location with base offset applied
+			}
+		}
+		else
+		{
+			if (!PrimaryVisualComponent->GetRelativeTransform().Equals(BaseVisualComponentTransform))
+			{
+				PrimaryVisualComponent->SetRelativeTransform(BaseVisualComponentTransform);
+			}
+		}
+	}
+}
+
+void UMoverComponent::TickInterpolatedSimProxy(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd, UMoverComponent* MoverComp, const FMoverSyncState& CachedSyncState, const FMoverSyncState& SyncState, const FMoverAuxStateContext& AuxState)
+{
+	TArray<TSharedPtr<FMovementModifierBase>> ModifiersToStart;
+	TArray<TSharedPtr<FMovementModifierBase>> ModifiersToEnd;
+
+	for (auto ModifierFromSyncStateIt = SyncState.MovementModifiers.GetActiveModifiersIterator(); ModifierFromSyncStateIt; ++ModifierFromSyncStateIt)
+	{
+		const TSharedPtr<FMovementModifierBase> ModifierFromSyncState = *ModifierFromSyncStateIt;
+		
+		bool bContainsModifier = false;
+		for (auto ModifierFromCacheIt = CachedSyncState.MovementModifiers.GetActiveModifiersIterator(); ModifierFromCacheIt; ++ModifierFromCacheIt)
+		{
+			const TSharedPtr<FMovementModifierBase> ModifierFromCache = *ModifierFromCacheIt;
+			
+			if (ModifierFromSyncState->Matches(ModifierFromCache.Get()))
+			{
+				bContainsModifier = true;
+				break;
+			}
+		}
+
+		if (!bContainsModifier)
+		{
+			ModifiersToStart.Add(ModifierFromSyncState);
+		}
+	}
+
+	for (auto ModifierFromCacheIt = CachedSyncState.MovementModifiers.GetActiveModifiersIterator(); ModifierFromCacheIt; ++ModifierFromCacheIt)
+	{
+		const TSharedPtr<FMovementModifierBase> ModifierFromCache = *ModifierFromCacheIt;
+		
+		bool bContainsModifier = false;
+		for (auto ModifierFromSyncStateIt = SyncState.MovementModifiers.GetActiveModifiersIterator(); ModifierFromSyncStateIt; ++ModifierFromSyncStateIt)
+		{
+			const TSharedPtr<FMovementModifierBase> ModifierFromSyncState = *ModifierFromSyncStateIt;
+			
+			if (ModifierFromSyncState->Matches(ModifierFromCache.Get()))
+			{
+				bContainsModifier = true;
+				break;
+			}
+		}
+
+		if (!bContainsModifier)
+		{
+			ModifiersToEnd.Add(ModifierFromCache);
+		}
+	}
+
+	for (TSharedPtr<FMovementModifierBase> Modifier : ModifiersToStart)
+	{
+		Modifier->GenerateHandle();
+		Modifier->OnStart(MoverComp, TimeStep, SyncState, AuxState);
+	}
+
+	for (auto ModifierIt = SyncState.MovementModifiers.GetActiveModifiersIterator(); ModifierIt; ++ModifierIt)
+	{
+		if (ModifierIt->IsValid())
+		{
+			ModifierIt->Get()->OnPreMovement(this, TimeStep);
+			ModifierIt->Get()->OnPostMovement(this, TimeStep, SyncState, AuxState);
+		}
+	}
+
+	for (TSharedPtr<FMovementModifierBase> Modifier : ModifiersToEnd)
+	{
+		Modifier->OnEnd(MoverComp, TimeStep, SyncState, AuxState);
 	}
 }
 
@@ -409,6 +524,171 @@ UBaseMovementMode* UMoverComponent::FindMovementMode(TSubclassOf<UBaseMovementMo
 	return FindMode_Mutable(MovementMode);
 }
 
+void UMoverComponent::K2_FindMovementModifier(FMovementModifierHandle ModifierHandle, bool& bFoundModifier, int32& TargetAsRawBytes) const
+{
+	// This will never be called, the exec version below will be hit instead
+	checkNoEntry();
+}
+
+DEFINE_FUNCTION(UMoverComponent::execK2_FindMovementModifier)
+{
+	P_GET_STRUCT(FMovementModifierHandle, ModifierHandle);
+	P_GET_UBOOL_REF(bFoundModifier);
+
+	Stack.MostRecentPropertyAddress = nullptr;
+	Stack.MostRecentPropertyContainer = nullptr;
+	Stack.StepCompiledIn<FStructProperty>(nullptr);
+	
+	void* ModifierPtr = Stack.MostRecentPropertyAddress;
+	FStructProperty* StructProp = CastField<FStructProperty>(Stack.MostRecentProperty);
+
+	P_FINISH;
+
+	bFoundModifier = false;
+	
+	if (!ModifierPtr)
+	{
+		FBlueprintExceptionInfo ExceptionInfo(
+			EBlueprintExceptionType::AbortExecution,
+			LOCTEXT("MoverComponent_GetActiveLayeredMove_UnresolvedTarget", "Failed to resolve the OutLayeredMove for GetActiveLayeredMove")
+		);
+	
+		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+	}
+	else if (!StructProp)
+	{
+		FBlueprintExceptionInfo ExceptionInfo(
+			EBlueprintExceptionType::AbortExecution,
+			LOCTEXT("MoverComponent_GetActiveLayeredMove_TargetNotStruct", "GetActiveLayeredMove: Target for OutLayeredMove is not a valid type. It must be a Struct and a child of FLayeredMoveBase.")
+		);
+	
+		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+	}
+	else if (!StructProp->Struct || !StructProp->Struct->IsChildOf(FMovementModifierBase::StaticStruct()))
+	{
+		FBlueprintExceptionInfo ExceptionInfo(
+			EBlueprintExceptionType::AbortExecution,
+			LOCTEXT("MoverComponent_GetActiveLayeredMove_BadType", "GetActiveLayeredMove: Target for OutLayeredMove is not a valid type. Must be a child of FLayeredMoveBase.")
+		);
+	
+		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+	}
+	else
+	{
+		P_NATIVE_BEGIN;
+		
+		if (const FMovementModifierBase* FoundActiveMove = P_THIS->FindMovementModifier(ModifierHandle))
+		{
+			StructProp->Struct->CopyScriptStruct(ModifierPtr, FoundActiveMove);
+			bFoundModifier = true;
+		}
+
+		P_NATIVE_END;
+	}
+}
+
+bool UMoverComponent::IsModifierActiveOrQueued(const FMovementModifierHandle& ModifierHandle) const
+{
+	return FindMovementModifier(ModifierHandle) ? true : false;
+}
+
+const FMovementModifierBase* UMoverComponent::FindMovementModifier(const FMovementModifierHandle& ModifierHandle) const
+{
+	if (bHasValidCachedState)
+	{
+		// Check active modifiers for modifier handle
+		for (auto ActiveModifierFromSyncStateIt = CachedLastSyncState.MovementModifiers.GetActiveModifiersIterator(); ActiveModifierFromSyncStateIt; ++ActiveModifierFromSyncStateIt)
+		{
+			const TSharedPtr<FMovementModifierBase> ActiveModifierFromSyncState = *ActiveModifierFromSyncStateIt;
+
+			if (ModifierHandle == ActiveModifierFromSyncState->GetHandle())
+			{
+				return ActiveModifierFromSyncState.Get();
+			}
+		}
+
+		// Check queued modifiers for modifier handle
+		for (auto QueuedModifierFromSyncStateIt = CachedLastSyncState.MovementModifiers.GetQueuedModifiersIterator(); QueuedModifierFromSyncStateIt; ++QueuedModifierFromSyncStateIt)
+		{
+			const TSharedPtr<FMovementModifierBase> QueuedModifierFromSyncState = *QueuedModifierFromSyncStateIt;
+
+			if (ModifierHandle == QueuedModifierFromSyncState->GetHandle())
+			{
+				return QueuedModifierFromSyncState.Get();
+			}
+		}
+	}
+	
+	return nullptr;
+}
+
+const FMovementModifierBase* UMoverComponent::FindMovementModifierByType(const UScriptStruct* DataStructType) const
+{
+	if (bHasValidCachedState)
+	{
+		// Check active modifiers for modifier handle
+		for (auto ActiveModifierFromSyncStateIt = CachedLastSyncState.MovementModifiers.GetActiveModifiersIterator(); ActiveModifierFromSyncStateIt; ++ActiveModifierFromSyncStateIt)
+		{
+			const TSharedPtr<FMovementModifierBase> ActiveModifierFromSyncState = *ActiveModifierFromSyncStateIt;
+
+			if (DataStructType == ActiveModifierFromSyncState->GetScriptStruct())
+			{
+				return ActiveModifierFromSyncState.Get();
+			}
+		}
+
+		// Check queued modifiers for modifier handle
+		for (auto QueuedModifierFromSyncStateIt = CachedLastSyncState.MovementModifiers.GetQueuedModifiersIterator(); QueuedModifierFromSyncStateIt; ++QueuedModifierFromSyncStateIt)
+		{
+			const TSharedPtr<FMovementModifierBase> QueuedModifierFromSyncState = *QueuedModifierFromSyncStateIt;
+
+			if (DataStructType == QueuedModifierFromSyncState->GetScriptStruct())
+			{
+				return QueuedModifierFromSyncState.Get();
+			}
+		}
+	}
+	
+	return nullptr;
+}
+
+bool UMoverComponent::HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch) const
+{
+	if (bHasValidCachedState)
+	{
+		// Search Movement Modes
+		if (const UBaseMovementMode* ActiveMovementMode = GetMovementMode())
+		{
+			if (ActiveMovementMode->HasGameplayTag(TagToFind, bExactMatch))
+			{
+				return true;
+			}
+		}
+		
+		// Search Movement Modifiers
+		for (auto ModifierFromSyncStateIt = CachedLastSyncState.MovementModifiers.GetActiveModifiersIterator(); ModifierFromSyncStateIt; ++ModifierFromSyncStateIt)
+		{
+			const TSharedPtr<FMovementModifierBase> ModifierFromSyncState = *ModifierFromSyncStateIt;
+			if (ModifierFromSyncState->HasGameplayTag(TagToFind, bExactMatch))
+			{
+				return true;
+			}
+		}
+		
+		// Search Layered Moves
+		for (auto LayeredMoveFromSyncStateIt = CachedLastSyncState.LayeredMoves.GetActiveMovesIterator(); LayeredMoveFromSyncStateIt; ++LayeredMoveFromSyncStateIt)
+		{
+			const TSharedPtr<FLayeredMoveBase> LayeredMoveFromSyncState = *LayeredMoveFromSyncStateIt;
+			if (LayeredMoveFromSyncState->HasGameplayTag(TagToFind, bExactMatch))
+			{
+				return true;
+			}
+		}
+	}
+	
+	return false;
+}
+
 void UMoverComponent::SetFrameStateFromContext(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState, bool bRebaseBasedState)
 {
 
@@ -456,6 +736,13 @@ bool UMoverComponent::InitMoverSimulation()
 
 	for (const TPair<FName, TObjectPtr<UBaseMovementMode>>& Element : MovementModes)
 	{
+		if (Element.Value.Get() == nullptr)
+		{
+			UE_LOG(LogMover, Warning, TEXT("Invalid Movement Mode type '%s' detected on %s. Mover actor will not function correctly."),
+				*Element.Key.ToString(), *GetNameSafe(GetOwner()));
+			continue;
+		}
+
 		ModeFSM->RegisterMovementMode(Element.Key, Element.Value);
 
 		bHasMatchingStartingState |= (StartingMovementMode == Element.Key);
@@ -587,11 +874,34 @@ void UMoverComponent::SetUpdatedComponent(USceneComponent* NewUpdatedComponent)
 	UpdateTickRegistration();
 }
 
+void UMoverComponent::FindDefaultUpdatedComponent()
+{
+	if (!IsValid(UpdatedComponent))
+	{
+		USceneComponent* NewUpdatedComponent = nullptr;
+
+		const AActor* MyActor = GetOwner();
+		const UWorld* MyWorld = GetWorld();
+
+		if (MyActor && MyWorld && MyWorld->IsGameWorld())
+		{
+			NewUpdatedComponent = MyActor->GetRootComponent();
+		}
+
+		SetUpdatedComponent(NewUpdatedComponent);
+	}
+}
+
 
 void UMoverComponent::UpdateTickRegistration()
 {
 	const bool bHasUpdatedComponent = (UpdatedComponent != NULL);
 	SetComponentTickEnabled(bHasUpdatedComponent && bAutoActivate);
+}
+
+void UMoverComponent::OnSimulationPreRollback(const FMoverSyncState* InvalidSyncState, const FMoverSyncState* SyncState, const FMoverAuxStateContext* InvalidAuxState, const FMoverAuxStateContext* AuxState)
+{
+	ModeFSM->OnSimulationPreRollback(InvalidSyncState, SyncState, InvalidAuxState, AuxState);
 }
 
 
@@ -693,15 +1003,28 @@ bool UMoverComponent::ValidateSetup(FDataValidationContext& Context) const
 		}
 
 		// Verify that the movement mode's shared settings object exists (if any)
-		if (Element.Value && Element.Value->SharedSettingsClass &&
-			FindSharedSettings(Element.Value->SharedSettingsClass) == nullptr)
+		if (Element.Value)
 		{
-			Context.AddError(FText::Format(LOCTEXT("MissingModeSettingsError", "Movement mode on {0}, mapped as {1}, is missing its desired SharedSettingsClass {2}. You may need to save the asset and/or recompile."),
-				FText::FromString(GetNameSafe(GetOwner())),
-				FText::FromName(Element.Key),
-				FText::FromString(Element.Value->SharedSettingsClass->GetName())));
+			for (TSubclassOf<UObject>& Type : Element.Value->SharedSettingsClasses)
+			{
+				if (Type.Get() == nullptr)
+				{
+					Context.AddError(FText::Format(LOCTEXT("InvalidModeSettingsError", "Movement mode on {0}, mapped as {1}, has an invalid SharedSettingsClass. You may need to remove the invalid settings class."),
+						FText::FromString(GetNameSafe(GetOwner())),
+						FText::FromName(Element.Key)));
 
-			bDidFindAnyProblems = true;
+					bDidFindAnyProblems = true;
+				}
+				else if (FindSharedSettings(Type) == nullptr)
+				{
+					Context.AddError(FText::Format(LOCTEXT("MissingModeSettingsError", "Movement mode on {0}, mapped as {1}, is missing its desired SharedSettingsClass {2}. You may need to save the asset and/or recompile."),
+						FText::FromString(GetNameSafe(GetOwner())),
+						FText::FromName(Element.Key),
+						FText::FromString(Type->GetName())));
+
+					bDidFindAnyProblems = true;
+				}
+			}
 		}
 	}
 
@@ -742,6 +1065,14 @@ bool UMoverComponent::ValidateSetup(FDataValidationContext& Context) const
 			FText::FromString(GetNameSafe(GetOwner()))));
 
 		bDidFindAnyProblems = true;
+	}
+	else
+	{
+		IMoverBackendLiaisonInterface* BackendCDOAsInterface = Cast<IMoverBackendLiaisonInterface>(BackendClass->GetDefaultObject());
+		if (BackendCDOAsInterface && (BackendCDOAsInterface->ValidateData(Context, *this) == EDataValidationResult::Invalid))
+		{
+			bDidFindAnyProblems = true;
+		}
 	}
 
 	// Verify persistent types
@@ -796,12 +1127,18 @@ void UMoverComponent::RefreshSharedSettings()
 	{
 		if (UBaseMovementMode* Mode = Element.Value.Get())
 		{
-			if (Mode->SharedSettingsClass != nullptr)
+			for (TSubclassOf<UObject>& SharedSettingsType : Mode->SharedSettingsClasses)
 			{
+				if (SharedSettingsType.Get() == nullptr)
+				{
+					UE_LOG(LogMover, Warning, TEXT("Invalid shared setting class detected on Movement Mode %s."), *Mode->GetName());
+					continue;
+				}
+
 				bool bFoundMatchingClass = false;
 				for (const TObjectPtr<UObject>& SettingsObj : SharedSettings)
 				{
-					if (SettingsObj && SettingsObj->IsA(Mode->SharedSettingsClass))
+					if (SettingsObj && SettingsObj->IsA(SharedSettingsType))
 					{
 						bFoundMatchingClass = true;
 						UnreferencedSettingsObjs.Remove(SettingsObj);
@@ -811,10 +1148,9 @@ void UMoverComponent::RefreshSharedSettings()
 
 				if (!bFoundMatchingClass)
 				{
-					UObject* NewSettings = NewObject<UObject>(this, Mode->SharedSettingsClass, NAME_None, GetMaskedFlags(RF_PropagateToSubObjects) | RF_Transactional);
+					UObject* NewSettings = NewObject<UObject>(this, SharedSettingsType, NAME_None, GetMaskedFlags(RF_PropagateToSubObjects) | RF_Transactional);
 					SharedSettings.Add(NewSettings);
 				}
-
 			}
 		}
 	}
@@ -868,6 +1204,86 @@ void UMoverComponent::QueueLayeredMove(TSharedPtr<FLayeredMoveBase> LayeredMove)
 	ModeFSM->QueueLayeredMove(LayeredMove);
 }
 
+FMovementModifierHandle UMoverComponent::K2_QueueMovementModifier(const int32& MoveAsRawData)
+{
+	// This will never be called, the exec version below will be hit instead
+	checkNoEntry();
+	return 0;
+}
+
+DEFINE_FUNCTION(UMoverComponent::execK2_QueueMovementModifier)
+{
+	Stack.StepCompiledIn<FStructProperty>(nullptr);
+	void* MovePtr = Stack.MostRecentPropertyAddress;
+	FStructProperty* StructProp = CastField<FStructProperty>(Stack.MostRecentProperty);
+
+	P_FINISH;
+
+	P_NATIVE_BEGIN;
+
+	const bool bHasValidStructProp = StructProp && StructProp->Struct && StructProp->Struct->IsChildOf(FMovementModifierBase::StaticStruct());
+
+	if (ensureMsgf((bHasValidStructProp && MovePtr), TEXT("An invalid type (%s) was sent to a QueueMovementModifier node. A struct derived from FMovementModifierBase is required. No modifier will be queued."),
+		StructProp ? *GetNameSafe(StructProp->Struct) : *Stack.MostRecentProperty->GetClass()->GetName()))
+	{
+		// Could we steal this instead of cloning? (move semantics)
+		FMovementModifierBase* MoveAsBasePtr = reinterpret_cast<FMovementModifierBase*>(MovePtr);
+		FMovementModifierBase* ClonedMove = MoveAsBasePtr->Clone();
+
+		FMovementModifierHandle ModifierID = P_THIS->QueueMovementModifier(TSharedPtr<FMovementModifierBase>(ClonedMove));
+		*static_cast<FMovementModifierHandle*>(RESULT_PARAM) = ModifierID;
+	}
+
+	P_NATIVE_END;
+}
+
+FMovementModifierHandle UMoverComponent::QueueMovementModifier(TSharedPtr<FMovementModifierBase> Modifier)
+{
+	return ModeFSM->QueueMovementModifier(Modifier);
+}
+
+void UMoverComponent::CancelModifierFromHandle(FMovementModifierHandle ModifierHandle)
+{
+	ModeFSM->CancelModifierFromHandle(ModifierHandle);
+}
+
+void UMoverComponent::K2_QueueInstantMovementEffect(const int32& EffectAsRawData)
+{
+	// This will never be called, the exec version below will be hit instead
+	checkNoEntry();
+}
+
+DEFINE_FUNCTION(UMoverComponent::execK2_QueueInstantMovementEffect)
+{
+	Stack.StepCompiledIn<FStructProperty>(nullptr);
+	void* EffectPtr = Stack.MostRecentPropertyAddress;
+	FStructProperty* StructProp = CastField<FStructProperty>(Stack.MostRecentProperty);
+
+	P_FINISH;
+
+	P_NATIVE_BEGIN;
+
+	const bool bHasValidStructProp = StructProp && StructProp->Struct && StructProp->Struct->IsChildOf(FInstantMovementEffect::StaticStruct());
+
+	if (ensureMsgf((bHasValidStructProp && EffectPtr), TEXT("An invalid type (%s) was sent to a QueueInstantMovementEffect node. A struct derived from FInstantMovementEffect is required. No Movement Effect will be queued."),
+		StructProp ? *GetNameSafe(StructProp->Struct) : *Stack.MostRecentProperty->GetClass()->GetName()))
+	{
+		// Could we steal this instead of cloning? (move semantics)
+		FInstantMovementEffect* EffectAsBasePtr = reinterpret_cast<FInstantMovementEffect*>(EffectPtr);
+		FInstantMovementEffect* ClonedMove = EffectAsBasePtr->Clone();
+
+		P_THIS->QueueInstantMovementEffect(TSharedPtr<FInstantMovementEffect>(ClonedMove));
+	}
+
+	P_NATIVE_END;
+}
+
+
+void UMoverComponent::QueueInstantMovementEffect(TSharedPtr<FInstantMovementEffect> InstantMovementEffect)
+{	
+	ModeFSM->QueueInstantMovementEffect(InstantMovementEffect);
+}
+
 void UMoverComponent::K2_FindActiveLayeredMove(bool& DidSucceed, int32& TargetAsRawBytes) const
 {
 	// This will never be called, the exec version below will be hit instead
@@ -889,11 +1305,20 @@ DEFINE_FUNCTION(UMoverComponent::execK2_FindActiveLayeredMove)
 
 	DidSucceed = false;
 	
-	if (!MovePtr || !StructProp)
+	if (!MovePtr)
 	{
 		FBlueprintExceptionInfo ExceptionInfo(
 			EBlueprintExceptionType::AbortExecution,
-			LOCTEXT("MoverComponent_GetActiveLayeredMove_UnresolvedTarget", "Failed to resolve the TargetAsRawBytes for GetActiveLayeredMove")
+			LOCTEXT("MoverComponent_GetActiveLayeredMove_UnresolvedTarget", "Failed to resolve the OutLayeredMove for GetActiveLayeredMove")
+		);
+
+		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+	}
+	else if (!StructProp)
+	{
+		FBlueprintExceptionInfo ExceptionInfo(
+			EBlueprintExceptionType::AbortExecution,
+			LOCTEXT("MoverComponent_GetActiveLayeredMove_TargetNotStruct", "GetActiveLayeredMove: Target for OutLayeredMove is not a valid type. It must be a Struct and a child of FLayeredMoveBase.")
 		);
 
 		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
@@ -902,7 +1327,7 @@ DEFINE_FUNCTION(UMoverComponent::execK2_FindActiveLayeredMove)
 	{
 		FBlueprintExceptionInfo ExceptionInfo(
 			EBlueprintExceptionType::AbortExecution,
-			LOCTEXT("MoverComponent_GetActiveLayeredMove_BadType", "TargetAsRawBytes is not a valid type. Must be a child of FLayeredMoveBase.")
+			LOCTEXT("MoverComponent_GetActiveLayeredMove_BadType", "GetActiveLayeredMove: Target for OutLayeredMove is not a valid type. Must be a child of FLayeredMoveBase.")
 		);
 
 		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
@@ -988,7 +1413,7 @@ bool UMoverComponent::AddMovementModeFromObject(FName ModeName, UBaseMovementMod
 		if (MovementMode->GetOuter() != this)
 		{
 			UE_LOG(LogMover, Verbose, TEXT("Movement modes are expected to be parented to the MoverComponent. The %s movement mode was reparented to %s!"), *GetNameSafe(MovementMode), *GetNameSafe(this));
-			MovementMode->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_NonTransactional);
+			MovementMode->Rename(nullptr, this, REN_DoNotDirty | REN_NonTransactional);
 		}
 		
 		MovementModes.Add(ModeName, MovementMode);
@@ -1022,9 +1447,53 @@ bool UMoverComponent::RemoveMovementMode(FName ModeName)
 }
 
 
+FTransform UMoverComponent::ConvertLocalRootMotionToWorld(const FTransform& LocalRootMotionTransform, float DeltaSeconds, const FTransform* AlternateActorToWorld, const FMotionWarpingUpdateContext* OptionalWarpingContext) const
+{
+	// Optionally process/warp localspace root motion
+	const FTransform ProcessedLocalRootMotion = ProcessLocalRootMotionDelegate.IsBound()
+		? ProcessLocalRootMotionDelegate.Execute(LocalRootMotionTransform, DeltaSeconds, OptionalWarpingContext)
+		: LocalRootMotionTransform;
+
+	// Convert processed localspace root motion to worldspace
+	FTransform WorldSpaceRootMotion;
+
+	if (USkeletalMeshComponent* SkeletalMesh = GetPrimaryVisualComponent<USkeletalMeshComponent>())
+	{
+		 WorldSpaceRootMotion = SkeletalMesh->ConvertLocalRootMotionToWorld(ProcessedLocalRootMotion);
+	}
+	else
+	{
+		const FTransform PresentationActorToWorldTransform = GetOwner()->GetTransform();
+		const FVector DeltaWorldTranslation = ProcessedLocalRootMotion.GetTranslation() - PresentationActorToWorldTransform.GetTranslation();
+
+		const FQuat NewWorldRotation = PresentationActorToWorldTransform.GetRotation() * ProcessedLocalRootMotion.GetRotation();
+		const FQuat DeltaWorldRotation = NewWorldRotation * PresentationActorToWorldTransform.GetRotation().Inverse();
+
+		WorldSpaceRootMotion.SetComponents(DeltaWorldRotation, DeltaWorldTranslation, FVector::OneVector);
+	}
+
+	// Optionally convert this to be relative to a different space
+	if (AlternateActorToWorld)
+	{
+		const FTransform AlternateActorToWorldNoTrans(AlternateActorToWorld->GetRotation(), FVector::ZeroVector, AlternateActorToWorld->GetScale3D());
+
+		FTransform WorldToActorNoTrans(GetOwner()->GetTransform().Inverse());
+		WorldToActorNoTrans.SetTranslation(FVector::ZeroVector);
+
+		const FTransform ActorSpaceRootMotion = WorldSpaceRootMotion * WorldToActorNoTrans;
+		WorldSpaceRootMotion = ActorSpaceRootMotion * AlternateActorToWorldNoTrans;
+	}
+	
+	// Optionally process/warp worldspace root motion
+	return ProcessWorldRootMotionDelegate.IsBound()
+		? ProcessWorldRootMotionDelegate.Execute(WorldSpaceRootMotion, DeltaSeconds, OptionalWarpingContext)
+		: WorldSpaceRootMotion;
+}
+
+
 FTransform UMoverComponent::GetUpdatedComponentTransform() const
 {
-	if (ensure(UpdatedComponent))
+	if (UpdatedComponent)
 	{
 		return UpdatedComponent->GetComponentTransform();
 	}
@@ -1032,11 +1501,30 @@ FTransform UMoverComponent::GetUpdatedComponentTransform() const
 }
 
 
+USceneComponent* UMoverComponent::GetUpdatedComponent() const
+{
+	return UpdatedComponent.Get();
+}
+
 USceneComponent* UMoverComponent::GetPrimaryVisualComponent() const
 {
 	return PrimaryVisualComponent.Get();
 }
 
+void UMoverComponent::SetPrimaryVisualComponent(USceneComponent* SceneComponent)
+{
+	if (SceneComponent && 
+		ensureMsgf(SceneComponent->GetOwner() == GetOwner(), TEXT("Primary visual component must be owned by the same actor. MoverComp owner: %s  VisualComp owner: %s"), *GetNameSafe(GetOwner()), *GetNameSafe(SceneComponent->GetOwner())))
+	{
+		PrimaryVisualComponent = SceneComponent;
+		BaseVisualComponentTransform = SceneComponent->GetRelativeTransform();
+	}
+	else
+	{
+		PrimaryVisualComponent = nullptr;
+		BaseVisualComponentTransform = FTransform::Identity;
+	}
+}
 
 FVector UMoverComponent::GetVelocity() const
 { 
@@ -1134,74 +1622,122 @@ FVector UMoverComponent::GetUpDirection() const
 	return DeducedUpDir;
 }
 
-
-TArray<FTrajectorySampleInfo> UMoverComponent::GetFutureTrajectory(float FutureSeconds, float SamplesPerSecond) const
+const FPlanarConstraint& UMoverComponent::GetPlanarConstraint() const
 {
-	FMoverTickStartData StartingState;
+	return PlanarConstraint;
+}
 
-	StartingState.InputCmd = GetLastInputCmd();
-	StartingState.SyncState = CachedLastSyncState;
-	StartingState.AuxState = CachedLastAuxState;
+void UMoverComponent::SetPlanarConstraint(const FPlanarConstraint& InConstraint)
+{
+	PlanarConstraint = InConstraint;
+}
 
-	FMoverTickStartData StepState = StartingState;
+TArray<FTrajectorySampleInfo> UMoverComponent::GetFutureTrajectory(float FutureSeconds, float SamplesPerSecond)
+{
+	FMoverPredictTrajectoryParams PredictionParams;
+	PredictionParams.NumPredictionSamples = FMath::Max(1, FutureSeconds * SamplesPerSecond);
+	PredictionParams.SecondsPerSample = FutureSeconds / (float)PredictionParams.NumPredictionSamples;
 
-	const int32 NumSamples = FMath::Max(1, FutureSeconds * SamplesPerSecond);
-	const float StepDeltaSeconds = FutureSeconds / (float)NumSamples;
+	return GetPredictedTrajectory(PredictionParams);
+}
 
-	FMoverTimeStep FutureTimeStep;
-	FutureTimeStep.StepMs = (FutureSeconds * 1000.f) / NumSamples;
-	FutureTimeStep.BaseSimTimeMs = CachedLastSimTickTimeStep.BaseSimTimeMs;
-	FutureTimeStep.ServerFrame = 0;
-
-	if (const UBaseMovementMode* CurrentMovementMode = ModeFSM->GetCurrentMode())
+TArray<FTrajectorySampleInfo> UMoverComponent::GetPredictedTrajectory(FMoverPredictTrajectoryParams PredictionParams)
+{
+	if (ModeFSM)
 	{
-		TArray<FTrajectorySampleInfo> OutSamples;
-		OutSamples.AddDefaulted(NumSamples);
+		FMoverTickStartData StartingState;
 
-		if (FMoverDefaultSyncState* StepSyncState = StepState.SyncState.SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>())
+		StartingState.InputCmd = GetLastInputCmd();
+		StartingState.SyncState = CachedLastSyncState;
+		StartingState.AuxState = CachedLastAuxState;
+
+		FMoverTickStartData StepState = StartingState;
+
+		FMoverTimeStep FutureTimeStep;
+		FutureTimeStep.StepMs = (PredictionParams.SecondsPerSample * 1000.f);
+		FutureTimeStep.BaseSimTimeMs = CachedLastSimTickTimeStep.BaseSimTimeMs;
+		FutureTimeStep.ServerFrame = 0;
+
+		if (const UBaseMovementMode* CurrentMovementMode = ModeFSM->GetCurrentMode())
 		{
-			FVector PriorLocation = StepSyncState->GetLocation_WorldSpace();
-			FRotator PriorOrientation = StepSyncState->GetOrientation_WorldSpace();
-			FVector PriorVelocity = StepSyncState->GetVelocity_WorldSpace();
+			const bool bOrigHasGravityOverride = bHasGravityOverride;
+			const FVector OrigGravityAccelOverride = GravityAccelOverride;
 
-			for (int32 i = 0; i < NumSamples; ++i)
+			if (PredictionParams.bDisableGravity)
 			{
-				// Capture sample from current step state
-				FTrajectorySampleInfo& Sample = OutSamples[i];
-
-				Sample.Transform.SetLocation(StepSyncState->GetLocation_WorldSpace());
-				Sample.Transform.SetRotation(StepSyncState->GetOrientation_WorldSpace().Quaternion());
-				Sample.LinearVelocity = StepSyncState->GetVelocity_WorldSpace();
-				Sample.InstantaneousAcceleration = (StepSyncState->GetVelocity_WorldSpace() - PriorVelocity) / StepDeltaSeconds;
-				Sample.AngularVelocity = (StepSyncState->GetOrientation_WorldSpace() - PriorOrientation) * (1.f / StepDeltaSeconds);
-
-				Sample.SimTimeMs = FutureTimeStep.BaseSimTimeMs;
-
-				// Cache prior values
-				PriorLocation = StepSyncState->GetLocation_WorldSpace();
-				PriorOrientation = StepSyncState->GetOrientation_WorldSpace();
-				PriorVelocity = StepSyncState->GetVelocity_WorldSpace();
-
-				// Generate next move from current step state
-				FProposedMove StepMove;
-				CurrentMovementMode->DoGenerateMove(StepState, FutureTimeStep, StepMove);
-
-				// Advance state based on move
-				StepSyncState->SetTransforms_WorldSpace(StepSyncState->GetLocation_WorldSpace() + (StepMove.LinearVelocity * StepDeltaSeconds),
-					StepSyncState->GetOrientation_WorldSpace() + (StepMove.AngularVelocity * StepDeltaSeconds),
-					StepMove.LinearVelocity,
-					StepSyncState->GetMovementBase(),
-					StepSyncState->GetMovementBaseBoneName());
-
-				FutureTimeStep.BaseSimTimeMs += FutureTimeStep.StepMs;
-				++FutureTimeStep.ServerFrame;
+				SetGravityOverride(true, FVector::ZeroVector);
 			}
-		}
 
-		return OutSamples;
+			TArray<FTrajectorySampleInfo> OutSamples;
+			OutSamples.AddDefaulted(PredictionParams.NumPredictionSamples);
+
+			if (FMoverDefaultSyncState* StepSyncState = StepState.SyncState.SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>())
+			{
+				FVector PriorLocation = StepSyncState->GetLocation_WorldSpace();
+				FRotator PriorOrientation = StepSyncState->GetOrientation_WorldSpace();
+				FVector PriorVelocity = StepSyncState->GetVelocity_WorldSpace();
+
+				for (int32 i = 0; i < PredictionParams.NumPredictionSamples; ++i)
+				{
+					// Capture sample from current step state
+					FTrajectorySampleInfo& Sample = OutSamples[i];
+
+					Sample.Transform.SetLocation(StepSyncState->GetLocation_WorldSpace());
+					Sample.Transform.SetRotation(StepSyncState->GetOrientation_WorldSpace().Quaternion());
+					Sample.LinearVelocity = StepSyncState->GetVelocity_WorldSpace();
+					Sample.InstantaneousAcceleration = (StepSyncState->GetVelocity_WorldSpace() - PriorVelocity) / PredictionParams.SecondsPerSample;
+					Sample.AngularVelocity = (StepSyncState->GetOrientation_WorldSpace() - PriorOrientation) * (1.f / PredictionParams.SecondsPerSample);
+
+					Sample.SimTimeMs = FutureTimeStep.BaseSimTimeMs;
+
+					// Cache prior values
+					PriorLocation = StepSyncState->GetLocation_WorldSpace();
+					PriorOrientation = StepSyncState->GetOrientation_WorldSpace();
+					PriorVelocity = StepSyncState->GetVelocity_WorldSpace();
+
+					// Generate next move from current step state
+					FProposedMove StepMove;
+					CurrentMovementMode->DoGenerateMove(StepState, FutureTimeStep, StepMove);
+
+					// Advance state based on move
+					StepSyncState->SetTransforms_WorldSpace(StepSyncState->GetLocation_WorldSpace() + (StepMove.LinearVelocity * PredictionParams.SecondsPerSample),
+						StepSyncState->GetOrientation_WorldSpace() + (StepMove.AngularVelocity * PredictionParams.SecondsPerSample),
+						StepMove.LinearVelocity,
+						StepSyncState->GetMovementBase(),
+						StepSyncState->GetMovementBaseBoneName());
+
+					FutureTimeStep.BaseSimTimeMs += FutureTimeStep.StepMs;
+					++FutureTimeStep.ServerFrame;
+				}
+
+				// Put sample locations at visual root location if requested
+				if (PredictionParams.bUseVisualComponentRoot)
+				{
+					if (const USceneComponent* VisualComp = GetPrimaryVisualComponent())
+					{
+						const FVector VisualCompOffset = VisualComp->GetRelativeLocation();
+						const FTransform VisualCompRelativeTransform = VisualComp->GetRelativeTransform();
+
+						for (int32 i=0; i < PredictionParams.NumPredictionSamples; ++i)
+						{
+							OutSamples[i].Transform = VisualCompRelativeTransform * OutSamples[i].Transform;
+						}
+					}
+				}
+			}
+
+			if (PredictionParams.bDisableGravity)
+			{
+				SetGravityOverride(bOrigHasGravityOverride, OrigGravityAccelOverride);
+			}
+
+			return OutSamples;
+		}
 	}
 
-	return TArray<FTrajectorySampleInfo>();
+	TArray<FTrajectorySampleInfo> BlankDefaultSamples;
+	BlankDefaultSamples.AddDefaulted(PredictionParams.NumPredictionSamples);
+	return BlankDefaultSamples;
 }
 
 
@@ -1215,6 +1751,18 @@ FName UMoverComponent::GetMovementModeName() const
 	return NAME_None;
 }
 
+const UBaseMovementMode* UMoverComponent::GetMovementMode() const
+{
+	if (bHasValidCachedState)
+	{
+		if (const TObjectPtr<UBaseMovementMode>* CurrentMode = MovementModes.Find(CachedLastSyncState.MovementMode))
+		{
+			return CurrentMode->Get();
+		}
+	}
+
+	return nullptr;
+}
 
 UPrimitiveComponent* UMoverComponent::GetMovementBase() const
 {
@@ -1292,6 +1840,11 @@ const FMoverInputCmdContext& UMoverComponent::GetLastInputCmd() const
 	}
 
 	return CachedLastUsedInputCmd;
+}
+
+const FMoverTimeStep& UMoverComponent::GetLastTimeStep() const
+{
+	return CachedLastSimTickTimeStep;
 }
 
 IMovementSettingsInterface* UMoverComponent::FindSharedSettings_Mutable(const UClass* ByType) const

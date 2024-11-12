@@ -8,21 +8,27 @@
 #include "ChaosVDRuntimeModule.h"
 #endif
 
+#include "ChaosDebugDraw/ChaosDDScene.h"
 #include "ClothCollisionSource.h"
 #include "Engine/OverlapResult.h"
+#include "Engine/SkeletalMesh.h"
 #include "GameFramework/Pawn.h"
-#include "HAL/Event.h"
-#include "HAL/LowLevelMemTracker.h"
-#include "PhysicsEngine/BodySetup.h"
-#include "PhysicsEngine/PhysicsAsset.h"
-#include "PhysicsEngine/PhysicsConstraintTemplate.h"
 #include "GameFramework/PawnMovementComponent.h"
-#include "Physics/PhysicsInterfaceCore.h"
+#include "HAL/Event.h"
+#include "HAL/LowLevelMemStats.h"
+#include "HAL/LowLevelMemTracker.h"
+#include "Physics/Experimental/PhysScene_Chaos.h"
 #include "Physics/ImmediatePhysics/ImmediatePhysicsActorHandle.h"
 #include "Physics/ImmediatePhysics/ImmediatePhysicsSimulation.h"
 #include "Physics/ImmediatePhysics/ImmediatePhysicsStats.h"
+#include "Physics/PhysicsInterfaceCore.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/PhysicsConstraintTemplate.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "PhysicsField/PhysicsFieldComponent.h"
 #include "PhysicsEngine/PhysicsSettings.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "Logging/MessageLog.h"
 #include "Logging/LogMacros.h"
 
@@ -30,7 +36,7 @@
 
 LLM_DEFINE_TAG(Animation_RigidBody);
 
-//PRAGMA_DISABLE_OPTIMIZATION
+//UE_DISABLE_OPTIMIZATION
 
 /////////////////////////////////////////////////////
 // FAnimNode_RigidBody
@@ -107,6 +113,13 @@ FAutoConsoleVariableRef CVarRigidBodyNodeDebugDraw(TEXT("p.RigidBodyNode.DebugDr
 bool bRBAN_InitializeBoneReferencesRangeCheckEnabled = true;
 FAutoConsoleVariableRef CVarRigidBodyNodeInitializeBoneReferencesRangeCheckEnabled(TEXT("p.RigidBodyNode.InitializeBoneReferencesRangeCheckEnabled"), bRBAN_InitializeBoneReferencesRangeCheckEnabled, TEXT(""), ECVF_Default);
 
+bool bRBAN_EnableScalingOnSpaceTransform = false;
+FAutoConsoleVariableRef CVarRigidBodyNodeEnableScalingOnSpaceTransform(TEXT("p.RigidBodyNode.EnableScalingOnSpaceTransform"), bRBAN_EnableScalingOnSpaceTransform, TEXT("Enable scaling on space transform for RBAN."));
+
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+// This is used for memory tagging purposes
+static FName GRBANClassFName(TEXT("AnimNode_RigidBody"));
+#endif
 
 // Array of priorities that can be indexed into with CVars, since task priorities cannot be set from scalability .ini
 static UE::Tasks::ETaskPriority GRigidBodyNodeTaskPriorities[] =
@@ -402,7 +415,10 @@ void FAnimNode_RigidBody::CalculateSimulationSpace(
 	// This means we do not support phantom forces resulting from scale changes, but that's ok.
 	// NOTE: If we don't clear the scale, rapid scaling to zero can introduce large phantom forces
 	// leading to major instability in the simulation
-	SpaceTransform.SetScale3D(FVector::One());
+	if (!bRBAN_EnableScalingOnSpaceTransform)
+	{
+		SpaceTransform.SetScale3D(FVector::One());
+	}
 
 	// If the system is disabled, nothing else to do
 	if ((Settings.WorldAlpha == 0.0f) || (Dt < SMALL_NUMBER))
@@ -488,8 +504,16 @@ DECLARE_CYCLE_STAT(TEXT("FAnimNode_RigidBody::EvaluateSkeletalControl_AnyThread"
 
 void FAnimNode_RigidBody::RunPhysicsSimulation(float DeltaSeconds, const FVector& SimSpaceGravity)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/RigidBody"));
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNode_Simulation);
 	CSV_SCOPED_TIMING_STAT(Animation, RigidBodyNodeSimulation);
+
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(OwningAssetPackageName, ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(GRBANClassFName, ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(OwningAssetName, GRBANClassFName, OwningAssetPackageName);
+#endif
+
 	FScopeCycleCounterUObject AdditionalScope(UsePhysicsAsset, GET_STATID(STAT_RigidBodyNode_Simulation));
 
 	const int32 MaxSteps = RBAN_MaxSubSteps;
@@ -518,10 +542,18 @@ void FAnimNode_RigidBody::DestroyPhysicsSimulation()
 
 void FAnimNode_RigidBody::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output, TArray<FBoneTransform>& OutBoneTransforms)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/RigidBody"));
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(EvaluateSkeletalControl_AnyThread)
 	SCOPE_CYCLE_COUNTER(STAT_RigidBody_Eval);
 	CSV_SCOPED_TIMING_STAT(Animation, RigidBodyEval);
 	SCOPE_CYCLE_COUNTER(STAT_ImmediateEvaluateSkeletalControl);
+
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(OwningAssetPackageName, ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(GRBANClassFName, ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(OwningAssetName, GRBANClassFName, OwningAssetPackageName);
+#endif
+
 	//SCOPED_NAMED_EVENT_TEXT("FAnimNode_RigidBody::EvaluateSkeletalControl_AnyThread", FColor::Magenta);
 
 	if (CVarEnableRigidBodyNodeSimulation.GetValueOnAnyThread() == 0)
@@ -845,7 +877,9 @@ void FAnimNode_RigidBody::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseC
 				SolverSettings.bUseLinearJointSolver,
 				SolverSettings.PositionIterations,
 				SolverSettings.VelocityIterations,
-				SolverSettings.ProjectionIterations);
+				SolverSettings.ProjectionIterations,
+				SolverSettings.bUseManifolds);
+
 
 			if (!bUseDeferredSimulationTask)
 			{
@@ -1029,6 +1063,15 @@ void FAnimNode_RigidBody::InitPhysics(const UAnimInstance* InAnimInstance)
 		return;
 	}
 
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+	OwningAssetPackageName = SkeletalMeshAsset->GetPackage()->GetFName();
+	OwningAssetName = SkeletalMeshComp->GetFName();
+
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(OwningAssetPackageName, ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(GRBANClassFName, ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(OwningAssetName, GRBANClassFName, OwningAssetPackageName);
+#endif
+
 	const FReferenceSkeleton& SkelMeshRefSkel = SkeletalMeshAsset->GetRefSkeleton();
 	UsePhysicsAsset = GetPhysicsAssetToBeUsed(InAnimInstance);
 
@@ -1069,6 +1112,14 @@ void FAnimNode_RigidBody::InitPhysics(const UAnimInstance* InAnimInstance)
 #if WITH_CHAOS_VISUAL_DEBUGGER
 		PhysicsSimulation->GetChaosVDContextData().Id = FChaosVDRuntimeModule::Get().GenerateUniqueID();
 		PhysicsSimulation->GetChaosVDContextData().Type = static_cast<int32>(EChaosVDContextType::Solver);
+#endif
+
+#if CHAOS_DEBUG_DRAW
+		if ((SkeletalMeshComp->GetWorld() != nullptr) && (SkeletalMeshComp->GetWorld()->GetPhysicsScene() != nullptr))
+		{
+			const FString DDName = FString::Format(TEXT("RBAN {0}"), { SkeletalMeshComp->GetName()});
+			PhysicsSimulation->SetDebugDrawScene(DDName, SkeletalMeshComp->GetWorld()->GetPhysicsScene()->GetDebugDrawScene());
+		}
 #endif
 
 		const int32 NumBodies = UsePhysicsAsset->SkeletalBodySetups.Num();
@@ -1294,7 +1345,8 @@ void FAnimNode_RigidBody::InitPhysics(const UAnimInstance* InAnimInstance)
 			SolverSettings.bUseLinearJointSolver,
 			SolverSettings.PositionIterations,
 			SolverSettings.VelocityIterations,
-			SolverSettings.ProjectionIterations);
+			SolverSettings.ProjectionIterations,
+			SolverSettings.bUseManifolds);
 
 		SolverIterations = UsePhysicsAsset->SolverIterations;
 	}
@@ -1762,6 +1814,7 @@ void FAnimNode_RigidBody::PurgeExpiredWorldObjects()
 void FAnimNode_RigidBody::UpdateWorldObjects(const FTransform& SpaceTransform)
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/RigidBody")); 
+
 
 	if (SimulationSpace != ESimulationSpace::WorldSpace)
 	{

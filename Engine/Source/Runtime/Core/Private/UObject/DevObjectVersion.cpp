@@ -36,8 +36,7 @@
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "UObject/UE5PrivateFrostyStreamObjectVersion.h"
-#include "UObject/UE5CookerObjectVersion.h"
-#include "UObject/UE5LWCRenderingStreamObjectVersion.h"
+#include "UObject/NaniteResearchStreamObjectVersion.h"
 #include "UObject/MediaFrameWorkObjectVersion.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDevObjectVersion, Log, All);
@@ -123,19 +122,23 @@ FGuid FDevSystemGuidRegistry::GetSystemGuid(FGuid System)
 	return RegisteredGuid.Guid;
 }
 
+// !!! THESE GUIDS NEVER NEED TO BE CHANGED TO UPDATE A DDC KEY. !!!
+// These are the Dev System GUID registration keys and not part of the DDC key
+// themselves. Only change the value of the GUID for the given system in the 
+// appropriate stream object version GetSystemGuids() function
 FDevSystemGuids::FDevSystemGuids()
 	: GLOBALSHADERMAP_DERIVEDDATA_VER(0x7BB10A3C, 0xAC4E46F3, 0xAC78F4C1, 0xEFB3E34F)
 	, GROOM_BINDING_DERIVED_DATA_VERSION(0x30769E53, 0x0C574C7B, 0xA15C56F2, 0x24A64E32)
-	, GROOM_DERIVED_DATA_VERSION(0x05A37379, 0xF8A049D5, 0x986824E9, 0xAAA83F41)
+	, GROOM_DERIVED_DATA_VERSION(0x8D2064FA, 0x4EDF4DB7, 0x99B33838, 0xA79A8B79)
 	, LANDSCAPE_MOBILE_COOK_VERSION(0x0E9ADF72, 0xD6B64E0D, 0x81C4A92B, 0x081A37AB)
-	, MATERIALSHADERMAP_DERIVEDDATA_VER(0x9131A169, 0x3E004B0D, 0x864390EF, 0xA1F12934)
+	, MATERIALSHADERMAP_DERIVEDDATA_VER(0x5421F350, 0xA448491B, 0x95422D86, 0xB105837C)
 	, NANITE_DERIVEDDATA_VER(0xBEB0226A, 0x070E4ECA, 0x972C1E7D, 0xD8599E68)
 	, NIAGARASHADERMAP_DERIVEDDATA_VER(0x7BBD9913, 0xC1554D20, 0xADAE9F17, 0xB006299E)
 	, Niagara_LatestScriptCompileVersion(0x6D32B8EE, 0x909FCA7E, 0xA5CE4F17, 0x066A5F25)
 	, POSESEARCHDB_DERIVEDDATA_VER(0x389117E4, 0x807A4CC0, 0x9F37C2E6, 0xD808A78D)
 	, SkeletalMeshDerivedDataVersion(0x9B5F4544, 0x76D7481C, 0x9AD3F614, 0xA6C07904)
 	, STATICMESH_DERIVEDDATA_VER(0x2C6C400C, 0x2EDF47B3, 0x9BD36689, 0x7B77B208)
-	, MaterialTranslationDDCVersion(0x59E1F296, 0x27064757, 0x8CA7EB9B, 0xFC366BD2)
+	, MaterialTranslationDDCVersion(0x628D9AFC, 0xC10245C5, 0x86967652, 0xAD52E887)
 {
 }
 
@@ -342,16 +345,12 @@ const FGuid FUE5PrivateFrostyStreamObjectVersion::GUID(0x59DA5D52, 0x12324948, 0
 // Register UE5 private frosty stream custom version with Core
 FDevVersionRegistration GRegisterUE5PrivateFrostyStreamObjectVersion(FUE5PrivateFrostyStreamObjectVersion::GUID, FUE5PrivateFrostyStreamObjectVersion::LatestVersion, TEXT("UE5-PrivateFrosty"));
 
-// Unique Cooker version id
-const FGuid FUE5CookerObjectVersion::GUID(0x26075A32, 0x730F4708, 0x88E98C32, 0xF1599D05);
-// Register Cooker custom version with Core
-FDevVersionRegistration GRegisterCookerObjectVersion(FUE5CookerObjectVersion::GUID, FUE5CookerObjectVersion::LatestVersion, TEXT("UE5-Dev-Cooker"));
-
 // Unique MediaFramework Object version id
 const FGuid FMediaFrameworkObjectVersion::GUID(0x6f0ed827, 0xa6094895, 0x9c91998d, 0x90180ea4);
 // Register MediaFramework custom version with Core
 FDevVersionRegistration GRegisterMediaFrameworkObjectVersion(FMediaFrameworkObjectVersion::GUID, FMediaFrameworkObjectVersion::LatestVersion, TEXT("Dev-MediaFramework"));
 
-const FGuid FUE5LWCRenderingStreamObjectVersion::GUID(0x30D58BE3, 0x95EA4282, 0xA6E3B159, 0xD8EBB06A);
-// Register MediaFramework custom version with Core
-FDevVersionRegistration GRegisterLWCRenderingStreamObjectVersion(FUE5LWCRenderingStreamObjectVersion::GUID, FUE5LWCRenderingStreamObjectVersion::LatestVersion, TEXT("UE5-Dev-LWCRendering"));
+const FGuid FNaniteResearchStreamObjectVersion::GUID(0x30D58BE3, 0x95EA4282, 0xA6E3B159, 0xD8EBB06A);
+// Register NaniteResearch custom version with Core
+FDevVersionRegistration GRegisterNaniteResearchStreamObjectVersion(FNaniteResearchStreamObjectVersion::GUID, FNaniteResearchStreamObjectVersion::LatestVersion, TEXT("Dev-NaniteResearch"));
+FDevSystemGuidRegistration GRegisterNaniteResearchStreamSystemGuids(FNaniteResearchStreamObjectVersion::GetSystemGuids());

@@ -366,6 +366,15 @@ void FClothingSimulationSolver::SetLocalSpaceLocation(const FVec3& InLocalSpaceL
 	}
 }
 
+void FClothingSimulationSolver::SetLocalSpaceScale(FReal InLocalSpaceScale, bool bReset)
+{
+	LocalSpaceScale = InLocalSpaceScale;
+	if (bReset)
+	{
+		OldLocalSpaceScale = InLocalSpaceScale;
+	}
+}
+
 void FClothingSimulationSolver::SetCloths(TArray<FClothingSimulationCloth*>&& InCloths)
 {
 	// Remove old cloths
@@ -520,9 +529,7 @@ void FClothingSimulationSolver::SetConfig(FClothingSimulationConfig* InConfig)
 	{
 		// Create a default empty config object for coherence
 		PropertyCollection = MakeShared<FManagedArrayCollection>();
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		Config = new FClothingSimulationConfig(PropertyCollection);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		Config = new FClothingSimulationConfig({ PropertyCollection });
 	}
 }
 
@@ -622,13 +629,17 @@ void FClothingSimulationSolver::ResetStartPose(int32 ParticleRangeId, int32 NumP
 	Softs::FSolverVec3* const Xs = GetParticleXs(ParticleRangeId);
 	Softs::FSolverVec3* const Vs = GetParticleVs(ParticleRangeId);
 	const Softs::FSolverVec3* const Positions = GetAnimationPositions(ParticleRangeId);
+	const Softs::FSolverVec3* const AnimNormals = GetAnimationNormals(ParticleRangeId);
 	Softs::FSolverVec3* const OldPositions = GetOldAnimationPositions(ParticleRangeId);
 	Softs::FSolverVec3* const InterpolatedPositions = GetInterpolatedAnimationPositions(ParticleRangeId);
 	Softs::FSolverVec3* const AnimationVs = GetAnimationVelocities(ParticleRangeId);
+	Softs::FSolverVec3* const OldAnimNormals = GetOldAnimationNormals(ParticleRangeId);
+	Softs::FSolverVec3* const InterpolatedNormals = GetInterpolatedAnimationNormals(ParticleRangeId);
 
 	for (int32 Index = 0; Index < NumParticles; ++Index)
 	{
 		PandInvMs[Index].P = Xs[Index] = OldPositions[Index] = InterpolatedPositions[Index] = Positions[Index];
+		OldAnimNormals[Index] = InterpolatedNormals[Index] = AnimNormals[Index];
 		Vs[Index] = AnimationVelocities[Index] = Softs::FSolverVec3(0.);
 	}
 }
@@ -785,6 +796,15 @@ int32 FClothingSimulationSolver::AddCollisionParticles(int32 NumCollisionParticl
 	int32 CollisionRangeId = INDEX_NONE;
 	if (Evolution)
 	{
+		if (Evolution->IsValidCollisionParticleRange(RecycledCollisionRangeId))
+		{
+			if (Evolution->GetCollisionParticleRange(RecycledCollisionRangeId).GetRangeSize() == NumCollisionParticles)
+			{
+				return RecycledCollisionRangeId;
+			}
+			// Size has changed. Remove the recycled collision range and reallocate some new particles
+			Evolution->RemoveCollisionParticleRange(RecycledCollisionRangeId);
+		}
 		CollisionRangeId = Evolution->AddCollisionParticleRange(GroupId, NumCollisionParticles, bActivateFalse);
 	}
 	else
@@ -1072,22 +1092,33 @@ void FClothingSimulationSolver::SetParticleMassFromDensity(int32 ParticleRangeId
 	}
 }
 
-void FClothingSimulationSolver::SetReferenceVelocityScale(
-	uint32 GroupId,
-	const FRigidTransform3& OldReferenceSpaceTransform,  // Transforms are in world space so have to be FReal based for LWC
+void FClothingSimulationSolver::SetReferenceVelocityScale(uint32 GroupId,
+	const FRigidTransform3& OldReferenceSpaceTransform,
 	const FRigidTransform3& ReferenceSpaceTransform,
+	TVec3<FReal>& InOutReferenceVelocity, // Old reference velocity is passed in. New reference velocity is returned.
+	TVec3<FReal>& InOutReferenceAngularVelocity, // Old reference velocity is passed in. New reference velocity is returned.
+	const EChaosSoftsSimulationSpace VelocityScaleSpace, // the space the following linear velocity properties are in.
 	const TVec3<FRealSingle>& LinearVelocityScale,
-	FRealSingle AngularVelocityScale, FRealSingle FictitiousAngularScale,
-	FRealSingle MaxVelocityScale
+	const TVec3<FRealSingle>& MaxLinearVelocity,
+	const TVec3<FRealSingle>& MaxLinearAcceleration,
+	FRealSingle AngularVelocityScale,
+	FRealSingle MaxAngularVelocity,
+	FRealSingle MaxAngularAcceleration,
+	FRealSingle FictitiousAngularScale,
+	FRealSingle MaxVelocityScale,
+	bool bDisableFictitiousForces
 )
 {
 	FRigidTransform3 OldRootBoneLocalTransform = OldReferenceSpaceTransform;
 	OldRootBoneLocalTransform.AddToTranslation(-OldLocalSpaceLocation);
+	check(OldLocalSpaceScale > UE_SMALL_NUMBER);
+	const FReal OldLocalSpaceScaleInv = 1. / OldLocalSpaceScale;
+	OldRootBoneLocalTransform.ScaleTranslation(OldLocalSpaceScaleInv);
+
+	const FVec3 OldReferenceVelocity(InOutReferenceVelocity); // In world space
+	const FVec3 OldReferenceAngularVelocity(InOutReferenceAngularVelocity); // In world space
 
 	const FReal SolverVelocityScale = bClothSolverUseVelocityScale ? VelocityScale : (FReal)1.;
-
-	// Calculate deltas
-	const FRigidTransform3 DeltaTransform = ReferenceSpaceTransform.GetRelativeTransform(OldReferenceSpaceTransform);
 
 	auto CalculateClampedVelocityScale = [MaxVelocityScale, SolverVelocityScale](FRealSingle InVelocityScale)
 	{
@@ -1101,39 +1132,151 @@ void FClothingSimulationSolver::SetReferenceVelocityScale(
 		return FMath::Clamp(SolverVelocityScale, (FReal)0., (FReal)1.) * FMath::Clamp(InVelocityScale, (FReal)0., (FReal)MaxVelocityScale);
 	};
 
-	// Apply linear velocity scale
-	const FVec3 LinearRatio = FVec3(1.) - FVec3(
+	// Calculate deltas
+	const FRotation3 OldReferenceSpaceRotationInverse = OldReferenceSpaceTransform.GetRotation().Inverse();
+	const FVec3 WorldDeltaTranslation = FRigidTransform3::SubtractTranslations(ReferenceSpaceTransform, OldReferenceSpaceTransform);
+	const FRotation3 FullDeltaRotationQ = OldReferenceSpaceRotationInverse * ReferenceSpaceTransform.GetRotation();
+	FReal FullDeltaAngle = FullDeltaRotationQ.GetAngle();
+	const FVec3 FullAxis = FullDeltaRotationQ.GetRotationAxis();
+	if (FullDeltaAngle > (FReal)PI)
+	{
+		FullDeltaAngle -= (FReal)2. * (FReal)PI;
+	}	
+	const FVec3 FullDeltaRotation = FullDeltaAngle * FullAxis;
+
+	// Choose which space to do linear velocity scale and clamp calculations based on VelocityScaleSpace
+	FRotation3 VelocityScaleSpaceToOldRefSpace;
+	FVec3 VelocityScaleSpaceDeltaTranslation;
+	switch (VelocityScaleSpace)
+	{
+	case EChaosSoftsSimulationSpace::WorldSpace:
+		VelocityScaleSpaceToOldRefSpace = OldReferenceSpaceRotationInverse;
+		VelocityScaleSpaceDeltaTranslation = WorldDeltaTranslation;
+		break;
+	case EChaosSoftsSimulationSpace::ComponentSpace:
+		VelocityScaleSpaceToOldRefSpace = OldReferenceSpaceRotationInverse * LocalSpaceRotation;
+		VelocityScaleSpaceDeltaTranslation = LocalSpaceRotation.UnrotateVector(WorldDeltaTranslation);
+		break;
+	case EChaosSoftsSimulationSpace::ReferenceBoneSpace:
+	default:
+		VelocityScaleSpaceToOldRefSpace = FRotation3::Identity;
+		VelocityScaleSpaceDeltaTranslation = OldReferenceSpaceRotationInverse * WorldDeltaTranslation;
+		break;
+	}
+
+	// Apply linear velocity scale.
+	const FVec3 LinearRatio = FVec3(
 		CalculateClampedVelocityScale(LinearVelocityScale[0]),
 		CalculateClampedVelocityScale(LinearVelocityScale[1]),
 		CalculateClampedVelocityScale(LinearVelocityScale[2]));
-	const FVec3 DeltaPosition = LinearRatio * DeltaTransform.GetTranslation();
+
+	FVec3 AppliedDeltaTranslation = LinearRatio * VelocityScaleSpaceDeltaTranslation;
 
 	// Apply angular velocity scale
-	FRotation3 DeltaRotation = DeltaTransform.GetRotation();
-	FReal DeltaAngle = DeltaRotation.GetAngle();
-	FVec3 Axis = DeltaRotation.GetRotationAxis();
-	if (DeltaAngle > (FReal)PI)
+	const FReal AngularRatio = CalculateClampedVelocityScale(AngularVelocityScale);
+	FVec3 AppliedDeltaRotation = AngularRatio * FullDeltaRotation;
+
+	// Apply clamps (since we're ultimately just modifying a single transform, remove accelerations from the velocity first, then clamp velocities).
+	if (DeltaTime > 0.f)
 	{
-		DeltaAngle -= (FReal)2. * (FReal)PI;
+		// Only update old reference velocity when ticking.
+		InOutReferenceVelocity = WorldDeltaTranslation / DeltaTime;
+		InOutReferenceAngularVelocity = FullDeltaRotation / DeltaTime;
+	
+		FVec3 AppliedLinearVelocity = AppliedDeltaTranslation / DeltaTime;
+		FVec3 AppliedAngularVelocity = AppliedDeltaRotation / DeltaTime;
+
+		// Apply linear acceleration clamping
+		if (MaxLinearAcceleration != TVec3<FRealSingle>(TNumericLimits<FRealSingle>::Max()))
+		{
+			FVec3 OldScaledVelocity;
+			switch (VelocityScaleSpace)
+			{
+			case EChaosSoftsSimulationSpace::WorldSpace:
+				OldScaledVelocity = LinearRatio * OldReferenceVelocity;
+				break;
+			case EChaosSoftsSimulationSpace::ComponentSpace:
+				OldScaledVelocity = LinearRatio * LocalSpaceRotation.UnrotateVector(OldReferenceVelocity);
+				break;
+			case EChaosSoftsSimulationSpace::ReferenceBoneSpace:
+			default:
+				OldScaledVelocity = LinearRatio * (OldReferenceSpaceRotationInverse * OldReferenceVelocity);
+				break;
+			}
+			
+			const FVec3 ScaledAccelerationTimesDt = AppliedLinearVelocity - OldScaledVelocity;
+			for (int32 Index = 0; Index < 3; ++Index)
+			{
+				if (MaxLinearAcceleration[Index] != TNumericLimits<FRealSingle>::Max() && MaxLinearAcceleration[Index] >= 0.f
+					&& FMath::Abs(ScaledAccelerationTimesDt[Index]) > (FReal)(MaxLinearAcceleration[Index] * DeltaTime * LocalSpaceScale))
+				{
+					AppliedLinearVelocity[Index] = OldScaledVelocity[Index] + FMath::Sign(ScaledAccelerationTimesDt[Index]) * (FReal)(MaxLinearAcceleration[Index] * DeltaTime * LocalSpaceScale);
+				}
+			}
+		}
+
+		// Apply linear velocity clamping
+		if (MaxLinearVelocity != TVec3<FRealSingle>(TNumericLimits<FRealSingle>::Max()))
+		{
+			for (int32 Index = 0; Index < 3; ++Index)
+			{
+				if (MaxLinearVelocity[Index] != TNumericLimits<FRealSingle>::Max() && MaxLinearVelocity[Index] >= 0.f &&
+					FMath::Abs(AppliedLinearVelocity[Index]) > (FReal)MaxLinearVelocity[Index] * LocalSpaceScale)
+				{
+					AppliedLinearVelocity[Index] = FMath::Sign(AppliedLinearVelocity[Index]) * (FReal)MaxLinearVelocity[Index] * LocalSpaceScale;
+				}
+			}
+		}
+
+		AppliedDeltaTranslation = AppliedLinearVelocity * DeltaTime;
+
+		if (MaxAngularAcceleration != TNumericLimits<FRealSingle>::Max() && MaxAngularAcceleration >= 0.f)
+		{
+			const FVec3 OldScaledAngularVelocity = AngularRatio * OldReferenceAngularVelocity;
+			const FVec3 ScaledReferenceSpaceAngularAccelerationTimesDt = AppliedAngularVelocity - OldScaledAngularVelocity;
+			const FReal LenSq = ScaledReferenceSpaceAngularAccelerationTimesDt.SquaredLength();
+			if (LenSq > FMath::Square(MaxAngularAcceleration * DeltaTime))
+			{
+				const FReal Scale = MaxAngularAcceleration * DeltaTime * FMath::InvSqrt(LenSq);
+				AppliedAngularVelocity = OldScaledAngularVelocity + Scale * ScaledReferenceSpaceAngularAccelerationTimesDt;
+			}
+		}
+		if (MaxAngularVelocity != TNumericLimits<FRealSingle>::Max() && MaxAngularVelocity >= 0.f)
+		{
+			const FReal LenSq = AppliedAngularVelocity.SquaredLength();
+			if (LenSq > FMath::Square(MaxAngularVelocity))
+			{
+				const FReal Scale = MaxAngularVelocity * FMath::InvSqrt(LenSq);
+				AppliedAngularVelocity *= Scale;
+			}
+		}
+
+		AppliedDeltaRotation = AppliedAngularVelocity * DeltaTime;
 	}
 
-	const FReal PartialDeltaAngle = DeltaAngle * ((FReal)1. - CalculateClampedVelocityScale(AngularVelocityScale));
-	DeltaRotation = UE::Math::TQuat<FReal>(Axis, PartialDeltaAngle);
+	check(LocalSpaceScale > UE_SMALL_NUMBER);
+	const FReal LocalSpaceScaleInv = 1. / LocalSpaceScale;
+	const FVec3 DeltaPosition = VelocityScaleSpaceToOldRefSpace * (LocalSpaceScaleInv * (VelocityScaleSpaceDeltaTranslation - AppliedDeltaTranslation));
+	const FVec3 DeltaRotation = FullDeltaRotation - AppliedDeltaRotation;
+	const FReal DeltaAngle = DeltaRotation.Length();
+	const FVec3 Axis = DeltaAngle > UE_KINDA_SMALL_NUMBER ? DeltaRotation / DeltaAngle : FVec3::XAxisVector;
+
+	const UE::Math::TQuat<FReal> DeltaRotationQuat(Axis, DeltaAngle);
 
 	// Transform points back into the previous frame of reference before applying the adjusted deltas
-	const FRigidTransform3 PreSimulationTransform = OldRootBoneLocalTransform.Inverse() * FRigidTransform3(DeltaPosition, DeltaRotation) * OldRootBoneLocalTransform;
+	const FRigidTransform3 PreSimulationTransform = OldRootBoneLocalTransform.Inverse() * FRigidTransform3(DeltaPosition, DeltaRotationQuat) * OldRootBoneLocalTransform;
 	PreSimulationTransforms[GroupId] = Softs::FSolverRigidTransform3(  // Store the delta in solver precision, no need for LWC here
 		Softs::FSolverVec3(PreSimulationTransform.GetTranslation()),
 		Softs::FSolverRotation3(PreSimulationTransform.GetRotation()));
 
 	// Fictitious angular scale only applied for PBDEvolution. It's applied by ExternalForces for Evolution.
-	const FReal AppliedFictitiousAngularScale = PBDEvolution ? FMath::Min((FReal)2., (FReal)FictitiousAngularScale) : (FReal)1.;
+	const FReal AppliedFictitiousAngularScale = bDisableFictitiousForces ? (FReal)0.f : (PBDEvolution ? FMath::Min((FReal)2., (FReal)FictitiousAngularScale) : (FReal)1.);
 
 	// Save the reference bone relative angular velocity for calculating the fictitious forces
-	const FVec3 FictitiousAngularDisplacement = ReferenceSpaceTransform.TransformVector(Axis * PartialDeltaAngle)
+	const FVec3 FictitiousAngularDisplacement = ReferenceSpaceTransform.TransformVector(DeltaRotation)
 		* AppliedFictitiousAngularScale;
 	FictitiousAngularVelocities[GroupId] = DeltaTime > (Softs::FSolverReal)0.f ? Softs::FSolverVec3(FictitiousAngularDisplacement) / DeltaTime : Softs::FSolverVec3(0.f);
-	ReferenceSpaceLocations[GroupId] = ReferenceSpaceTransform.GetLocation() - LocalSpaceLocation;
+	ReferenceSpaceLocations[GroupId] = LocalSpaceScaleInv * (ReferenceSpaceTransform.GetLocation() - LocalSpaceLocation);
 }
 
 Softs::FSolverReal FClothingSimulationSolver::SetParticleMassPerArea(Softs::FSolverParticlesRange& Particles, const FTriangleMesh& Mesh)
@@ -1295,14 +1438,6 @@ void FClothingSimulationSolver::SetWindVelocity(const TVec3<FRealSingle>& InWind
 	LegacyWindAdaption = InLegacyWindAdaption;
 }
 
-void FClothingSimulationSolver::SetNumIterations(int32 InNumIterations)
-{
-	if (ensure(Config))
-	{
-		Config->GetProperties(SolverLOD).SetValue(TEXT("NumIterations"), InNumIterations);
-	}
-}
-
 int32 FClothingSimulationSolver::GetNumIterations() const
 {
 	return Config ?
@@ -1310,27 +1445,11 @@ int32 FClothingSimulationSolver::GetNumIterations() const
 		ClothingSimulationSolverDefault::NumIterations;
 }
 
-void FClothingSimulationSolver::SetMaxNumIterations(int32 InMaxNumIterations)
-{
-	if (ensure(Config))
-	{
-		Config->GetProperties(SolverLOD).SetValue(TEXT("MaxNumIterations"), InMaxNumIterations);
-	}
-}
-
 int32 FClothingSimulationSolver::GetMaxNumIterations() const
 {
 	return Config ?
 		Config->GetProperties(SolverLOD).GetValue<int32>(TEXT("MaxNumIterations"), ClothingSimulationSolverDefault::MaxNumIterations) :
 		ClothingSimulationSolverDefault::MaxNumIterations;
-}
-
-void FClothingSimulationSolver::SetNumSubsteps(int32 InNumSubsteps)
-{
-	if (ensure(Config))
-	{
-		Config->GetProperties(SolverLOD).SetValue(TEXT("NumSubsteps"), InNumSubsteps);
-	}
 }
 
 int32 FClothingSimulationSolver::GetNumSubsteps() const
@@ -1366,13 +1485,15 @@ void FClothingSimulationSolver::SetWindAndPressureGeometry(
 	uint32 GroupId,
 	const FTriangleMesh& TriangleMesh,
 	const TConstArrayView<FRealSingle>& DragMultipliers,
+	const TConstArrayView<FRealSingle>& OuterDragMultipliers,
 	const TConstArrayView<FRealSingle>& LiftMultipliers,
+	const TConstArrayView<FRealSingle>& OuterLiftMultipliers,
 	const TConstArrayView<FRealSingle>& PressureMultipliers)
 {
 	if (PBDEvolution)
 	{
 		Softs::FVelocityAndPressureField& VelocityAndPressureField = PBDEvolution->GetVelocityAndPressureField(GroupId);
-		VelocityAndPressureField.SetGeometry(&TriangleMesh, DragMultipliers, LiftMultipliers, PressureMultipliers);
+		VelocityAndPressureField.SetGeometry(&TriangleMesh, DragMultipliers, OuterDragMultipliers, LiftMultipliers, OuterLiftMultipliers, PressureMultipliers);
 	}
 }
 
@@ -1392,7 +1513,9 @@ void FClothingSimulationSolver::SetWindAndPressureProperties(
 void FClothingSimulationSolver::SetWindAndPressureProperties(
 	uint32 GroupId,
 	const TVec2<FRealSingle>& Drag,
+	const TVec2<FRealSingle>& OuterDrag,
 	const TVec2<FRealSingle>& Lift,
+	const TVec2<FRealSingle>& OuterLift,
 	FRealSingle FluidDensity,
 	const TVec2<FRealSingle>& Pressure)
 {
@@ -1401,7 +1524,9 @@ void FClothingSimulationSolver::SetWindAndPressureProperties(
 		Softs::FVelocityAndPressureField& VelocityAndPressureField = PBDEvolution->GetVelocityAndPressureField(GroupId);
 		VelocityAndPressureField.SetProperties(
 			Drag,
+			OuterDrag,
 			Lift,
+			OuterLift,
 			FluidDensity / FMath::Cube(ClothingSimulationSolverConstant::WorldScale),  // Fluid density is given in kg/m^3. Need to convert to kg/cm^3 for solver.
 			Pressure / ClothingSimulationSolverConstant::WorldScale);  // UI Pressure is in kg/m s^2. Need to convert to kg/cm s^2 for solver.
 	}
@@ -1494,7 +1619,8 @@ void FClothingSimulationSolver::AddExternalForces(uint32 GroupId, bool bUseLegac
 void FClothingSimulationSolver::ApplyPreSimulationTransforms()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FClothingSimulationSolver_ApplyPreSimulationTransforms);
-	const Softs::FSolverVec3 DeltaLocalSpaceLocation(LocalSpaceLocation - OldLocalSpaceLocation);  // LWC, note that LocalSpaceLocation is FReal based. but the delta can be stored in FSolverReal
+	check(FMath::IsNearlyEqual(OldLocalSpaceScale, LocalSpaceScale)); // Otherwise will need to apply a DeltaLocalScale.
+	const Softs::FSolverVec3 DeltaLocalSpaceLocation((LocalSpaceLocation - OldLocalSpaceLocation) / LocalSpaceScale);  // LWC, note that LocalSpaceLocation is FReal based. but the delta can be stored in FSolverReal
 
 	const FSolverReal MaxVelocitySquared = (ClothSolverMaxVelocity > 0.f) ? FMath::Square((FSolverReal)ClothSolverMaxVelocity) : TNumericLimits<FSolverReal>::Max();
 
@@ -1838,7 +1964,7 @@ void FClothingSimulationSolver::UpdateSolverField()
 					for (int32 LocalParticleIndex = 0; LocalParticleIndex < Particles.GetRangeSize(); ++LocalParticleIndex)
 					{
 						const int32 GlobalParticleIndex = LocalParticleIndex + Particles.GetOffset();
-						SamplePositions[GlobalParticleIndex] = FVector(Particles.X(LocalParticleIndex)) + LocalSpaceLocation;
+						SamplePositions[GlobalParticleIndex] = LocalSpaceScale * FVector(Particles.X(LocalParticleIndex)) + LocalSpaceLocation;
 						SampleIndices[SampleIndex] = FFieldContextIndex(GlobalParticleIndex, SampleIndex);
 						++SampleIndex;
 					}
@@ -1857,7 +1983,7 @@ void FClothingSimulationSolver::UpdateSolverField()
 			PBDEvolution->ParticlesActiveView().SequentialFor(
 				[this, &SamplePositions, &SampleIndices, &SampleIndex](Softs::FSolverParticles& Particles, int32 ParticleIndex)
 			{
-				SamplePositions[ParticleIndex] = FVector(Particles.X(ParticleIndex)) + LocalSpaceLocation;
+				SamplePositions[ParticleIndex] = LocalSpaceScale * FVector(Particles.X(ParticleIndex)) + LocalSpaceLocation;
 				SampleIndices[SampleIndex] = FFieldContextIndex(ParticleIndex, SampleIndex);
 				++SampleIndex;
 			});
@@ -2067,26 +2193,6 @@ void FClothingSimulationSolver::UpdateFromCache(const FClothingSimulationCacheDa
 
 }
 
-void FClothingSimulationSolver::UpdateFromCache(const TArray<FVector>& CachedPositions, const TArray<FVector>& CachedVelocities) 
-{
-	Chaos::Softs::FSolverParticles& SolverParticles = Evolution ? Evolution->GetParticles() : PBDEvolution->GetParticles();
-	const int32 NumParticles = GetNumParticles();
-	const bool bHasVelocity = CachedVelocities.Num() > 0;
-	if(CachedPositions.Num() == NumParticles)
-	{
-		for(int32 ParticleIndex = 0; ParticleIndex < NumParticles; ++ParticleIndex)
-		{
-			SolverParticles.X(ParticleIndex) = CachedPositions[ParticleIndex];
-			SolverParticles.V(ParticleIndex) = bHasVelocity ? CachedVelocities[ParticleIndex] : FVector::ZeroVector;
-		}
-	}
-	PhysicsParallelFor(Cloths.Num(), [this](int32 ClothIndex)
-	{
-		FClothingSimulationCloth* const Cloth = Cloths[ClothIndex];
-		Cloth->PostUpdate(this);
-	}, /*bForceSingleThreaded =*/ !bClothSolverParallelClothPostUpdate);
-}
-
 int32 FClothingSimulationSolver::GetNumUsedIterations() const
 {
 	return Evolution ? Evolution->GetNumUsedIterations() : PBDEvolution->GetIterations();
@@ -2178,7 +2284,7 @@ FBoxSphereBounds FClothingSimulationSolver::CalculateBounds() const
 		}
 
 		// Update bounds with this cloth
-		return FBoxSphereBounds(LocalSpaceLocation + BoundingBox.Center(), FVector(BoundingBox.Extents() * 0.5f), FMath::Sqrt(SquaredRadius));
+		return FBoxSphereBounds(LocalSpaceLocation + LocalSpaceScale * BoundingBox.Center(), LocalSpaceScale * FVector(BoundingBox.Extents() * 0.5f), LocalSpaceScale * FMath::Sqrt(SquaredRadius));
 	}
 	else
 	{
@@ -2247,7 +2353,7 @@ FBoxSphereBounds FClothingSimulationSolver::CalculateBounds() const
 			}
 
 			// Update bounds with this cloth
-			return FBoxSphereBounds(LocalSpaceLocation + BoundingBox.Center(), FVector(BoundingBox.Extents() * 0.5f), FMath::Sqrt(SquaredRadius));
+			return FBoxSphereBounds(LocalSpaceLocation + LocalSpaceScale * BoundingBox.Center(), LocalSpaceScale * FVector(BoundingBox.Extents() * 0.5f), LocalSpaceScale * FMath::Sqrt(SquaredRadius));
 		}
 
 		return FBoxSphereBounds(LocalSpaceLocation, FVector(0.f), 0.f);

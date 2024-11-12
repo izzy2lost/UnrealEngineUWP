@@ -505,27 +505,10 @@ void UNiagaraEmitter::Serialize(FArchive& Ar)
 			}
 		}
 	}
-
-	// When cooking an emitter that's not an asset, clear out the thumbnail image to prevent issues
-	// with cooked editor data.
-	bool bCookingNonAssetEmitter = Ar.IsCooking() && this->IsAsset() == false;
-	UTexture2D* CachedThumbnail = nullptr;
-	if (bCookingNonAssetEmitter)
-	{
-		CachedThumbnail = ThumbnailImage;
-		ThumbnailImage = nullptr;
-	}
 	
 #endif
 	Super::Serialize(Ar);
-
-#if WITH_EDITORONLY_DATA
-	// Restore the thumbnail image that was cleared before serialize.
-	if (bCookingNonAssetEmitter)
-	{
-		ThumbnailImage = CachedThumbnail;
-	}
-#endif
+	
 
 	Ar.UsingCustomVersion(FNiagaraCustomVersion::GUID);
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
@@ -667,10 +650,13 @@ void UNiagaraEmitter::PostLoad()
 		MessageKeyToMessageMap_DEPRECATED.Empty();
 	}
 
-	if (this->GetOuter()->IsA<UNiagaraSystem>() || this->GetOuter()->IsA<UNiagaraEmitter>())
+	if(UPackage* Package = GetPackage())
 	{
-		// Remove thunbnails for non-asset emitters to prevent problems with cooked for editor emitters being referenced by uncooked emitters and systems.
-		ThumbnailImage = nullptr;
+		if(Package->HasAnyPackageFlags(PKG_Cooked))
+		{
+			// We remove the thumbnail for cooked emitters as it can cause issues with cooked emitter being put into uncooked systems
+			ThumbnailImage = nullptr;
+		}
 	}
 #endif
 
@@ -1534,6 +1520,12 @@ bool FVersionedNiagaraEmitterData::IsReadyToRunInternal() const
 
 	if (SimTarget == ENiagaraSimTarget::GPUComputeSim)
 	{
+		// event scripts on GPU emitters are not currently supported
+		if (!EventHandlerScriptProps.IsEmpty())
+		{
+			return false;
+		}
+
 		if (GPUComputeScript->IsScriptCompilationPending(true))
 		{
 			return false;
@@ -1777,7 +1769,7 @@ void FVersionedNiagaraEmitterData::CacheFromCompiledData(const FNiagaraDataSetCo
 				if (ScriptCBufferSize > RHIMaxCBufferSize)
 				{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-					GEngine->AddOnScreenDebugMessage(uint64(this), 1.f, FColor::Red, *FString::Printf(TEXT("GPU Simulation(%s) is disabled due to using too much constant buffer space (%d/%d)."), GetDebugSimName(), ScriptCBufferSize, RHIMaxCBufferSize));
+					GEngine->AddOnScreenDebugMessage(uint64(this), 1.f, FColor::Red, *FString::Printf(TEXT("GPU Simulation(%s) is disabled due to using too much constant buffer space (%" UINT64_FMT "/%" UINT64_FMT ")."), GetDebugSimName(), ScriptCBufferSize, RHIMaxCBufferSize));
 #endif
 					bIsAllowedToExecute = false;
 				}
@@ -2935,7 +2927,7 @@ void UNiagaraEmitter::UpdateFromMergedCopy(const INiagaraMergeManager& MergeMana
 	auto ReouterMergedObject = [](UObject* NewOuter, UObject* TargetObject)
 	{
 		FName MergedObjectUniqueName = MakeUniqueObjectName(NewOuter, TargetObject->GetClass(), TargetObject->GetFName());
-		TargetObject->Rename(*MergedObjectUniqueName.ToString(), NewOuter, REN_ForceNoResetLoaders);
+		TargetObject->Rename(*MergedObjectUniqueName.ToString(), NewOuter);
 	};
 
 	// The merged copy was based on the parent emitter so its name might be wrong, check and fix that first,
@@ -3120,7 +3112,7 @@ bool UNiagaraEmitter::SetUniqueEmitterName(const FString& InName)
 		{
 			// Also rename the underlying uobject to keep things consistent.
 			FName UniqueObjectName = MakeUniqueObjectName(GetOuter(), StaticClass(), *InName);
-			Rename(*UniqueObjectName.ToString(), GetOuter(), REN_ForceNoResetLoaders);
+			Rename(*UniqueObjectName.ToString(), GetOuter());
 		}
 
 #if WITH_EDITORONLY_DATA
@@ -3554,7 +3546,7 @@ FGraphEventArray FVersionedNiagaraEmitterData::PrecacheComputePSOs(const UNiagar
 		for (int32 i = 0; i < ShaderScript->GetNumPermutations(); ++i)
 		{
 			FRHIComputeShader* ComputeShader = ShaderScript->GetShaderGameThread(i).GetComputeShader();
-			FPSOPrecacheRequestResult PSOPrecacheRequestResult = PipelineStateCache::PrecacheComputePipelineState(ComputeShader, true);
+			FPSOPrecacheRequestResult PSOPrecacheRequestResult = PipelineStateCache::PrecacheComputePipelineState(ComputeShader, TEXT("NiagaraEmitter"), true);
 			if (PSOPrecacheRequestResult.AsyncCompileEvent.IsValid())
 			{
 				PSOPrecacheEvents.Add(PSOPrecacheRequestResult.AsyncCompileEvent);
@@ -3634,7 +3626,7 @@ FGraphEventArray FVersionedNiagaraEmitterData::PrecacheComputePSOs(const UNiagar
 		for (int32 i=0; i < ShaderScript->GetNumPermutations(); ++i)
 		{
 			FRHIComputeShader* ComputeShader = ShaderScript->GetShaderGameThread(i).GetComputeShader();
-			FPSOPrecacheRequestResult PSOPrecacheRequestResult = PipelineStateCache::PrecacheComputePipelineState(ComputeShader, true);
+			FPSOPrecacheRequestResult PSOPrecacheRequestResult = PipelineStateCache::PrecacheComputePipelineState(ComputeShader, TEXT("NiagaraEmitter"), true);
 			if (PSOPrecacheRequestResult.AsyncCompileEvent != nullptr && bAddToPSOReadyGraphTasks)
 			{
 				PSOReadyGraphTasks.Add(PSOPrecacheRequestResult.AsyncCompileEvent);

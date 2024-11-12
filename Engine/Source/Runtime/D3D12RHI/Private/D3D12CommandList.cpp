@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "D3D12RHIPrivate.h"
 #include "D3D12CommandList.h"
+#include "D3D12RHIPrivate.h"
 #include "RHIValidation.h"
 
 static int32 GD3D12BatchResourceBarriers = 1;
@@ -16,13 +16,39 @@ static FAutoConsoleVariableRef CVarD3D12ExtraDepthTransitions(
 	GD3D12ExtraDepthTransitions,
 	TEXT("Adds extra transitions for the depth buffer to fix validation issues. However, this currently breaks async compute"));
 
-
-int64 FD3D12CommandList::FState::NextCommandListID = 0;
-
-void FD3D12CommandList::UpdateResidency(TConstArrayView<FD3D12ResidencyHandle*> Handles)
+void FD3D12CommandList::UpdateResidency(const FD3D12Resource* Resource)
 {
 #if ENABLE_RESIDENCY_MANAGEMENT
-	for (FD3D12ResidencyHandle* Handle : Handles)
+	if (Resource->NeedsDeferredResidencyUpdate())
+	{
+		State.DeferredResidencyUpdateSet.Add(Resource);
+	}
+	else
+	{
+		AddToResidencySet(Resource->GetResidencyHandles());
+	}
+#endif // ENABLE_RESIDENCY_MANAGEMENT
+}
+
+#if ENABLE_RESIDENCY_MANAGEMENT
+FD3D12ResidencySet* FD3D12CommandList::CloseResidencySet()
+{
+	for (const FD3D12Resource* Resource : State.DeferredResidencyUpdateSet)
+	{
+		AddToResidencySet(Resource->GetResidencyHandles());
+	}
+
+	if (State.DeferredResidencyUpdateSet.Num() > 0)
+	{
+		D3DX12Residency::Close(ResidencySet);
+	}
+
+	return ResidencySet;
+}
+
+void FD3D12CommandList::AddToResidencySet(TConstArrayView<FD3D12ResidencyHandle*> ResidencyHandles)
+{
+	for (FD3D12ResidencyHandle* Handle : ResidencyHandles)
 	{
 		if (D3DX12Residency::IsInitialized(Handle))
 		{
@@ -30,8 +56,8 @@ void FD3D12CommandList::UpdateResidency(TConstArrayView<FD3D12ResidencyHandle*> 
 			D3DX12Residency::Insert(*ResidencySet, *Handle);
 		}
 	}
-#endif
 }
+#endif // ENABLE_RESIDENCY_MANAGEMENT
 
 void FD3D12ContextCommon::AddPendingResourceBarrier(FD3D12Resource* Resource, D3D12_RESOURCE_STATES After, uint32 SubResource, CResourceState& ResourceState_OnCommandList)
 {
@@ -156,7 +182,7 @@ FD3D12CommandList::FD3D12CommandList(FD3D12CommandAllocator* CommandAllocator, F
 	{
 	case ED3D12QueueType::Direct:
 	case ED3D12QueueType::Async:
-		VERIFYD3D12RESULT(Device->GetDevice()->CreateCommandList(
+		VERIFYD3D12RESULT(Device->CreateCommandList(
 			Device->GetGPUMask().GetNative(),
 			GetD3DCommandListType(QueueType),
 			*CommandAllocator,
@@ -195,7 +221,11 @@ FD3D12CommandList::FD3D12CommandList(FD3D12CommandAllocator* CommandAllocator, F
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 9
 		Interfaces.CommandList->QueryInterface(IID_PPV_ARGS(Interfaces.GraphicsCommandList9.GetInitReference()));
 #endif
-#if D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES
+#if D3D12_MAX_COMMANDLIST_INTERFACE >= 10
+		Interfaces.CommandList->QueryInterface(IID_PPV_ARGS(Interfaces.GraphicsCommandList10.GetInitReference()));
+#endif
+
+#if D3D12_SUPPORTS_DEBUG_COMMAND_LIST
 		Interfaces.CommandList->QueryInterface(IID_PPV_ARGS(Interfaces.DebugCommandList.GetInitReference()));
 #endif
 		break;
@@ -220,13 +250,7 @@ FD3D12CommandList::FD3D12CommandList(FD3D12CommandAllocator* CommandAllocator, F
 	INC_DWORD_STAT(STAT_D3D12NumCommandLists);
 
 #if NV_AFTERMATH
-	if (GDX12NVAfterMathEnabled)
-	{
-		GFSDK_Aftermath_Result Result = GFSDK_Aftermath_DX12_CreateContextHandle(Interfaces.CommandList, &Interfaces.AftermathHandle);
-
-		check(Result == GFSDK_Aftermath_Result_Success);
-		Device->GetGPUProfiler().RegisterCommandList(Interfaces.GraphicsCommandList, Interfaces.AftermathHandle);
-	}
+	Interfaces.AftermathHandle = UE::RHICore::Nvidia::Aftermath::D3D12::RegisterCommandList(Interfaces.CommandList);
 #endif
 
 #if NAME_OBJECTS
@@ -243,13 +267,7 @@ FD3D12CommandList::~FD3D12CommandList()
 	D3DX12Residency::DestroyResidencySet(Device->GetResidencyManager(), ResidencySet);
 
 #if NV_AFTERMATH
-	if (Interfaces.AftermathHandle)
-	{
-		Device->GetGPUProfiler().UnregisterCommandList(Interfaces.AftermathHandle);
-
-		GFSDK_Aftermath_Result Result = GFSDK_Aftermath_ReleaseContextHandle(Interfaces.AftermathHandle);
-		check(Result == GFSDK_Aftermath_Result_Success);
-	}
+	UE::RHICore::Nvidia::Aftermath::D3D12::UnregisterCommandList(Interfaces.AftermathHandle);
 #endif
 
 	DEC_DWORD_STAT(STAT_D3D12NumCommandLists);
@@ -269,7 +287,9 @@ void FD3D12CommandList::Reset(FD3D12CommandAllocator* NewCommandAllocator, FD3D1
 	}
 	D3DX12Residency::Open(ResidencySet);
 
-	State = FState(NewCommandAllocator, TimestampAllocator, PipelineStatsAllocator);
+	(&State)->~FState();
+	new (&State) FState(NewCommandAllocator, TimestampAllocator, PipelineStatsAllocator);
+
 	BeginLocalQueries();
 }
 
@@ -286,43 +306,59 @@ void FD3D12CommandList::Close()
 	{
 		VERIFYD3D12RESULT(Interfaces.GraphicsCommandList->Close());
 	}
-	D3DX12Residency::Close(ResidencySet);
+
+	if (State.DeferredResidencyUpdateSet.Num() == 0)
+	{
+		D3DX12Residency::Close(ResidencySet);
+	}
+
 	State.IsClosed = true;
 }
 
 void FD3D12CommandList::BeginLocalQueries()
 {
-	if (!State.bLocalQueriesBegun)
+#if DO_CHECK
+	check(!State.bLocalQueriesBegun);
+	State.bLocalQueriesBegun = true;
+#endif
+
+	if (State.BeginTimestamp)
 	{
-		if (State.BeginTimestamp)
-		{
-			EndQuery(State.BeginTimestamp);
-		}
+#if RHI_NEW_GPU_PROFILER
+		// CPUTimestamp is filled in at submission time in FlushProfilerEvents
+		auto& Event = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FBeginWork>(0);
+		State.BeginTimestamp.Target = &Event.GPUTimestampTOP;
+#endif
 
-		if (State.PipelineStats)
-		{
-			BeginQuery(State.PipelineStats);
-		}
+		EndQuery(State.BeginTimestamp);
+	}
 
-		State.bLocalQueriesBegun = true;
+	if (State.PipelineStats)
+	{
+		BeginQuery(State.PipelineStats);
 	}
 }
 
 void FD3D12CommandList::EndLocalQueries()
 {
-	if (!State.bLocalQueriesEnded)
+#if DO_CHECK
+	check(!State.bLocalQueriesEnded);
+	State.bLocalQueriesEnded = true;
+#endif
+
+	if (State.PipelineStats)
 	{
-		if (State.PipelineStats)
-		{
-			EndQuery(State.PipelineStats);
-		}
+		EndQuery(State.PipelineStats);
+	}
 
-		if (State.EndTimestamp)
-		{
-			EndQuery(State.EndTimestamp);
-		}
+	if (State.EndTimestamp)
+	{
+#if RHI_NEW_GPU_PROFILER
+		auto& Event = EmplaceProfilerEvent<UE::RHI::GPUProfiler::FEvent::FEndWork>();
+		State.EndTimestamp.Target = &Event.GPUTimestampBOP;
+#endif
 
-		State.bLocalQueriesEnded = true;
+		EndQuery(State.EndTimestamp);
 	}
 }
 
@@ -366,20 +402,53 @@ void FD3D12CommandList::EndQuery(FD3D12QueryLocation const& Location)
 		break;
 
 	case D3D12_QUERY_TYPE_TIMESTAMP:
-		WriteTimestamp(Location);
-
-		// Command list begin/end timestamps are handled separately by the 
-		// submission thread, so shouldn't be in the TimestampQueries array.
-		if (Location.Type != ED3D12QueryType::CommandListBegin && Location.Type != ED3D12QueryType::CommandListEnd)
 		{
-			State.TimestampQueries.Add(Location);
+			ED3D12QueryPosition Position;
+			switch (Location.Type)
+			{
+			default:
+				checkf(false, TEXT("Query location type is not a top or bottom of pipe timestamp."));
+				Position = ED3D12QueryPosition::BottomOfPipe;
+				break;
+
+#if RHI_NEW_GPU_PROFILER
+			case ED3D12QueryType::ProfilerTimestampTOP:
+#else
+			case ED3D12QueryType::CommandListBegin:
+			case ED3D12QueryType::IdleBegin:
+#endif
+				Position = ED3D12QueryPosition::TopOfPipe;
+				break;
+
+			case ED3D12QueryType::TimestampMicroseconds:
+			case ED3D12QueryType::TimestampRaw:
+#if RHI_NEW_GPU_PROFILER
+			case ED3D12QueryType::ProfilerTimestampBOP:
+#else
+			case ED3D12QueryType::CommandListEnd:
+			case ED3D12QueryType::IdleEnd:
+#endif
+				Position = ED3D12QueryPosition::BottomOfPipe;
+				break;
+			}
+
+			WriteTimestamp(Location, Position);
+
+#if RHI_NEW_GPU_PROFILER == 0
+			// Command list begin/end timestamps are handled separately by the 
+			// submission thread, so shouldn't be in the TimestampQueries array.
+			if (Location.Type != ED3D12QueryType::CommandListBegin && Location.Type != ED3D12QueryType::CommandListEnd)
+#endif
+			{
+				State.TimestampQueries.Add(Location);
+			}
 		}
 		break;
 	}
 }
 
 #if D3D12RHI_PLATFORM_USES_TIMESTAMP_QUERIES
-void FD3D12CommandList::WriteTimestamp(FD3D12QueryLocation const& Location)
+void FD3D12CommandList::WriteTimestamp(FD3D12QueryLocation const& Location, ED3D12QueryPosition Position)
 {
 	GraphicsCommandList()->EndQuery(
 		Location.Heap->GetD3DQueryHeap(),
@@ -391,14 +460,18 @@ void FD3D12CommandList::WriteTimestamp(FD3D12QueryLocation const& Location)
 
 FD3D12CommandList::FState::FState(FD3D12CommandAllocator* CommandAllocator, FD3D12QueryAllocator* TimestampAllocator, FD3D12QueryAllocator* PipelineStatsAllocator)
 	: CommandAllocator(CommandAllocator)
-	, CommandListID   (FPlatformAtomics::InterlockedIncrement(&NextCommandListID))
 {
 	PendingResourceBarriers.Reserve(256);
 
 	if (TimestampAllocator)
 	{
+#if RHI_NEW_GPU_PROFILER
+		BeginTimestamp = TimestampAllocator->Allocate(ED3D12QueryType::ProfilerTimestampTOP, nullptr);
+		EndTimestamp   = TimestampAllocator->Allocate(ED3D12QueryType::ProfilerTimestampBOP, nullptr);
+#else
 		BeginTimestamp = TimestampAllocator->Allocate(ED3D12QueryType::CommandListBegin, nullptr);
 		EndTimestamp   = TimestampAllocator->Allocate(ED3D12QueryType::CommandListEnd  , nullptr);
+#endif
 	}
 
 	if (PipelineStatsAllocator)

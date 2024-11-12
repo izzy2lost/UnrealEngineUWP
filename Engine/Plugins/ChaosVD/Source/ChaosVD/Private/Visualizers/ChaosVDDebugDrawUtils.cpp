@@ -3,7 +3,6 @@
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
 
 #include "CanvasItem.h"
-#include "ChaosVDEditorSettings.h"
 #include "ChaosVDGeometryBuilder.h"
 #include "Generators/MeshShapeGenerator.h"
 #include "Engine/Engine.h"
@@ -93,23 +92,17 @@ void FChaosVDDebugDrawUtils::DrawPoint(FPrimitiveDrawInterface* PDI, const FVect
 
 void FChaosVDDebugDrawUtils::DrawString(FStringView StringToDraw, const FVector& Location, const FColor& Color, EChaosVDDebugDrawTextLocationMode LocationMode)
 {
-	if (const UChaosVDEditorSettings* CVDEditorSettings = GetDefault<UChaosVDEditorSettings>())
+	if (!StringToDraw.IsEmpty())
 	{
-		if (CVDEditorSettings->bShowDebugText)
-		{
-			TextToDrawQueue.Enqueue({ FText::AsCultureInvariant(StringToDraw.GetData()), LocationMode, Location, Color });
-		}
+		TextToDrawQueue.Enqueue({ FText::AsCultureInvariant(StringToDraw.GetData()), LocationMode, Location, Color });
 	}
 }
 
 void FChaosVDDebugDrawUtils::DrawText(const FText& InText, const FVector& Location, const FColor& Color, EChaosVDDebugDrawTextLocationMode LocationMode)
 {
-	if (const UChaosVDEditorSettings* CVDEditorSettings = GetDefault<UChaosVDEditorSettings>())
+	if (!InText.IsEmptyOrWhitespace())
 	{
-		if (CVDEditorSettings->bShowDebugText)
-		{
-			TextToDrawQueue.Enqueue({ InText, LocationMode, Location, Color });
-		}
+		TextToDrawQueue.Enqueue({ InText, LocationMode, Location, Color });
 	}
 }
 
@@ -259,20 +252,51 @@ void FChaosVDDebugDrawUtils::DrawImplicitObject(FPrimitiveDrawInterface* PDI, co
 	  return;
 	}
 
-	constexpr float SimpleShapesComplexityFactor = 0.5f;
-	if (const TSharedPtr<UE::Geometry::FMeshShapeGenerator> MeshGenerator = GeometryGenerator->CreateMeshGeneratorForImplicitObject(ImplicitObject, SimpleShapesComplexityFactor))
+	using namespace Chaos;
+	const EImplicitObjectType InnerType = GetInnerType(ImplicitObject->GetType());
+		
+	if (InnerType == ImplicitObjectType::Union || InnerType == ImplicitObjectType::UnionClustered)
 	{
-		FTransform AdjustedTransform = InWorldTransform;
-		GeometryGenerator->AdjustedTransformForImplicit(ImplicitObject, AdjustedTransform);
+		if (const FImplicitObjectUnion* Union = ImplicitObject->template AsA<FImplicitObjectUnion>())
+		{
+			for (int32 ObjectIndex = 0; ObjectIndex < Union->GetObjects().Num(); ++ObjectIndex)
+			{
+				const FImplicitObjectPtr& UnionImplicit = Union->GetObjects()[ObjectIndex];
+				DrawImplicitObject(PDI, GeometryGenerator, UnionImplicit.GetReference(), InWorldTransform, InColor, InDebugText, DepthPriority, Thickness);
+			}
+		}
+
+		return;
+	}
+
+	if (InnerType == ImplicitObjectType::Transformed)
+	{
+		if (const TImplicitObjectTransformed<FReal, 3>* Transformed = ImplicitObject->template GetObject<TImplicitObjectTransformed<FReal, 3>>())
+		{
+			DrawImplicitObject(PDI, GeometryGenerator, Transformed->GetTransformedObject(), Transformed->GetTransform() * InWorldTransform, InColor, InDebugText, DepthPriority, Thickness);
+		}
+		
+		return;
+	}
+
+	constexpr float SimpleShapesComplexityFactor = 0.5f;
+
+	FRigidTransform3 ExtractedTransform = InWorldTransform;
+	const bool bNeedsUnpack = GeometryGenerator->ImplicitObjectNeedsUnpacking(ImplicitObject);
+	const FImplicitObject* ImplicitObjectToProcess = bNeedsUnpack ? GeometryGenerator->UnpackImplicitObject(ImplicitObject, ExtractedTransform) : ImplicitObject.GetReference();
+
+	if (const TSharedPtr<UE::Geometry::FMeshShapeGenerator> MeshGenerator = GeometryGenerator->CreateMeshGeneratorForImplicitObject(ImplicitObjectToProcess, SimpleShapesComplexityFactor))
+	{
+		GeometryGenerator->AdjustedTransformForImplicit(ImplicitObject, ExtractedTransform);
 		MeshGenerator->Generate();
 
 		PDI->AddReserveLines(DepthPriority, MeshGenerator->Triangles.Num() * 3, false, Thickness > SMALL_NUMBER);
 
 		for (const UE::Geometry::FIndex3i& Triangle : MeshGenerator->Triangles)
 		{
-			FVector VertexA = AdjustedTransform.TransformPosition(MeshGenerator->Vertices[Triangle.A]);
-			FVector VertexB = AdjustedTransform.TransformPosition(MeshGenerator->Vertices[Triangle.B]);
-			FVector VertexC = AdjustedTransform.TransformPosition(MeshGenerator->Vertices[Triangle.C]);
+			FVector VertexA = ExtractedTransform.TransformPosition(MeshGenerator->Vertices[Triangle.A]);
+			FVector VertexB = ExtractedTransform.TransformPosition(MeshGenerator->Vertices[Triangle.B]);
+			FVector VertexC = ExtractedTransform.TransformPosition(MeshGenerator->Vertices[Triangle.C]);
 	
 			DrawLine(PDI, VertexA, VertexB, InColor, FText::GetEmpty(), DepthPriority, Thickness);
 			DrawLine(PDI, VertexB, VertexC, InColor, FText::GetEmpty(), DepthPriority, Thickness);
@@ -283,6 +307,55 @@ void FChaosVDDebugDrawUtils::DrawImplicitObject(FPrimitiveDrawInterface* PDI, co
 	if (!InDebugText.IsEmpty())
 	{
 		DrawText(InDebugText, InWorldTransform.GetLocation(), InColor);
+	}
+}
+
+void FChaosVDDebugDrawUtils::DrawSphere(FPrimitiveDrawInterface* PDI, const FVector& Center, float Radius, int32 Segments, const FColor& InColor, const FText& InDebugText, ESceneDepthPriorityGroup DepthPriority, float Thickness)
+{
+	// TODO: This implementation is taken as is from ULineBatchComponent::DrawSphere. At some point in the future we want to migrate CVD to use the line batcher directly, but we need to add support for hit proxies
+
+	// Need at least 4 segments
+	Segments = FMath::Max(Segments, 4);
+
+	const float AngleInc = 2.f * UE_PI / Segments;
+	int32 NumSegmentsY = Segments;
+	float Latitude = AngleInc;
+	float SinY1 = 0.0f, CosY1 = 1.0f;
+
+	PDI->AddReserveLines(DepthPriority, NumSegmentsY * Segments * 2, false, Thickness > SMALL_NUMBER);
+	while (NumSegmentsY--)
+	{
+		const float SinY2 = FMath::Sin(Latitude);
+		const float CosY2 = FMath::Cos(Latitude);
+
+		FVector Vertex1 = FVector(SinY1, 0.0f, CosY1) * Radius + Center;
+		FVector Vertex3 = FVector(SinY2, 0.0f, CosY2) * Radius + Center;
+		float Longitude = AngleInc;
+
+		int32 NumSegmentsX = Segments;
+		while (NumSegmentsX--)
+		{
+			const float SinX = FMath::Sin(Longitude);
+			const float CosX = FMath::Cos(Longitude);
+
+			const FVector Vertex2 = FVector((CosX * SinY1), (SinX * SinY1), CosY1) * Radius + Center;
+			const FVector Vertex4 = FVector((CosX * SinY2), (SinX * SinY2), CosY2) * Radius + Center;
+
+			DrawLine(PDI, Vertex1, Vertex2, InColor, FText::GetEmpty(), DepthPriority, Thickness);
+			DrawLine(PDI, Vertex1, Vertex3, InColor, FText::GetEmpty(), DepthPriority, Thickness);
+
+			Vertex1 = Vertex2;
+			Vertex3 = Vertex4;
+			Longitude += AngleInc;
+		}
+		SinY1 = SinY2;
+		CosY1 = CosY2;
+		Latitude += AngleInc;
+	}
+
+	if (!InDebugText.IsEmpty())
+	{
+		DrawText(InDebugText, Center, InColor);
 	}
 }
 
@@ -303,13 +376,16 @@ void FChaosVDDebugDrawUtils::DrawCanvas(FViewport& InViewport, FSceneView& View,
 			switch (TextToDraw.LocationMode)
 			{
 				case EChaosVDDebugDrawTextLocationMode::World:
+				{
 					bHasValidLocation = View.ViewFrustum.IntersectPoint(TextToDraw.Location) && View.WorldToPixel(TextToDraw.Location, LocationToDraw);
+					LocationToDraw /= View.Family->DebugDPIScale;
 					break;
+				}
 				case EChaosVDDebugDrawTextLocationMode::Screen:
-					{
-						LocationToDraw = FVector2D(TextToDraw.Location.X,TextToDraw.Location.Y);
-						bHasValidLocation = true;
-					}
+				{
+					LocationToDraw = FVector2D(TextToDraw.Location.X, TextToDraw.Location.Y);
+					bHasValidLocation = true;
+				}
 				default:
 					break;
 			}
@@ -352,6 +428,32 @@ void FChaosVDDebugDrawUtils::IncreaseDebugDrawLineCounter()
 FString Chaos::VisualDebugger::Utils::GenerateDebugTextForVector(const FVector& InVector, const FString& VectorName, const FString& InVectorUnits)
 {
 	return FString::Format(TEXT("{5} : {0} {4} \n	|-- X : {1} {4} \n	|-- Y : {2} {4} \n	|-- Z : {3} {4}"), {InVector.Size(), InVector.X, InVector.Y, InVector.Z, InVectorUnits, VectorName });
+}
+
+FBox Chaos::VisualDebugger::Utils::CalculateSceneQueryShapeBounds(const TSharedRef<FChaosVDQueryDataWrapper>& InSceneQueryData, const TSharedRef<FChaosVDRecording> InRecordedData)
+{
+	FBoxSphereBounds::Builder BoundsBuilder;
+	const FConstImplicitObjectPtr* InputShapePtrPtr = InRecordedData->GetGeometryMap().Find(InSceneQueryData->InputGeometryKey);
+	const FConstImplicitObjectPtr InputShapePtr = InputShapePtrPtr ? *InputShapePtrPtr : nullptr;
+	
+	if (InputShapePtr && InputShapePtr->HasBoundingBox())
+	{
+		FAABB3 StartBounds = InputShapePtr->CalculateTransformedBounds(FRigidTransform3(InSceneQueryData->StartLocation, InSceneQueryData->GeometryOrientation));
+		BoundsBuilder += FBox(StartBounds.Min(), StartBounds.Max());
+
+		if (InSceneQueryData->Type != EChaosVDSceneQueryType::Overlap)
+		{
+			FAABB3 EndBounds = InputShapePtr->CalculateTransformedBounds(FRigidTransform3(InSceneQueryData->EndLocation, InSceneQueryData->GeometryOrientation));
+			BoundsBuilder += FBox(EndBounds.Min(), EndBounds.Max());
+		}
+	}
+	else
+	{
+		BoundsBuilder+= InSceneQueryData->EndLocation;
+		BoundsBuilder+= InSceneQueryData->StartLocation;
+	}
+	
+	return FBoxSphereBounds(BoundsBuilder).GetBox();
 }
 
 #undef LOCTEXT_NAMESPACE

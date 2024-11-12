@@ -575,7 +575,7 @@ static void DoUpdateTextureMediaSampleExecute(TWeakPtr<FJavaAndroidMediaPlayer, 
 	const FTimespan Time = FTimespan::FromMilliseconds(CurrentFramePosition);
 
 	// write frame into texture
-	FRHITexture2D* Texture = VideoSample->InitializeTexture(Time);
+	FRHITexture* Texture = VideoSample->InitializeTexture(Time);
 
 	if (Texture != nullptr)
 	{

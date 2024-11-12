@@ -146,7 +146,7 @@ public:
 #endif
 
     /** Default constructor (no initialization). */
-    FORCEINLINE TVector();
+    TVector() = default;
 
     /**
      * Constructor initializing all components to a single T value.
@@ -283,7 +283,7 @@ public:
      * @param Bias How much to subtract from each component.
      * @return The result of subtraction.
      */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TVector<T> operator-(FArg Bias) const
 	{
 		return TVector<T>(X - (T)Bias, Y - (T)Bias, Z - (T)Bias);
@@ -295,7 +295,7 @@ public:
      * @param Bias How much to add to each component.
      * @return The result of addition.
      */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TVector<T> operator+(FArg Bias) const
 	{
 		return TVector<T>(X + (T)Bias, Y + (T)Bias, Z + (T)Bias);
@@ -307,7 +307,7 @@ public:
      * @param Scale What to multiply each component by.
      * @return The result of multiplication.
      */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TVector<T> operator*(FArg Scale) const
 	{
 		return TVector<T>(X * (T)Scale, Y * (T)Scale, Z * (T)Scale);
@@ -319,7 +319,7 @@ public:
      * @param Scale What to divide each component by.
      * @return The result of division.
      */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	TVector<T> operator/(FArg Scale) const
 	{
 		const T RScale = T(1) / Scale;
@@ -408,7 +408,7 @@ public:
      * @param Scale Amount to scale this vector by.
      * @return Copy of the vector after scaling.
      */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TVector<T> operator*=(FArg Scale)
 	{
 		X *= Scale; Y *= Scale; Z *= Scale;
@@ -422,7 +422,7 @@ public:
      * @param V What to divide this vector by.
      * @return Copy of the vector after division.
      */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	TVector<T> operator/=(FArg Scale)
 	{
 		const T RV = (T)1 / Scale;
@@ -1185,7 +1185,7 @@ public:
 	}
 
 	// Conversion from other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
 	explicit TVector(const TVector<FArg>& From) : TVector<T>((T)From.X, (T)From.Y, (T)From.Z) {}
 };
 
@@ -1440,10 +1440,6 @@ inline TVector<T> TVector<T>::DegreesToRadians(const TVector<T>& DegVector)
 {
     return DegVector * (UE_PI / 180.f);
 }
-
-template<typename T>
-FORCEINLINE TVector<T>::TVector()
-{}
 
 template<typename T>
 FORCEINLINE TVector<T>::TVector(T InF)
@@ -2344,7 +2340,7 @@ FORCEINLINE FString TVector<T>::ToCompactString() const
 {
     if(IsNearlyZero())
     {
-        return FString::Printf(TEXT("V(0)"));
+        return FString(TEXT("V(0)"));
     }
 
     FString ReturnString(TEXT("V("));
@@ -2379,8 +2375,6 @@ FORCEINLINE FString TVector<T>::ToCompactString() const
 template<typename T>
 FORCEINLINE bool TVector<T>::InitFromCompactString(const FString& InSourceString)
 {
-	bool bAxisFound = false;
-	
 	X = Y = Z = 0;
 
 	if (FCString::Strifind(*InSourceString, TEXT("V(0)")) != nullptr)
@@ -2535,7 +2529,7 @@ template<> CORE_API const FVector3d FVector3d::ZAxisVector;
  * @param V Vector to scale.
  * @return Result of multiplication.
  */
-template<typename T, typename T2, TEMPLATE_REQUIRES(std::is_arithmetic<T2>::value)>
+template<typename T, typename T2 UE_REQUIRES(std::is_arithmetic_v<T2>)>
 FORCEINLINE TVector<T> operator*(T2 Scale, const TVector<T>& V)
 {
 	return V.operator*(Scale);
@@ -2712,7 +2706,8 @@ namespace UE {
 namespace Math {
 
 template <>
-FORCEINLINE TIntVector3<int32>::TIntVector3(FVector InVector)
+template<typename T>
+FORCEINLINE TIntVector3<int32>::TIntVector3(TVector<T> InVector)
 	: X(FMath::TruncToInt32(InVector.X))
 	, Y(FMath::TruncToInt32(InVector.Y))
 	, Z(FMath::TruncToInt32(InVector.Z))
@@ -2720,7 +2715,8 @@ FORCEINLINE TIntVector3<int32>::TIntVector3(FVector InVector)
 }
 
 template <>
-FORCEINLINE TIntVector3<uint32>::TIntVector3(FVector InVector)
+template<typename T>
+FORCEINLINE TIntVector3<uint32>::TIntVector3(TVector<T> InVector)
 	: X(IntCastChecked<uint32, int64>(FMath::TruncToInt64(InVector.X)))
 	, Y(IntCastChecked<uint32, int64>(FMath::TruncToInt64(InVector.Y)))
 	, Z(IntCastChecked<uint32, int64>(FMath::TruncToInt64(InVector.Z)))

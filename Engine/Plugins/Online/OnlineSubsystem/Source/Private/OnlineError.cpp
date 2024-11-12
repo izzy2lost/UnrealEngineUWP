@@ -5,10 +5,6 @@
 #define LOCTEXT_NAMESPACE "OnlineError"
 #define ONLINE_ERROR_NAMESPACE "errors.com.epicgames.online.generic"
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-const FString FOnlineError::GenericErrorCode = TEXT("GenericError");
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 const FOnlineError& FOnlineError::Success() { static FOnlineError Error(EOnlineErrorResult::Success); return Error; }
 
 #if ONLINE_ERROR_LEGACY

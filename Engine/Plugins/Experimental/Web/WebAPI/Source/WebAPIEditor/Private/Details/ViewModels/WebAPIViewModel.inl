@@ -2,70 +2,74 @@
 
 #pragma once
 
+#include "Dom/WebAPIService.h"
+#include "WebAPIEditorLog.h"
 #include "WebAPIEnumViewModel.h"
 #include "WebAPIModelViewModel.h"
 #include "WebAPIOperationViewModel.h"
 #include "WebAPIParameterViewModel.h"
 #include "WebAPIServiceViewModel.h"
 #include "WebAPIViewModel.h"
-#include "Dom/WebAPIService.h"
 
-template <typename ModelType, class ParentViewModelType, class ViewModelType>
-TSharedPtr<ViewModelType> UE::WebAPI::Details::CreateViewModel(const TSharedRef<ParentViewModelType>& InParentViewModel, ModelType* InModel)
+namespace UE::WebAPI::Details
 {
- 	if(!InModel)
+	template <class ParentViewModelType, class ViewModelType>
+	TSharedPtr<ViewModelType> CreateViewModel(const TSharedRef<ParentViewModelType>& InParentViewModel, UObject* InModel)
 	{
-		return nullptr;
-	}
+		if(!InModel)
+		{
+			return nullptr;
+		}
 
-	const UClass* ModelClass = InModel->GetClass();
-	if constexpr (std::is_base_of_v<UWebAPIModelBase, ModelType>)
-	{
-		if(ModelClass == UWebAPIEnum::StaticClass())
+		const UClass* ModelClass = InModel->GetClass();
+		if(ModelClass->IsChildOf<UWebAPIModelBase>())
 		{
-			return FWebAPIEnumViewModel::Create(InParentViewModel, Cast<UWebAPIEnum>(InModel));
+			if(ModelClass == UWebAPIEnum::StaticClass())
+			{
+				return FWebAPIEnumViewModel::Create(InParentViewModel, Cast<UWebAPIEnum>(InModel));
+			}
+			else if(ModelClass == UWebAPIEnumValue::StaticClass())
+			{
+				return FWebAPIEnumValueViewModel::Create(InParentViewModel, Cast<UWebAPIEnumValue>(InModel));
+			}
+			else if(ModelClass == UWebAPIModel::StaticClass())
+			{
+				return FWebAPIModelViewModel::Create(InParentViewModel, Cast<UWebAPIModel>(InModel));
+			}
+			else if(ModelClass == UWebAPIProperty::StaticClass())
+			{
+				return FWebAPIPropertyViewModel::Create(InParentViewModel, Cast<UWebAPIProperty>(InModel));
+			}
+			else if(ModelClass == UWebAPIService::StaticClass())
+			{
+				return FWebAPIServiceViewModel::Create(InParentViewModel, Cast<UWebAPIService>(InModel));
+			}
+			else if(ModelClass == UWebAPIParameter::StaticClass())
+			{
+				return FWebAPIParameterViewModel::Create(InParentViewModel, Cast<UWebAPIParameter>(InModel));
+			}
+			else
+			{
+				checkNoEntry();
+				return nullptr;
+			}
 		}
-		else if(ModelClass == UWebAPIEnumValue::StaticClass())
+		else if(ModelClass->IsChildOf<UWebAPIOperation>())
 		{
-			return FWebAPIEnumValueViewModel::Create(InParentViewModel, Cast<UWebAPIEnumValue>(InModel));
-		}
-		else if(ModelClass == UWebAPIModel::StaticClass())
-		{
-			return FWebAPIModelViewModel::Create(InParentViewModel, Cast<UWebAPIModel>(InModel));
-		}
-		else if(ModelClass == UWebAPIProperty::StaticClass())
-		{
-			return FWebAPIPropertyViewModel::Create(InParentViewModel, Cast<UWebAPIProperty>(InModel));
-		}
-		else if(ModelClass == UWebAPIService::StaticClass())
-		{
-			return FWebAPIServiceViewModel::Create(InParentViewModel, Cast<UWebAPIService>(InModel));
-		}
-		else if(ModelClass == UWebAPIParameter::StaticClass())
-		{
-			return FWebAPIParameterViewModel::Create(InParentViewModel, Cast<UWebAPIParameter>(InModel));
+			if(ModelClass == UWebAPIOperation::StaticClass())
+			{
+				return FWebAPIOperationViewModel::Create(InParentViewModel, Cast<UWebAPIOperation>(InModel));
+			}
+			else
+			{
+				checkNoEntry();
+				return nullptr;
+			}
 		}
 		else
 		{
-			checkNoEntry();
+			UE_LOG(LogWebAPIEditor, Error, TEXT("Unsupported Type"));
 			return nullptr;
 		}
-	}
-	else if constexpr (std::is_base_of_v<UWebAPIOperation, ModelType>)
-	{
-		if(ModelClass == UWebAPIOperation::StaticClass())
-		{
-			return FWebAPIOperationViewModel::Create(InParentViewModel, Cast<UWebAPIOperation>(InModel));
-		}
-		else
-		{
-			checkNoEntry();
-			return nullptr;
-		}
-	}
-	else
-	{
-		static_assert(sizeof(ModelType) == 0, "Unsupported type");
-		return nullptr;
 	}
 }

@@ -79,11 +79,12 @@ struct FNiagaraCompilationGraphDuplicateContext
 
 struct FNiagaraCompilationGraphInstanceContext
 {
-	FNiagaraCompilationGraphInstanceContext(const FNiagaraFixedConstantResolver& InConstantResolver, const FNiagaraPrecompileData* InPrecompileData)
+	FNiagaraCompilationGraphInstanceContext(const FNiagaraFixedConstantResolver& InConstantResolver, const FNiagaraCompilationGraph* InCompilationGraph, const FNiagaraPrecompileData* InPrecompileData)
 		: ConstantResolver(InConstantResolver)
 		, PrecompileData(InPrecompileData)
 	{
-
+		bDisableDebugSwitches = InPrecompileData ? InPrecompileData->bDisableDebugSwitches : false;
+		TraversalContext.BeginContext(InCompilationGraph, ConstantResolver);
 	}
 	FNiagaraCompilationGraphInstanceContext() = delete;
 
@@ -93,6 +94,7 @@ struct FNiagaraCompilationGraphInstanceContext
 	FGraphTraversalHandle GraphTraversalHandle;
 	TArray<const FNiagaraCompilationNodeFunctionCall*> FunctionStack;
 	bool bForceNumericResolution = false;
+	bool bDisableDebugSwitches = false;
 
 	void EnterFunction(const FNiagaraCompilationNodeFunctionCall* InCallingNode)
 	{
@@ -1068,12 +1070,16 @@ void FNiagaraCompilationGraphInstanced::ValidateRefinement() const
 
 		for (const FNiagaraCompilationInputPin& InputPin : Node->InputPins)
 		{
-			check(InputPin.Variable.GetType() != FNiagaraTypeDefinition::GetGenericNumericDef());
+			ensureMsgf(InputPin.Variable.GetType() != FNiagaraTypeDefinition::GetGenericNumericDef() || !InputPin.LinkedTo,
+				TEXT("Failed during ValidateRefinement for compilation task - %s.  Connected InputPin[%s.%s] is still a generic."),
+				*SourceScriptFullName, *InputPin.OwningNode->NodeName, *InputPin.PinName.ToString());
 		}
 
 		for (const FNiagaraCompilationOutputPin& OutputPin : Node->OutputPins)
 		{
-			check(OutputPin.Variable.GetType() != FNiagaraTypeDefinition::GetGenericNumericDef());
+			ensureMsgf(OutputPin.Variable.GetType() != FNiagaraTypeDefinition::GetGenericNumericDef() || OutputPin.LinkedTo.IsEmpty(),
+				TEXT("Failed during ValidateRefinement for compilation task - %s.  Connected OutputPin[%s.%s] is still a generic."),
+				*SourceScriptFullName, *OutputPin.OwningNode->NodeName, *OutputPin.PinName.ToString());
 		}
 	}
 }
@@ -1099,6 +1105,8 @@ void FNiagaraCompilationGraphInstanced::Refine(FNiagaraCompilationGraphInstanceC
 			}
 		}
 	}
+
+	StripUnconnectedPins(InstantiationContext);
 
 	// validate that now that we've refined the graph we have no more generic numerics and also ensure
 	// that there are no more static switches connected
@@ -1208,9 +1216,58 @@ void FNiagaraCompilationGraphInstanced::ResolveNumerics(FNiagaraCompilationGraph
 	}
 }
 
+void FNiagaraCompilationGraphInstanced::StripUnconnectedPins(FNiagaraCompilationGraphInstanceContext& Context)
+{
+	// through instantiation some pins may become disconnected (for example because of static switches being evaluated).  For some nodes,
+	// like MapGet, this can be problematic because the culled paths may lead to some pins being in a weird state.
+	
+	// If the output of a MapGet is unconnected, then it's default input pin can also be disconnected.
+	TArray<FNiagaraCompilationNodeParameterMapGet*, TInlineAllocator<32>> MapGetNodes;
+
+	for (TUniquePtr<FNiagaraCompilationNode>& Node : Nodes)
+	{
+		if (FNiagaraCompilationNodeParameterMapGet* MapGetNode = Node->AsType<FNiagaraCompilationNodeParameterMapGet>())
+		{
+			MapGetNodes.Add(MapGetNode);
+		}
+	}
+
+	bool bVisitMapGetNodes = !MapGetNodes.IsEmpty();
+
+	while (bVisitMapGetNodes)
+	{
+		bVisitMapGetNodes = false;
+
+		for (FNiagaraCompilationNodeParameterMapGet* MapGetNode : MapGetNodes)
+		{
+			const int32 OutputPinCount = MapGetNode->OutputPins.Num();
+			for (int32 OutputPinIt = 0; OutputPinIt < OutputPinCount; ++OutputPinIt)
+			{
+				const FNiagaraCompilationOutputPin& OutputPin = MapGetNode->OutputPins[OutputPinIt];
+				if (OutputPin.LinkedTo.IsEmpty())
+				{
+					if (MapGetNode->DefaultInputPinIndices.IsValidIndex(OutputPinIt))
+					{
+						const int32 InputPinIndex = MapGetNode->DefaultInputPinIndices[OutputPinIt];
+						if (MapGetNode->InputPins.IsValidIndex(InputPinIndex))
+						{
+							// if we do change something in the graph then revisit our map nodes to see if there
+							// may be more connections that can be removed
+							if (MapGetNode->InputPins[InputPinIndex].Disconnect())
+							{
+								bVisitMapGetNodes = true;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 void FNiagaraCompilationGraphInstanced::InheritDebugState(FNiagaraCompilationGraphInstanceContext& Context, FNiagaraCompilationNodeFunctionCall& FunctionCallNode)
 {
-	FunctionCallNode.DebugState = FunctionCallNode.bInheritDebugState ? Context.ConstantResolver.GetDebugState() : ENiagaraFunctionDebugState::NoDebug;
+	FunctionCallNode.DebugState = FunctionCallNode.bInheritDebugState ? Context.ConstantResolver.GetDebugState() : FunctionCallNode.DebugState;
 }
 
 void FNiagaraCompilationGraphInstanced::PropagateDefaultValues(FNiagaraCompilationGraphInstanceContext& Context, FNiagaraCompilationNodeFunctionCall& FunctionCallNode)
@@ -1260,7 +1317,7 @@ TSharedPtr<FNiagaraCompilationGraphInstanced, ESPMode::ThreadSafe> FNiagaraCompi
 
 	// initialize the traversal context with the data that was pulled from the parameter map history done during the
 	// precompile
-	FNiagaraCompilationGraphInstanceContext InstantiationContext(ConstantResolver, PrecompileData);
+	FNiagaraCompilationGraphInstanceContext InstantiationContext(ConstantResolver, InstantiatedGraph.Get(), PrecompileData);
 
 	if (ensure(InstantiatedGraph))
 	{
@@ -1600,6 +1657,19 @@ const FNiagaraCompilationInputPin* FNiagaraCompilationInputPin::TraceBranchMap(c
 	}
 
 	return CurrentInputPin;
+}
+
+bool FNiagaraCompilationInputPin::Disconnect()
+{
+	if (LinkedTo)
+	{
+		FNiagaraCompilationOutputPin* MutableOutputPin = const_cast<FNiagaraCompilationOutputPin*>(LinkedTo);
+		LinkedTo = nullptr;
+
+		return MutableOutputPin->LinkedTo.RemoveSingle(this) > 0;
+	}
+
+	return false;
 }
 
 FNiagaraCompilationOutputPin::FNiagaraCompilationOutputPin(const UEdGraphPin* InPin)
@@ -2028,7 +2098,6 @@ FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const UNiagaraNod
 	EmitterName = InNode->GetName();
 	EmitterPathName = InNode->GetPathName();
 	EmitterHandleIdString = EmitterHandleID.ToString(EGuidFormats::Digits);
-	EmitterUniqueFName = *EmitterUniqueName;
 }
 
 
@@ -2040,7 +2109,6 @@ FNiagaraCompilationNodeEmitter::FNiagaraCompilationNodeEmitter(const FNiagaraCom
 	, EmitterName(InNode.EmitterName)
 	, EmitterPathName(InNode.EmitterPathName)
 	, EmitterHandleIdString(InNode.EmitterHandleIdString)
-	, EmitterUniqueFName(InNode.EmitterUniqueFName)
 	, Usage(InNode.Usage)
 {
 	// we need to replace the CalledGraph here with the graph that has been instantiated already
@@ -2076,7 +2144,7 @@ void FNiagaraCompilationNodeEmitter::BuildParameterMapHistory(FParameterMapHisto
 		return;
 	}
 
-	const FNiagaraFixedConstantResolver* ChildConstantResolver = Builder.ConstantResolver->FindChildResolver(EmitterUniqueFName);
+	const FNiagaraFixedConstantResolver* ChildConstantResolver = Builder.ConstantResolver->FindChildResolver(EmitterHandleID);
 	if (!ChildConstantResolver)
 	{
 		// if no child resolver was found for the specified emitter, that means that the emitter is likely not enabled and so we can proceed without
@@ -2920,7 +2988,7 @@ void FNiagaraCompilationNodeFunctionCall::MultiFindParameterMapDefaultValues(ENi
 	{
 		FNiagaraCompilationBranchMap Branches;
 
-		FNiagaraCompilationGraphInstanceContext DummyContext(ConstantResolver, nullptr);
+		FNiagaraCompilationGraphInstanceContext DummyContext(ConstantResolver, nullptr, nullptr);
 		DummyContext.EnterFunction(this);
 		CalledGraph->EvaluateStaticBranches(DummyContext, Branches);
 	
@@ -3786,7 +3854,14 @@ void FNiagaraCompilationNodeParameterMapFor::Compile(FTranslator* Translator, TA
 		FNiagaraCompilationNodeParameterMapSet::Compile(Translator, Outputs);
 		//Translator->Message(FNiagaraCompileEventSeverity::Log,LOCTEXT("UnsupportedParamMapFor", "Parameter map for is not yet supported on cpu."), this, nullptr);
 	}
+}
 
+void FNiagaraCompilationNodeParameterMapFor::CollectInputPinsToCompile(FTranslator* Translator, FInputPinCollection& ActiveInputPins) const
+{
+	FNiagaraCompilationNodeParameterMapSet::CollectInputPinsToCompile(Translator, ActiveInputPins);
+
+	// we need to cull the iteration pin from the list of pins to compile as it's already going to be compiled during the MapFor::Compile
+	ActiveInputPins.Remove(&InputPins[1]);
 }
 
 FNiagaraCompilationNodeParameterMapForWithContinue::FNiagaraCompilationNodeParameterMapForWithContinue(const UNiagaraNodeParameterMapForWithContinue* InNode, FNiagaraCompilationGraphCreateContext& Context)
@@ -3820,6 +3895,14 @@ void FNiagaraCompilationNodeParameterMapForWithContinue::Compile(FTranslator* Tr
 		FNiagaraCompilationNodeParameterMapSet::Compile(Translator, Outputs);
 		//Translator->Message(FNiagaraCompileEventSeverity::Log,LOCTEXT("UnsupportedParamMapFor", "Parameter map for is not yet supported on cpu."), this, nullptr);
 	}
+}
+
+void FNiagaraCompilationNodeParameterMapForWithContinue::CollectInputPinsToCompile(FTranslator* Translator, FInputPinCollection& ActiveInputPins) const
+{
+	FNiagaraCompilationNodeParameterMapFor::CollectInputPinsToCompile(Translator, ActiveInputPins);
+
+	// we also need to cull out the iteration enabled pin
+	ActiveInputPins.Remove(&InputPins[2]);
 }
 
 FNiagaraCompilationNodeParameterMapForIndex::FNiagaraCompilationNodeParameterMapForIndex(const UNiagaraNodeParameterMapForIndex* InNode, FNiagaraCompilationGraphCreateContext& Context)
@@ -3915,21 +3998,8 @@ void FNiagaraCompilationNodeParameterMapSet::Compile(FTranslator* Translator, TA
 	check(Outputs.Num() == 0);
 	Outputs.Init(INDEX_NONE, OutputPins.Num());
 
-	TArray<const FNiagaraCompilationInputPin*, TInlineAllocator<16>> ActiveInputPins;
-	ActiveInputPins.Reserve(InputPins.Num());
-	// do a first pass over all of the pins so that we can properly cull out input pins and
-	// propagate the disabled pins up the chain
-	for (const FNiagaraCompilationInputPin& InputPin : InputPins)
-	{
-		if (Translator->IsFunctionVariableCulledFromCompilation(InputPin.PinName))
-		{
-			Translator->CullMapSetInputPin(&InputPin);
-		}
-		else
-		{
-			ActiveInputPins.Add(&InputPin);
-		}
-	}
+	FInputPinCollection ActiveInputPins;
+	CollectInputPinsToCompile(Translator, ActiveInputPins);
 
 	TArray<FTranslator::FCompiledPin, TInlineAllocator<16>> CompileInputs;
 	CompileInputs.Reserve(ActiveInputPins.Num());
@@ -3951,6 +4021,24 @@ void FNiagaraCompilationNodeParameterMapSet::Compile(FTranslator* Translator, TA
 	if (ActiveInputPins.Num() && ActiveInputPins[0] && ActiveInputPins[0]->LinkedTo)
 	{
 		Translator->ParameterMapSet(this, CompileInputs, Outputs);
+	}
+}
+
+void FNiagaraCompilationNodeParameterMapSet::CollectInputPinsToCompile(FTranslator* Translator, FInputPinCollection& ActiveInputPins) const
+{
+	ActiveInputPins.Reserve(InputPins.Num());
+	// do a first pass over all of the pins so that we can properly cull out input pins and
+	// propagate the disabled pins up the chain
+	for (const FNiagaraCompilationInputPin& InputPin : InputPins)
+	{
+		if (Translator->IsFunctionVariableCulledFromCompilation(InputPin.PinName))
+		{
+			Translator->CullMapSetInputPin(&InputPin);
+		}
+		else
+		{
+			ActiveInputPins.Add(&InputPin);
+		}
 	}
 }
 
@@ -4006,6 +4094,7 @@ FNiagaraCompilationNodeStaticSwitch::FNiagaraCompilationNodeStaticSwitch(const U
 {
 	bSetByCompiler = InNode->IsSetByCompiler();
 	bSetByPin = InNode->IsSetByPin();
+	bDebugStateSwitch = InNode->IsDebugSwitch();
 	SwitchType = InNode->SwitchTypeData.SwitchType;
 	SwitchBranchCount = InNode->GetOptionValues().Num();
 	InputParameterName = InNode->InputParameterName;
@@ -4245,7 +4334,7 @@ const FNiagaraCompilationOutputPin* FNiagaraCompilationNodeStaticSwitch::TraceOu
 
 TArray<const FNiagaraCompilationInputPin*> FNiagaraCompilationNodeStaticSwitch::EvaluateBranches(FNiagaraCompilationGraphInstanceContext& Context, FNiagaraCompilationBranchMap& Branches) const
 {
-	if (bSetByCompiler)
+	if (bSetByCompiler && !bDebugStateSwitch)
 	{
 		return FNiagaraCompilationNode::EvaluateBranches(Context, Branches);
 	}
@@ -4253,22 +4342,40 @@ TArray<const FNiagaraCompilationInputPin*> FNiagaraCompilationNodeStaticSwitch::
 	int32 SwitchValue = INDEX_NONE;
 	bool IsValueSet = false;
 
-	if (bSetByPin)
+	if (bDebugStateSwitch)
 	{
+		ENiagaraFunctionDebugState FunctionDebugState = ENiagaraFunctionDebugState::NoDebug;
+		if (!Context.bDisableDebugSwitches)
+		{
+			Context.TraversalContext.GetCurrentDebugState(FunctionDebugState);
+		}
+
+		IsValueSet = true;
+		SwitchValue = static_cast<int32>(FunctionDebugState);
+	}
+	else if (bSetByPin)
+	{
+		auto EvaluateVariableSwitchValue = [this](const FNiagaraVariable& ConstantVariable, int32& OutSwitchValue) -> bool
+		{
+			if (SwitchType == ENiagaraStaticSwitchType::Bool)
+			{
+				OutSwitchValue = ConstantVariable.GetValue<bool>();
+				return true;
+			}
+			else if (SwitchType == ENiagaraStaticSwitchType::Integer || SwitchType == ENiagaraStaticSwitchType::Enum)
+			{
+				OutSwitchValue = ConstantVariable.GetValue<int32>();
+				return true;
+			}
+
+			return false;
+		};
+
 		const FNiagaraVariable* Found = FNiagaraConstants::FindStaticSwitchConstant(SwitchConstant);
 		FNiagaraVariable Constant = Found ? *Found : FNiagaraVariable();
 		if (Found && Context.ConstantResolver.ResolveConstant(Constant))
 		{
-			if (SwitchType == ENiagaraStaticSwitchType::Bool)
-			{
-				SwitchValue = Constant.GetValue<bool>();
-				IsValueSet = true;
-			}
-			else if (SwitchType == ENiagaraStaticSwitchType::Integer || SwitchType == ENiagaraStaticSwitchType::Enum)
-			{
-				SwitchValue = Constant.GetValue<int32>();
-				IsValueSet = true;
-			}
+			IsValueSet = EvaluateVariableSwitchValue(Constant, SwitchValue);
 		}
 
 		// if we're set by pin then we can go through the previously completed parameter map traversal history
@@ -4297,18 +4404,7 @@ TArray<const FNiagaraCompilationInputPin*> FNiagaraCompilationNodeStaticSwitch::
 					FNiagaraEditorUtilities::ResetVariableToDefaultValue(DefaultVariable);
 				}
 
-				if (DefaultVariable.GetType().IsSameBaseDefinition(FNiagaraTypeDefinition::GetBoolDef()))
-				{
-					SwitchValue = DefaultVariable.GetValue<bool>();
-				}
-				else if (DefaultVariable.GetType().IsSameBaseDefinition(FNiagaraTypeDefinition::GetIntDef()) || DefaultVariable.GetType().IsEnum())
-				{
-					SwitchValue = DefaultVariable.GetValue<int32>();
-				}
-				else
-				{
-					check(false); // panic
-				}
+				IsValueSet = EvaluateVariableSwitchValue(DefaultVariable, SwitchValue);
 			}
 		}
 	}

@@ -51,22 +51,24 @@ public:
 	{
 	}
 
-	/** Delegate that generates a widget for this combo button's menu content.  Called when the menu is summoned. */
+	/** Optional override label to use when the entry appears in a toolbar. */
+	TAttribute<FText> LabelOverride;
+
+	/** Delegate that generates a widget for this combo button's menu content. Called when the menu is summoned. */
 	FNewToolMenuChoice ComboButtonContextMenuGenerator;
 
-	/** Legacy delegate that generates a widget for this combo button's menu content.  Called when the menu is summoned. */
+	/** Legacy delegate that generates a widget for this combo button's menu content. Called when the menu is summoned. */
 	FNewToolBarDelegateLegacy ConstructLegacy;
 
 	TSharedPtr<FToolMenuEntryOptionsDropdownData> OptionsDropdownData;
 
 	bool bSimpleComboBox;
 
-	/** Whether ToolBar will have Focusable buttons */
+	/** Whether ToolBar will have Focusable buttons. */
 	bool bIsFocusable;
 
-	/** Whether this toolbar should always use small icons, regardless of the current settings */
+	/** Whether this toolbar should always use small icons, regardless of the current settings. */
 	bool bForceSmallIcons;
-
 };
 
 
@@ -88,6 +90,9 @@ public:
 
 	/** If true, no padding will be added */
 	bool bNoPadding;
+
+	/** Various Style parameters and overrides */
+	FMenuEntryStyleParams StyleParams;
 };
 
 struct FToolMenuCustomWidgetContext
@@ -123,6 +128,7 @@ struct TOOLMENUS_API FToolMenuEntry
 	static FToolMenuEntry InitMenuEntry(const FName InNameOverride, const TSharedPtr< const FUICommandInfo >& InCommand, const TAttribute<FText>& InLabelOverride = TAttribute<FText>(), const TAttribute<FText>& InToolTipOverride = TAttribute<FText>(), const TAttribute<FSlateIcon>& InIconOverride = TAttribute<FSlateIcon>(), const FName InTutorialHighlightName = NAME_None);
 	static FToolMenuEntry InitMenuEntryWithCommandList(const TSharedPtr<const FUICommandInfo>& InCommand, const TSharedPtr<const FUICommandList>& InCommandList, const TAttribute<FText>& InLabelOverride = TAttribute<FText>(), const TAttribute<FText>& InToolTipOverride = TAttribute<FText>(), const TAttribute<FSlateIcon>& InIconOverride = TAttribute<FSlateIcon>(), const FName InTutorialHighlightName = NAME_None, const TOptional<FName> InNameOverride = TOptional<FName>());
 	static FToolMenuEntry InitMenuEntry(const FName InName, const FToolUIActionChoice& InAction, const TSharedRef<SWidget>& Widget);
+	static FToolMenuEntry InitDynamicEntry(const FName InName, const FNewToolMenuSectionDelegate& InConstruct);
 
 	static FToolMenuEntry InitSubMenu(const FName InName, const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const FNewToolMenuChoice& InMakeMenu, const FToolUIActionChoice& InAction, const EUserInterfaceActionType InUserInterfaceActionType, bool bInOpenSubMenuOnClick = false, const TAttribute<FSlateIcon>& InIcon = TAttribute<FSlateIcon>(), const bool bShouldCloseWindowAfterMenuSelection = true);
 	static FToolMenuEntry InitSubMenu(const FName InName, const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const FNewToolMenuChoice& InMakeMenu, bool bInOpenSubMenuOnClick = false, const TAttribute<FSlateIcon>& InIcon = TAttribute<FSlateIcon>(), const bool bShouldCloseWindowAfterMenuSelection = true, const FName InTutorialHighlightName = NAME_None);
@@ -154,6 +160,22 @@ struct TOOLMENUS_API FToolMenuEntry
 	bool TryExecuteToolUIAction(const FToolMenuContext& InContext);
 	friend struct FToolMenuSection;
 	friend class UToolMenuEntryScript;
+
+	/**
+	 * Show this menu entry in the top-level toolbar section of a toolbar.
+	 *
+	 * Entries of a toolbar submenu can be raised to the top-level of the toolbar. Such top-level entires appear in the
+	 * toolbar to the right of the submenu they belong to.
+	 *
+	 * This flag only effects entries within submenus of toolbar-type ToolMenus.
+	 *
+	 * THIS AFFECTS STYLING. When an entry is raised to the top level of a toolbar, the ".Raised" suffix is added to
+	 * the style name that would otherwise have been applied.
+	 *
+	 * @param InTopLevel True shows the entry in the top-level next to its submenu, false (default) only displays it in
+	 * the submenu itself. Pass a delegate to drive the top-level state from code.
+	 */
+	void SetShowInToolbarTopLevel(TAttribute<bool> InTopLevel);
 
 private:
 
@@ -231,4 +253,6 @@ private:
 
 	UPROPERTY()
 	bool bCommandIsKeybindOnly;
+
+	TAttribute<bool> ShowInToolbarTopLevel;
 };

@@ -106,9 +106,14 @@ namespace Audio
 
 	bool FQuartzClockProxy::SendCommandToClock(TFunction<void(FQuartzClock*)> InCommand)
 	{
-		if (auto QueuePtr = SharedQueue.Pin())
+		if (FQuartzClockCommandQueuePtr QueuePtr = SharedQueue.Pin())
 		{
-			QueuePtr->PushCommand(InCommand);
+			QueuePtr->PushLambda<Quartz::IQuartzClock>(
+				[Command = MoveTemp(InCommand)](Quartz::IQuartzClock& InListener)
+				{
+					Command(static_cast<FQuartzClock*>(&InListener));
+				});
+
 			return true;
 		}
 
@@ -258,12 +263,12 @@ namespace Audio
 
 	void FQuartzClock::Shutdown()
 	{
-		for (auto& PendingCommand : PendingCommands)
+		for (PendingCommand& PendingCommand : PendingCommands)
 		{
 			PendingCommand.Command->Cancel();
 		}
 
-		for (auto& PendingCommand : ClockAlteringPendingCommands)
+		for (PendingCommand& PendingCommand : ClockAlteringPendingCommands)
 		{
 			PendingCommand.Command->Cancel();
 		}
@@ -276,7 +281,7 @@ namespace Audio
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(QuartzClock::Tick_LowRes);
 		UE_LOG(LogAudioQuartz, Verbose, TEXT("Quartz Clock Tick (low-res): %s"), *Name.ToString());
-		PreTickCommands->PumpCommandQueue(this);
+		PreTickCommands->PumpCommandQueue(*this);
 		Tick(static_cast<int32>(InDeltaTimeSeconds * Metronome.GetTickRate().GetSampleRate()));
 	}
 
@@ -286,8 +291,8 @@ namespace Audio
 		TRACE_CPUPROFILER_EVENT_SCOPE(QuartzClock::GameThreadCommands);
 
 		UE_LOG(LogAudioQuartz, Verbose, TEXT("Quartz Clock Tick: %s"), *Name.ToString());
-		
-		PreTickCommands->PumpCommandQueue(this);
+
+		PreTickCommands->PumpCommandQueue(*this);
 
 		if (!bIsRunning)
 		{
@@ -322,7 +327,7 @@ namespace Audio
 	{
 		if (!PreTickCommands.IsValid())
 		{
-			PreTickCommands = TQuartzShareableCommandQueue<FQuartzClock>::Create();
+			PreTickCommands = MakeShared<FQuartzClockCommandQueueType>();
 		}
 
 		return PreTickCommands;

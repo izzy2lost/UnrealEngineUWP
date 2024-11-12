@@ -308,28 +308,56 @@ FReply FConsoleVariablesEditorListRow::OnActionButtonClicked()
 		return FReply::Unhandled();
 	}
 
+	FConsoleVariablesEditorModule& ConsoleVariablesEditorModule = FConsoleVariablesEditorModule::Get();
+	const TObjectPtr<UConsoleVariablesAsset> EditableAsset = ConsoleVariablesEditorModule.GetPresetAsset();
+	check(EditableAsset);
+
 	const FConsoleVariablesEditorList::EConsoleVariablesEditorListMode ListMode =
 		bIsListValid
 			? GetListViewPtr().Pin()->GetListModelPtr().Pin()->GetListMode()
 			: FConsoleVariablesEditorList::EConsoleVariablesEditorListMode::Preset;
 
-	const bool bIsGlobalSearch =
-		ListMode == FConsoleVariablesEditorList::EConsoleVariablesEditorListMode::GlobalSearch;
+	bool bWillRemove = true;
 
-	FConsoleVariablesEditorModule& ConsoleVariablesEditorModule = FConsoleVariablesEditorModule::Get();
-
-	TSharedPtr<FConsoleVariablesEditorCommandInfo> Info = GetCommandInfo().Pin();
-	const FString& CommandName = Info->Command;
-	const FString& StartupValue = Info->StartupValueAsString;
-	const EConsoleVariableFlags Source = Info->GetSource();
-	const TObjectPtr<UConsoleVariablesAsset> EditableAsset = ConsoleVariablesEditorModule.GetPresetAsset();
-	check(EditableAsset);
-
+	// In global search mode, if this command isn't already in the preset, we want to add the preset instead
+	const bool bIsGlobalSearch = ListMode == FConsoleVariablesEditorList::EConsoleVariablesEditorListMode::GlobalSearch;
 	if (bIsGlobalSearch)
 	{
 		FConsoleVariablesEditorAssetSaveData MatchingData;
-		if (!ConsoleVariablesEditorModule.GetPresetAsset()->FindSavedDataByCommandString(CommandName, MatchingData, ESearchCase::IgnoreCase))
+		const FString& ClickedCommandName = GetCommandInfo().Pin()->Command;
+		if (!ConsoleVariablesEditorModule.GetPresetAsset()->FindSavedDataByCommandString(ClickedCommandName, MatchingData, ESearchCase::IgnoreCase))
 		{
+			bWillRemove = false;
+		}
+	}
+
+	for (const FConsoleVariablesEditorListRowPtr& RowPtr : GetRowsAffectedByActions())
+	{
+		if (!RowPtr.IsValid())
+		{
+			continue;
+		}
+
+		TSharedPtr<FConsoleVariablesEditorCommandInfo> Info = RowPtr->GetCommandInfo().Pin();
+		const FString& CommandName = Info->Command;
+
+		if (bWillRemove)
+		{
+			const FString& StartupValue = Info->StartupValueAsString;
+			const EConsoleVariableFlags Source = Info->GetSource();
+
+			RowPtr->ResetToStartupValueAndSource();
+			EditableAsset->RemoveConsoleVariable(CommandName);
+
+			ConsoleVariablesEditorModule.SendMultiUserConsoleVariableChange(ERemoteCVarChangeType::Remove, CommandName, StartupValue, Source);
+
+			// Refresh preset list + numbers now that the row has been removed
+			ListViewPtr.Pin()->RebuildListWithListMode(ListViewPtr.Pin()->GetListModelPtr().Pin()->GetListMode());
+		}
+		else
+		{
+			ensureMsgf(bIsGlobalSearch, TEXT("Add to preset operation should only occur in global search mode"));
+
 			EditableAsset->AddOrSetConsoleObjectSavedData(
 				{
 					CommandName,
@@ -338,24 +366,51 @@ FReply FConsoleVariablesEditorListRow::OnActionButtonClicked()
 				}
 			);
 		}
-		else
-		{
-			EditableAsset->RemoveConsoleVariable(CommandName);
-
-			ConsoleVariablesEditorModule.SendMultiUserConsoleVariableChange(ERemoteCVarChangeType::Remove, CommandName, StartupValue, Source);
-		}
-	}
-	else
-	{
-		ResetToStartupValueAndSource();
-
-		EditableAsset->RemoveConsoleVariable(CommandName);
-
-		ConsoleVariablesEditorModule.SendMultiUserConsoleVariableChange(ERemoteCVarChangeType::Remove, CommandName, StartupValue, Source);
-		ListViewPtr.Pin()->RebuildListWithListMode(ListViewPtr.Pin()->GetListModelPtr().Pin()->GetListMode());
 	}
 
 	return FReply::Handled();
+}
+
+bool FConsoleVariablesEditorListRow::IsGlobalSearch() const
+{
+	if (!ListViewPtr.IsValid())
+	{
+		return false;
+	}
+
+	const TWeakPtr<FConsoleVariablesEditorList> ListModelPtr = ListViewPtr.Pin()->GetListModelPtr();
+	if (!ListModelPtr.IsValid())
+	{
+		return false;
+	}
+
+	return ListModelPtr.Pin()->GetListMode() == FConsoleVariablesEditorList::EConsoleVariablesEditorListMode::GlobalSearch;
+}
+
+bool FConsoleVariablesEditorListRow::IsInPreset() const
+{
+	const FString& CommandName = GetCommandInfo().Pin()->Command;
+	FConsoleVariablesEditorAssetSaveData MatchingData;
+
+	const FConsoleVariablesEditorModule& ConsoleVariablesEditorModule = FConsoleVariablesEditorModule::Get();
+	return ConsoleVariablesEditorModule.GetPresetAsset()->FindSavedDataByCommandString(CommandName, MatchingData);
+}
+
+TArray<FConsoleVariablesEditorListRowPtr> FConsoleVariablesEditorListRow::GetRowsAffectedByActions()
+{
+	TArray<FConsoleVariablesEditorListRowPtr> AffectedRows = GetSelectedTreeViewItems();
+	const bool bIsRowSelected = AffectedRows.ContainsByPredicate([this](const FConsoleVariablesEditorListRowPtr& RowPtr)
+	{
+		return RowPtr.Get() == this;
+	});
+
+	if (!bIsRowSelected)
+	{
+		AffectedRows.Empty(1);
+		AffectedRows.Add(AsShared());
+	}
+
+	return AffectedRows;
 }
 
 void FConsoleVariablesEditorListRow::ResetToPresetValue()

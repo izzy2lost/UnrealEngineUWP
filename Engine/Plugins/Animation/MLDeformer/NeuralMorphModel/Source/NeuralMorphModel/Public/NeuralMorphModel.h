@@ -94,6 +94,16 @@ public:
 	UPROPERTY()
 	TArray<FNeuralMorphCurveGroup> CurveGroups;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "This property has been deprecated, please use BoneMaskInfoMap instead.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "This property has been deprecated, please use BoneMaskInfoMap instead."))
+	TMap<FName, FNeuralMorphMaskInfo> BoneMaskInfos_DEPRECATED;
+
+	UE_DEPRECATED(5.5, "This property has been deprecated, please use BoneGroupMaskInfoMap instead.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "This property has been deprecated, please use BoneGroupMaskInfoMap instead."))
+	TMap<FName, FNeuralMorphMaskInfo> BoneGroupMaskInfos_DEPRECATED;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	/**
 	 * Information needed to generate a mask for each bone.
 	 * Each mask info object contains a list of bones who's skinning influence regions should be included in the final mask for the specific bone.
@@ -101,7 +111,7 @@ public:
 	 * The FName map key represents the bone name.
 	 */
 	UPROPERTY()
-	TMap<FName, FNeuralMorphMaskInfo> BoneMaskInfos;
+	TMap<FName, FMLDeformerMaskInfo> BoneMaskInfoMap;
 
 	/**
 	 * Information needed to generate a mask for each bone group.
@@ -110,7 +120,7 @@ public:
 	 * This information (and bone masking in general) is used inside the ENeuralMorphMode::Local mode.
 	 */
 	UPROPERTY()
-	TMap<FName, FNeuralMorphMaskInfo> BoneGroupMaskInfos;
+	TMap<FName, FMLDeformerMaskInfo> BoneGroupMaskInfoMap;
 
 	/**
 	 * The mode that the neural network will operate in. 
@@ -137,7 +147,7 @@ public:
 	/** 
 	 * The number of iterations to train the model for. 
 	 * If you are quickly iterating then around 1000 to 3000 iterations should be enough.
-	 * If you want to generate final assets you might want to use a higher number of iterations, like 10k to 100k.
+	 * If you want to generate final assets you might want to use a higher number of iterations, like 10k to 100k or even up to one million.
 	 * Once the loss doesn't go down anymore, you know that more iterations most likely won't help much.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", meta = (ClampMin = "1", ClampMax = "1000000"))
@@ -180,7 +190,7 @@ public:
 	 * A value of 0 disables the regularization, and gives the highest quality, at the cost of higher runtime memory usage.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Training Settings", meta = (ClampMin = "0.0", ClampMax = "10.0"))
-	float RegularizationFactor = 1.0f;
+	float RegularizationFactor = 0.0f;
 
 	/** 
 	 * Enable the use of per bone and bone group masks.
@@ -198,7 +208,7 @@ public:
 	 * If you see some noise in the trained results, even with large amount of samples and iterations, try increasing this value.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Training Settings", meta = (ClampMin = "0.0", ClampMax = "10.0"))
-	float SmoothLossBeta = 1.0f;
+	float SmoothLossBeta = 0.0f;
 
 	/**
 	 * The neural morph model network.

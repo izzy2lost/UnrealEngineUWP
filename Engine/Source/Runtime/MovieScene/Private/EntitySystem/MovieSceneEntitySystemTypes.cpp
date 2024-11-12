@@ -3,6 +3,7 @@
 #include "EntitySystem/MovieSceneEntitySystemTypes.h"
 #include "EntitySystem/MovieSceneEntityManager.h"
 #include "EntitySystem/MovieSceneComponentAccessors.h"
+#include "EntitySystem/MovieSceneComponentDebug.h"
 
 namespace UE
 {
@@ -154,6 +155,18 @@ const FComponentMask& FEntityAllocationProxy::GetAllocationType() const
 {
 	return Manager->EntityAllocationMasks[AllocationIndex];
 }
+
+#if UE_MOVIESCENE_ENTITY_DEBUG
+FComponentHeader::~FComponentHeader()
+{
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	// WARNING: This destructor is only compiled in when UE_MOVIESCENE_ENTITY_DEBUG is true
+	if (DebugComponents)
+	{
+		delete[] DebugComponents;
+	}
+}
+#endif // UE_MOVIESCENE_ENTITY_DEBUG
 
 } // namespace MovieScene
 } // namespace UE

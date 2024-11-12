@@ -19,9 +19,11 @@
 #include "Templates/SharedPointer.h"
 
 class FHttpThreadBase;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+class FHttpRequestCommon;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 class FOutputDevice;
 class IHttpTaskTimerHandle;
-class IHttpThreadedRequest;
 
 enum class EHttpFlushReason : uint8
 {
@@ -50,16 +52,76 @@ DECLARE_DELEGATE_OneParam(FHttpManagerRequestAddedDelegate, const FHttpRequestRe
  */
 DECLARE_DELEGATE_OneParam(FHttpManagerRequestCompletedDelegate, const FHttpRequestRef& /*Request*/);
 
+struct FHttpStatsPlatformMemoryPool
+{
+	uint64 PoolSize = 0;
+	uint64 MaxInUseSize = 0;
+	uint64 CurrentInUseSize = 0;
+};
+
+struct FHttpStatsPlatform
+{
+	FHttpStatsPlatformMemoryPool MemoryPoolConnection;
+	FHttpStatsPlatformMemoryPool MemoryPoolSsl;
+	FHttpStatsPlatformMemoryPool MemoryPoolNet;
+};
+
 struct FHttpStats
 {
-	/** The max time to successfully connect the backend */
-	float MaxTimeToConnect = -1.0f;
-	/** The max waiting queue in http manager */
-	uint32 MaxRequestsInQueue = 0;
+	// Use atomic for the following fields because csv profiler reads them from game thread while 
+	// http thread record them from http thread
 
+	/** The number of requests waiting in queue in http manager */
+	std::atomic<int32> RequestsInQueue = 0;
+	/** The number of requests in flight in http manager */
+	std::atomic<int32> RequestsInFlight = 0;
+	/** The max time to successfully connect the backend */
+	std::atomic<float> MaxTimeToConnect = -1.0f;
+	/** The max waiting queue in http manager */
+	std::atomic<uint32> MaxRequestsInQueue = 0;
+	/** The max number of requests in flight in http manager */
+	std::atomic<uint32> MaxRequestsInFlight = 0;
+	/** The max waiting time in queue of http manager */
+	std::atomic<float> MaxTimeToWaitInQueue = 0.0f;
+	/** The total bytes downloaded so far */
+	std::atomic<int64> TotalDownloadedBytes = 0;
+	/** Approximate download bandwidth used */
+	std::atomic<int64> BandwidthMbps = 0;
+	/** Avg duration (in milliseconds) from request to response */
+	std::atomic<int64> HttpDurationMsAvg = 0;
+	/** The optional http stats on specific platform */
+	TOptional<FHttpStatsPlatform> PlatformStats;
+
+	UE_DEPRECATED(5.5, "operator== for FHttpStats has been deprecated and will be removed.")
 	bool operator==(const FHttpStats& Other) const
 	{
-		return MaxRequestsInQueue == Other.MaxRequestsInQueue && FMath::IsNearlyEqual(MaxTimeToConnect, Other.MaxTimeToConnect);
+		return RequestsInQueue == Other.RequestsInQueue
+			&& RequestsInFlight == Other.RequestsInFlight
+			&& MaxRequestsInQueue == Other.MaxRequestsInQueue
+			&& MaxRequestsInFlight == Other.MaxRequestsInFlight
+			&& TotalDownloadedBytes == Other.TotalDownloadedBytes
+			&& BandwidthMbps == Other.BandwidthMbps
+			&& HttpDurationMsAvg == Other.HttpDurationMsAvg
+			&& FMath::IsNearlyEqual(MaxTimeToConnect, Other.MaxTimeToConnect)
+			&& FMath::IsNearlyEqual(MaxTimeToWaitInQueue, Other.MaxTimeToWaitInQueue);
+	}
+
+	FHttpStats()
+	{
+	}
+
+	FHttpStats(const FHttpStats& Other)
+		: RequestsInQueue(Other.RequestsInQueue.load())
+		, RequestsInFlight(Other.RequestsInFlight.load())
+		, MaxTimeToConnect(Other.MaxTimeToConnect.load())
+		, MaxRequestsInQueue(Other.MaxRequestsInQueue.load())
+		, MaxRequestsInFlight(Other.MaxRequestsInFlight.load())
+		, MaxTimeToWaitInQueue(Other.MaxTimeToWaitInQueue.load())
+		, TotalDownloadedBytes(Other.TotalDownloadedBytes.load())
+		, BandwidthMbps(Other.BandwidthMbps.load())
+		, HttpDurationMsAvg(Other.HttpDurationMsAvg.load())
+		, PlatformStats(Other.PlatformStats)
+	{
 	}
 };
 
@@ -156,19 +218,21 @@ public:
 	 */
 	HTTP_API virtual void FlushTick(float DeltaSeconds);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** 
 	 * Add a http request to be executed on the http thread
 	 *
 	 * @param Request - the request object to add
 	 */
-	HTTP_API void AddThreadedRequest(const TSharedRef<IHttpThreadedRequest, ESPMode::ThreadSafe>& Request);
+	HTTP_API void AddThreadedRequest(const TSharedRef<FHttpRequestCommon, ESPMode::ThreadSafe>& Request);
 
 	/**
 	 * Mark a threaded http request as cancelled to be removed from the http thread
 	 *
 	 * @param Request - the request object to cancel
 	 */
-	HTTP_API void CancelThreadedRequest(const TSharedRef<IHttpThreadedRequest, ESPMode::ThreadSafe>& Request);
+	HTTP_API void CancelThreadedRequest(const TSharedRef<FHttpRequestCommon, ESPMode::ThreadSafe>& Request);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * List all of the Http requests currently being processed
@@ -242,7 +306,7 @@ public:
 	 *
 	 * @param Task The task to be ran next tick
 	 */
-	HTTP_API void AddGameThreadTask(TFunction<void()>&& Task);
+	HTTP_API void AddGameThreadTask(TFunction<void()>&& Task, float Delay = 0.0f);
 
 	/**
 	 * Add task to be ran on the http thread
@@ -281,6 +345,9 @@ protected:
 
 	HTTP_API bool HasAnyBoundDelegate() const;
 
+	HTTP_API void UpdateUrlPatternsToLogResponse(IConsoleVariable* CVar);
+	HTTP_API void UpdateUrlPatternsToMockFailure(IConsoleVariable* CVar);
+
 protected:
 	/** List of Http requests that are actively being processed */
 	TArray<FHttpRequestRef> Requests;
@@ -290,9 +357,9 @@ protected:
 	/** This method will be called to generate a CorrelationId on all requests being sent if one is not already set */
 	TFunction<FString()> CorrelationIdMethod;
 
-	/** Queue of tasks to run on the game thread */
-	TQueue<TFunction<void()>, EQueueMode::Mpsc> GameThreadQueue;
-	FCriticalSection GameThreadQueueLock;
+	/** Ticker to run game thread tasks*/
+	FTSTicker GameThreadTicker;
+	FCriticalSection GameThreadTickerLock;
 
 	// This variable is set to true in Flush(EHttpFlushReason), and prevents new Http requests from being launched
 	bool bFlushing;
@@ -333,14 +400,35 @@ protected:
 	TMap<EHttpFlushReason, FHttpFlushTimeLimit> FlushTimeLimitsMap;
 
 	FHttpStats HttpStats;
+	struct FHttpStatsHistory
+	{
+		static constexpr int32 HttpHistoryCount = 16;
+		int32 HistoryIndex = 0;
+
+		int64 DownloadedBytes[HttpHistoryCount] = { 0 };
+		int64 DurationMs[HttpHistoryCount] = { 0 };
+
+		int64 TotalDownloadedBytes = 0;
+		int64 TotalUploadedBytes = 0;
+		int64 TotalDuration = 0;
+	};
+	FHttpStatsHistory HttpStatsHistory;
+
+	bool bUseEventLoop = true;
+
+	TArray<FString> UrlPatternsToLogResponse;
+	FCriticalSection UrlPatternsToLogResponseCriticalSection;
+
+	TMap<FString, int32> UrlPatternsToMockFailure;
+	FCriticalSection UrlPatternsToMockFailureCriticalSection;
 
 PACKAGE_SCOPE:
 
 	/** Used to lock access to add/remove/find requests */
-	static FCriticalSection RequestLock;
+	mutable FCriticalSection RequestLock;
 
 	/** Used to lock access to get completed requests */
-	static FCriticalSection CompletedRequestLock;
+	FCriticalSection CompletedRequestLock;
 
 	/**
 	 * Broadcast that a non-threaded HTTP request is complete.
@@ -357,6 +445,19 @@ PACKAGE_SCOPE:
 	/** Record the time to connect, to have a general idea how long the client usually take to connect for success requests, to adjust the connection timeout */
 	HTTP_API void RecordStatTimeToConnect(float Duration);
 
+	/** Record the requests waiting in flight, to have an idea if there are too many concurrent requests */
+	HTTP_API void RecordStatRequestsInFlight(uint32 RequestsInFlight);
+
 	/** Record the requests waiting in queue, to have an idea if there are too many requests or if request number limit is too small */
 	HTTP_API void RecordStatRequestsInQueue(uint32 RequestsInQueue);
+
+	/** Record the time to wait in queue, to have a general idea how long the client usually wait before actually starting, to adjust the requests */
+	HTTP_API void RecordMaxTimeToWaitInQueue(float Duration);
+
+	/** Record platform specific stats */
+	HTTP_API void RecordPlatformStats(const FHttpStatsPlatform& PlatformStats);
+
+	HTTP_API bool ShouldLogResponse(FStringView Url);
+
+	HTTP_API TOptional<int32> GetMockFailure(FStringView Url);
 };

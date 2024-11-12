@@ -4,6 +4,7 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Widgets/SNullWidget.h"
 
 #if WITH_EDITOR
 #include "Engine/BlueprintGeneratedClass.h"
@@ -19,6 +20,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "BlueprintActionDatabase.h"
 #include "Preferences/PersonaOptions.h"
+#include "Styling/SlateTypes.h"
 
 #define LOCTEXT_NAMESPACE "PropertyBinding"
 
@@ -33,6 +35,42 @@ void SPropertyBinding::Construct(const FArguments& InArgs, UBlueprint* InBluepri
 	Args = InArgs._Args;
 	PropertyName = Args.Property != nullptr ? Args.Property->GetFName() : NAME_None;
 
+	for(int32 Index = 0; Index < BindingContextStructs.Num(); ++Index)
+	{
+		FBindingContextStruct& ContextStruct = BindingContextStructs[Index];
+		/* BindingContextStructSections contains an entry for each different FBindingContextStruct.Section.
+		 Section are then further divided into subcategories based on the FBindingContextStruct.Category
+		 Section are displayed as a section while subcategories are displayed as menu and submenu under a section. */
+		FBindingContextStructCategory* Section = BindingContextStructSections.FindByPredicate([&](const FBindingContextStructCategory& Section) { return Section.Name.IdenticalTo(ContextStruct.Section); });
+		if(!Section)
+		{
+			Section = &BindingContextStructSections.AddDefaulted_GetRef();
+			Section->Name = ContextStruct.Section;
+		}
+
+		//No category the BindingContextStruct will be displayed directly inside the section.
+		if (ContextStruct.Category.IsEmpty())
+		{
+			Section->BindingContextStructIndices.Add(Index);
+		}
+		else
+		{
+			// Parse the categories and subcategories and construct the data to build the menus.
+			TArray<FString> Categories;
+			ContextStruct.Category.ParseIntoArray(Categories, TEXT("|"));
+			BuildContextStructCategoryRecursive(Categories, Section->SubCategories, Index);
+		}
+	}
+	TSharedRef<SWidget> LinkIcon = Args.bUseLinkIconStyle ?
+		SNew(SBox)
+		.HeightOverride(16.0f)
+		[
+			SNew(SImage)
+			.Image(this, &SPropertyBinding::GetLinkIcon)
+		]
+		:
+		SNullWidget::NullWidget;
+
 	ChildSlot
 	[
 		SNew(SHorizontalBox)
@@ -45,10 +83,17 @@ void SPropertyBinding::Construct(const FArguments& InArgs, UBlueprint* InBluepri
 			.ToolTipText(this, &SPropertyBinding::GetCurrentBindingToolTipText)
 			.OnGetMenuContent(this, &SPropertyBinding::OnGenerateDelegateMenu)
 			.ContentPadding(1)
+			.HasDownArrow(!Args.bUseLinkIconStyle)
 			.ButtonContent()
 			[
 				SNew(SHorizontalBox)
 				.Clipping(EWidgetClipping::ClipToBounds)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					LinkIcon
+				]
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
@@ -68,7 +113,7 @@ void SPropertyBinding::Construct(const FArguments& InArgs, UBlueprint* InBluepri
 				[
 					SNew(STextBlock)
 					.Text(this, &SPropertyBinding::GetCurrentBindingText)
-					.ColorAndOpacity(FSlateColor::UseForeground())
+					.ColorAndOpacity(this, &SPropertyBinding::GetCurrentBindingTextColor)
 					.Font(IDetailLayoutBuilder::GetDetailFont())
 				]
 			]
@@ -198,10 +243,152 @@ void SPropertyBinding::ForEachBindableFunction(UClass* FromClass, Predicate Pred
 	}
 }
 
+void SPropertyBinding::AddCategoryToMenu(FMenuBuilder& MenuBuilder, const FBindingContextStructCategory& Category)
+{
+	if (HasCategorySomethingToDisplayRecursive(Category))
+	{
+		TSharedRef<SWidget> SubMenu =
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(SSpacer)
+					.Size(FVector2D(18.0f, 0.0f))
+				]
+			+ SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(STextBlock)
+					.Text(Category.Name)
+				];
+
+		MenuBuilder.AddSubMenu(SubMenu, FNewMenuDelegate::CreateSP(this, &SPropertyBinding::FillCategoryMenu, &Category));
+	}
+}
+
+void SPropertyBinding::BuildContextStructCategoryRecursive(TConstArrayView<FString> CategoryNames, TArray<FBindingContextStructCategory>& ParentSubCategories, int32 ContextStructIndex)
+{
+	if (CategoryNames.IsEmpty())
+	{
+		return;
+	}
+
+	FString CategoryName = CategoryNames[0];
+	FBindingContextStructCategory* CategoryPtr = ParentSubCategories.FindByPredicate([&](const FBindingContextStructCategory& Category) { return Category.Name.ToString() == CategoryName; });
+	if (!CategoryPtr)
+	{
+		CategoryPtr = &ParentSubCategories.AddDefaulted_GetRef();
+		CategoryPtr->Name = FText::FromString(CategoryName);
+	}
+	
+	if(CategoryNames.Num() == 1)
+	{
+		CategoryPtr->BindingContextStructIndices.Add(ContextStructIndex);
+	}
+	else
+	{
+		BuildContextStructCategoryRecursive(CategoryNames.RightChop(1), CategoryPtr->SubCategories, ContextStructIndex);
+	}
+}
+
+bool SPropertyBinding::HasCategorySomethingToDisplayRecursive(const FBindingContextStructCategory& Category) const
+{
+	for(const FBindingContextStructCategory& SubCategory : Category.SubCategories)
+	{
+		if (HasCategorySomethingToDisplayRecursive(SubCategory))
+		{
+			return true;
+		}
+	}
+
+	for(const int32 ContextStructIndex : Category.BindingContextStructIndices)
+	{
+		const FBindingContextStruct& ContextStruct = BindingContextStructs[ContextStructIndex];
+		UStruct* Struct = const_cast<UStruct*>(ContextStruct.Struct);
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		const bool bDeprecatedCanBindToContextStruct = Args.OnCanBindToContextStruct.IsBound() && Args.OnCanBindToContextStruct.Execute(Struct);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		if (bDeprecatedCanBindToContextStruct || (Args.OnCanBindToContextStructWithIndex.IsBound() && Args.OnCanBindToContextStructWithIndex.Execute(Struct, ContextStructIndex)))
+		{
+			return true;
+		}
+
+		TArray<TSharedPtr<FBindingChainElement>> BindingChain;
+		BindingChain.Emplace(MakeShared<FBindingChainElement>(nullptr, ContextStructIndex));
+		if (HasBindableProperties(Struct, BindingChain))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+TSharedRef<SWidget> SPropertyBinding::MakeContextStructWidget(const FBindingContextStruct& ContextStruct) const
+{
+	const FText DisplayText = ContextStruct.DisplayText.IsEmpty() ? ContextStruct.Struct->GetDisplayNameText() : ContextStruct.DisplayText;
+	const FText ToolTipText = ContextStruct.TooltipText.IsEmpty() ? DisplayText : ContextStruct.TooltipText;
+
+	const FSlateBrush* Icon = ContextStruct.Icon;
+	FLinearColor IconColor = FLinearColor::White;
+	if (Icon == nullptr)
+	{
+		const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
+
+		FEdGraphPinType PinType;
+
+		if (UClass* Class = Cast<UClass>(ContextStruct.Struct))
+		{
+			PinType.PinCategory = UEdGraphSchema_K2::PC_Object;
+			PinType.PinSubCategory = NAME_None;
+			PinType.PinSubCategoryObject = Class;
+		}
+		else if (UScriptStruct* ScriptStruct = Cast<UScriptStruct>(ContextStruct.Struct))
+		{
+			PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+			PinType.PinSubCategory = NAME_None;
+			PinType.PinSubCategoryObject = ScriptStruct;
+		}
+		Icon = FBlueprintEditorUtils::GetIconFromPin(PinType, true);
+		IconColor = Schema->GetPinTypeColor(PinType);
+	}
+
+	if (ContextStruct.Color.IsSet())
+	{
+		IconColor = ContextStruct.Color.GetValue();
+	}
+
+	return SNew(SHorizontalBox)
+			   .ToolTipText(ToolTipText)
+		+ SHorizontalBox::Slot()
+			  .AutoWidth()
+				  [SNew(SSpacer)
+						  .Size(FVector2D(18.0f, 0.0f))]
+		+ SHorizontalBox::Slot()
+			  .AutoWidth()
+			  .VAlign(VAlign_Center)
+			  .Padding(1.0f, 0.0f)
+				  [SNew(SImage)
+						  .Image(Icon)
+						  .ColorAndOpacity(IconColor)]
+		+ SHorizontalBox::Slot()
+			  .AutoWidth()
+			  .VAlign(VAlign_Center)
+			  .Padding(4.0f, 0.0f)
+				  [SNew(STextBlock)
+						  .Text(DisplayText)];
+}
+
 template <typename Predicate>
 void SPropertyBinding::ForEachBindableProperty(UStruct* InStruct, const TArray<TSharedPtr<FBindingChainElement>>& BindingChain, Predicate Pred) const
 {
-	if(InStruct && Args.OnCanBindProperty.IsBound())
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const bool bIsOnCanBindPropertyBound = Args.OnCanBindProperty.IsBound() || Args.OnCanBindPropertyWithBindingChain.IsBound();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	if(InStruct && bIsOnCanBindPropertyBound)
 	{
 		UBlueprintGeneratedClass* SkeletonClass = Blueprint ? Cast<UBlueprintGeneratedClass>(Blueprint->SkeletonGeneratedClass) : nullptr;
 
@@ -219,7 +406,6 @@ void SPropertyBinding::ForEachBindableProperty(UStruct* InStruct, const TArray<T
 			{
 				continue;
 			}
-			
 			if (SkeletonClass)
 			{
 				if (!UEdGraphSchema_K2::CanUserKismetAccessVariable(Property, SkeletonClass, UEdGraphSchema_K2::CannotBeDelegate))
@@ -275,16 +461,23 @@ bool SPropertyBinding::HasBindablePropertiesRecursive(UStruct* InStruct, TSet<US
 
 		FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property);
 
-		if(Args.OnCanBindProperty.Execute(Property))
+		if(CanBindProperty(Property, BindingChain))
 		{
 			BindableCount++;
 			return;
 		}
 
-		if(Args.bAllowArrayElementBindings && ArrayProperty != nullptr && Args.OnCanBindProperty.Execute(ArrayProperty->Inner))
+		if(Args.bAllowArrayElementBindings && ArrayProperty != nullptr)
 		{
-			BindableCount++;
-			return;
+			BindingChain.Emplace(MakeShared<FBindingChainElement>(Property));
+			BindingChain.Last()->ArrayIndex = 0;
+			ON_SCOPE_EXIT{ BindingChain.Pop(); };
+
+			if(CanBindProperty(ArrayProperty->Inner, BindingChain))
+			{
+				BindableCount++;
+				return;
+			}	
 		}
 
 		FProperty* InnerProperty = Property;
@@ -350,7 +543,7 @@ bool SPropertyBinding::HasBindablePropertiesRecursive(UStruct* InStruct, TSet<US
 			FProperty* ReturnProperty = Info.Function->GetReturnProperty();
 			
 			// We can get here if we accept non-leaf UObject functions, so if so we need to check the return value for compatibility
-			if(!Args.bAllowUObjectFunctions || Args.OnCanBindProperty.Execute(ReturnProperty))
+			if(!Args.bAllowUObjectFunctions || CanBindProperty(ReturnProperty, BindingChain))
 			{
 				BindableCount++;
 			}
@@ -387,7 +580,7 @@ TSharedRef<SWidget> SPropertyBinding::OnGenerateDelegateMenu()
 	// The menu itself is be searchable.
 	const bool bSearchableMenu = true;
 
-	// The menu are generated through reflection and sometime the API exposes some recursivity (think about a Widget returning it parent which is also a Widget). Just by reflection
+	// The menu are generated through reflection and sometime the API exposes some recursivity (think about a Widget returning its parent which is also a Widget). Just by reflection
 	// it is not possible to determine when the root object is reached. It needs a kind of simulation which is not implemented. Also, even if the recursivity was correctly handled, the possible
 	// permutations tend to grow exponentially. Until a clever solution is found, the simple approach is to disable recursively searching those menus. User can still search the current one though.
 	const bool bRecursivelySearchableMenu = false;
@@ -430,106 +623,44 @@ TSharedRef<SWidget> SPropertyBinding::OnGenerateDelegateMenu()
 
 	if (BindingContextStructs.Num() > 0)
 	{
-		auto MakeContextStructWidget = [this](const FBindingContextStruct& ContextStruct)
+		// Go thought each top level section and display the sub categories as menu and then the context struct without categories.
+		for(const FBindingContextStructCategory& Section : BindingContextStructSections)
 		{
-			const FText DisplayText = ContextStruct.DisplayText.IsEmpty() ? ContextStruct.Struct->GetDisplayNameText() : ContextStruct.DisplayText;
-			const FText ToolTipText = ContextStruct.TooltipText.IsEmpty() ? DisplayText : ContextStruct.TooltipText;
-
-			const FSlateBrush* Icon = ContextStruct.Icon;
-			FLinearColor IconColor = FLinearColor::White;
-			if (Icon == nullptr)
+			MenuBuilder.BeginSection(FName(), Section.Name);
+			for(const FBindingContextStructCategory& SubCategory : Section.SubCategories)
 			{
-				const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
+				AddCategoryToMenu(MenuBuilder, SubCategory);
+			}
 
-				FEdGraphPinType PinType;
+			for (int32 Index : Section.BindingContextStructIndices)
+			{
+				FBindingContextStruct& ContextStruct = BindingContextStructs[Index];
 
-				if (UClass* Class = Cast<UClass>(ContextStruct.Struct))
+				// Make first chain element representing the index in the context array.
+				TArray<TSharedPtr<FBindingChainElement>> BindingChain;
+				BindingChain.Emplace(MakeShared<FBindingChainElement>(nullptr, Index));
+
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				const bool bDeprecatedCanBindToContextStruct = Args.OnCanBindToContextStruct.IsBound() && Args.OnCanBindToContextStruct.Execute(ContextStruct.Struct);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+				if (bDeprecatedCanBindToContextStruct || (Args.OnCanBindToContextStructWithIndex.IsBound() && Args.OnCanBindToContextStructWithIndex.Execute(ContextStruct.Struct, Index)))
 				{
-					PinType.PinCategory = UEdGraphSchema_K2::PC_Object;
-					PinType.PinSubCategory = NAME_None;
-					PinType.PinSubCategoryObject = Class;
+					// If the struct can be be bound to directly, create action for that.
+					MenuBuilder.AddMenuEntry(
+						FUIAction(FExecuteAction::CreateSP(this, &SPropertyBinding::HandleAddBinding, BindingChain)),
+						MakeContextStructWidget(ContextStruct));
 				}
-				else if (UScriptStruct* ScriptStruct = Cast<UScriptStruct>(ContextStruct.Struct))
+				if (HasBindableProperties(ContextStruct.Struct, BindingChain))
 				{
-					PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-					PinType.PinSubCategory = NAME_None;
-					PinType.PinSubCategoryObject = ScriptStruct;
+					// Show struct properties.
+					MenuBuilder.AddSubMenu(
+						MakeContextStructWidget(ContextStruct),
+						FNewMenuDelegate::CreateSP(this, &SPropertyBinding::FillPropertyMenu, ContextStruct.Struct, BindingChain));
 				}
-				Icon = FBlueprintEditorUtils::GetIconFromPin(PinType, true); 
-				IconColor = Schema->GetPinTypeColor(PinType);
 			}
-			
-			return SNew(SHorizontalBox)
-				.ToolTipText(ToolTipText)
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				[
-					SNew(SSpacer)
-					.Size(FVector2D(18.0f, 0.0f))
-				]
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.Padding(1.0f, 0.0f)
-				[
-					SNew(SImage)
-					.Image(Icon)
-					.ColorAndOpacity(IconColor)
-				]
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.Padding(4.0f, 0.0f)
-				[
-					SNew(STextBlock)
-					.Text(DisplayText)
-				];
-		};
-
-		bool bSectionOpened = false;
-		FText CurrentSection = FText::GetEmpty();
-		
-		for (int32 i = 0; i < BindingContextStructs.Num(); i++)
-		{
-			FBindingContextStruct& ContextStruct = BindingContextStructs[i];
-
-			if (!ContextStruct.Section.IdenticalTo(CurrentSection))
-			{
-				if (bSectionOpened)
-				{
-					MenuBuilder.EndSection();
-				}
-
-				CurrentSection = ContextStruct.Section;
-				MenuBuilder.BeginSection(FName(), CurrentSection);
-				bSectionOpened = true;
-			}
-			
-			// Make first chain element representing the index in the context array.
-			TArray<TSharedPtr<FBindingChainElement>> BindingChain;
-			BindingChain.Emplace(MakeShared<FBindingChainElement>(nullptr, i));
-
-			if (Args.OnCanBindToContextStruct.IsBound() && Args.OnCanBindToContextStruct.Execute(ContextStruct.Struct))
-			{
-				// If the struct can be be bound to directly, create action for that. 
-				MenuBuilder.AddMenuEntry(
-					FUIAction(FExecuteAction::CreateSP(this, &SPropertyBinding::HandleAddBinding, BindingChain)),
-					MakeContextStructWidget(ContextStruct));
-			}
-			if (HasBindableProperties(ContextStruct.Struct, BindingChain))
-			{
-				// Show struct properties.
-				MenuBuilder.AddSubMenu(
-					MakeContextStructWidget(ContextStruct),
-					FNewMenuDelegate::CreateSP(this, &SPropertyBinding::FillPropertyMenu, ContextStruct.Struct, BindingChain));
-			}
-		}
-
-		if (bSectionOpened)
-		{
 			MenuBuilder.EndSection();
 		}
-
 	}
 
 	FDisplayMetrics DisplayMetrics;
@@ -730,7 +861,7 @@ void SPropertyBinding::FillPropertyMenu(FMenuBuilder& MenuBuilder, UStruct* InOw
 
 					FProperty* ReturnProperty = Info.Function->GetReturnProperty();
 					// We can get here if we accept non-leaf UObject functions, so if so we need to check the return value for compatibility
-					if(!Args.bAllowUObjectFunctions || Args.OnCanBindProperty.Execute(ReturnProperty))
+					if(!Args.bAllowUObjectFunctions || CanBindProperty(ReturnProperty, InBindingChain))
 					{
 						MenuBuilder.AddMenuEntry(
 							FUIAction(FExecuteAction::CreateSP(this, &SPropertyBinding::HandleAddBinding, NewBindingChain)),
@@ -783,7 +914,7 @@ void SPropertyBinding::FillPropertyMenu(FMenuBuilder& MenuBuilder, UStruct* InOw
 
 		// Find the binder that can handle the delegate return type, don't bother allowing people 
 		// to look for bindings that we don't support
-		if ( Args.OnCanBindProperty.IsBound() && Args.OnCanBindProperty.Execute(BindingProperty) )
+		if (CanBindProperty(BindingProperty, InBindingChain))
 		{
 			UStruct* BindingStruct = nullptr;
 			FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(BindingProperty);
@@ -804,20 +935,22 @@ void SPropertyBinding::FillPropertyMenu(FMenuBuilder& MenuBuilder, UStruct* InOw
 					TArray<TSharedPtr<FBindingChainElement>> NewBindingChain(InBindingChain);
 					NewBindingChain.Emplace(MakeShared<FBindingChainElement>(Property));
 
-					if(Args.OnCanBindProperty.Execute(Property))
+					if(CanBindProperty(Property, NewBindingChain))
 					{
 						MakePropertyEntry(Property, NewBindingChain);
 					}
 
 					FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property);
 
-					if(Args.bAllowArrayElementBindings && ArrayProperty != nullptr && Args.OnCanBindProperty.Execute(ArrayProperty->Inner))
+					if(Args.bAllowArrayElementBindings && ArrayProperty != nullptr)
 					{
 						TArray<TSharedPtr<FBindingChainElement>> NewArrayElementBindingChain(InBindingChain);
 						NewArrayElementBindingChain.Emplace(MakeShared<FBindingChainElement>(Property));
 						NewArrayElementBindingChain.Last()->ArrayIndex = 0;
-
-						MakeArrayElementEntry(ArrayProperty->Inner, NewArrayElementBindingChain);
+						if(CanBindProperty(ArrayProperty->Inner, NewArrayElementBindingChain))
+						{
+							MakeArrayElementEntry(ArrayProperty->Inner, NewArrayElementBindingChain);
+						}
 					}
 
 					FProperty* InnerProperty = Property;
@@ -895,6 +1028,50 @@ void SPropertyBinding::FillPropertyMenu(FMenuBuilder& MenuBuilder, UStruct* InOw
 	}
 }
 
+void SPropertyBinding::FillCategoryMenu(FMenuBuilder& MenuBuilder, const FBindingContextStructCategory* Category)
+{
+	MenuBuilder.BeginSection(NAME_None, Category->Name);
+	for (const FBindingContextStructCategory& SubCategory : Category->SubCategories)
+	{
+		AddCategoryToMenu(MenuBuilder, SubCategory);
+	}
+
+	for(int32 Index : Category->BindingContextStructIndices)
+	{
+		FBindingContextStruct& ContextStruct = BindingContextStructs[Index];
+
+		// Make first chain element representing the index in the context array.
+		TArray<TSharedPtr<FBindingChainElement>> BindingChain;
+		BindingChain.Emplace(MakeShared<FBindingChainElement>(nullptr, Index));
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		const bool bDeprecatedCanBindToContextStruct = Args.OnCanBindToContextStruct.IsBound() && Args.OnCanBindToContextStruct.Execute(ContextStruct.Struct);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		if (bDeprecatedCanBindToContextStruct || (Args.OnCanBindToContextStructWithIndex.IsBound() && Args.OnCanBindToContextStructWithIndex.Execute(ContextStruct.Struct, Index)))
+		{
+			// If the struct can be be bound to directly, create action for that.
+			MenuBuilder.AddMenuEntry(
+				FUIAction(FExecuteAction::CreateSP(this, &SPropertyBinding::HandleAddBinding, BindingChain)),
+				MakeContextStructWidget(ContextStruct));
+		}
+		if (HasBindableProperties(ContextStruct.Struct, BindingChain))
+		{
+			// Show struct properties.
+			MenuBuilder.AddSubMenu(
+				MakeContextStructWidget(ContextStruct),
+				FNewMenuDelegate::CreateSP(this, &SPropertyBinding::FillPropertyMenu, ContextStruct.Struct, BindingChain));
+		}
+	}
+	MenuBuilder.EndSection();
+}
+
+const FSlateBrush* SPropertyBinding::GetLinkIcon() const
+{
+	bool CheckState = HasAnyBindings();
+	return (CheckState) ? FAppStyle::GetBrush("Icons.Link") : FAppStyle::GetBrush("Icons.Unlink");
+}
+
 const FSlateBrush* SPropertyBinding::GetCurrentBindingImage() const
 {
 	if(Args.CurrentBindingImage.IsSet())
@@ -913,6 +1090,16 @@ FText SPropertyBinding::GetCurrentBindingText() const
 	}
 
 	return LOCTEXT("Bind", "Bind");
+}
+
+FSlateColor SPropertyBinding::GetCurrentBindingTextColor() const
+{
+	if (Args.CurrentBindingTextColor.IsSet())
+	{
+		return Args.CurrentBindingTextColor.Get();
+	}
+
+	return FSlateColor::UseForeground();
 }
 
 FText SPropertyBinding::GetCurrentBindingToolTipText() const
@@ -962,6 +1149,7 @@ void SPropertyBinding::HandleAddBinding(TArray<TSharedPtr<FBindingChainElement>>
 		const FScopedTransaction Transaction(LOCTEXT("BindDelegate", "Set Binding"));
 
 		TArray<FBindingChainElement> BindingChain;
+		BindingChain.Reserve(InBindingChain.Num());
 		Algo::Transform(InBindingChain, BindingChain, [](TSharedPtr<FBindingChainElement> InElement)
 		{
 			return *InElement.Get();
@@ -975,7 +1163,7 @@ void SPropertyBinding::HandleSetBindingArrayIndex(int32 InArrayIndex, ETextCommi
 	InBindingChain.Last()->ArrayIndex = InArrayIndex;
 
 	// If the user hit enter on a compatible property, assume they want to accept
-	if(Args.OnCanBindProperty.Execute(InProperty) && InCommitType == ETextCommit::OnEnter)
+	if(CanBindProperty(InProperty, InBindingChain) && InCommitType == ETextCommit::OnEnter)
 	{
 		HandleAddBinding(InBindingChain);
 	}
@@ -1036,19 +1224,20 @@ void SPropertyBinding::HandleCreateAndAddBinding()
 	HandleGotoBindingClicked();
 }
 
-UStruct* SPropertyBinding::ResolveIndirection(const TArray<TSharedPtr<FBindingChainElement>>& BindingChain) const
+UStruct* SPropertyBinding::ResolveIndirection(const TArray<TSharedPtr<FBindingChainElement>>& InBindingChain) const
 {
 	UStruct* ResolvedStruct = nullptr;
 
 	if (Args.OnResolveIndirection.IsBound())
 	{
-		TArray<FBindingChainElement> RawBindingChain;
-		Algo::Transform(BindingChain, RawBindingChain, [](TSharedPtr<FBindingChainElement> InElement)
+		TArray<FBindingChainElement> BindingChain;
+		BindingChain.Reserve(InBindingChain.Num());
+		Algo::Transform(InBindingChain, BindingChain, [](TSharedPtr<FBindingChainElement> InElement)
 		{
 			return *InElement.Get();
 		});
 
-		ResolvedStruct = Args.OnResolveIndirection.Execute(RawBindingChain);
+		ResolvedStruct = Args.OnResolveIndirection.Execute(BindingChain);
 	}
 
 	return ResolvedStruct;
@@ -1106,6 +1295,32 @@ bool SPropertyBinding::CanAcceptPropertyOrChildren(FProperty* InProperty, TConst
 	return true;
 }
 
+bool SPropertyBinding::CanBindProperty(FProperty* InProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> InBindingChain) const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (Args.OnCanBindProperty.IsBound() && Args.OnCanBindProperty.Execute(InProperty) == false)
+	{
+		return false;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			
+	if (Args.OnCanBindPropertyWithBindingChain.IsBound())
+	{
+		TArray<FBindingChainElement, TInlineAllocator<32>> BindingChain;
+		Algo::Transform(InBindingChain, BindingChain, [](TSharedPtr<FBindingChainElement> InElement)
+		{
+			return *InElement.Get();
+		});
+
+		if (!Args.OnCanBindPropertyWithBindingChain.Execute(InProperty, BindingChain))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 FReply SPropertyBinding::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 {
 	if (Args.OnDrop.IsBound())
@@ -1114,6 +1329,16 @@ FReply SPropertyBinding::OnDrop(const FGeometry& MyGeometry, const FDragDropEven
 	}
 
 	return FReply::Unhandled();
+}
+
+bool SPropertyBinding::HasAnyBindings() const
+{
+	if (Args.OnHasAnyBindings.IsBound())
+	{
+		return Args.OnHasAnyBindings.Execute();
+	}
+
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -121,7 +121,7 @@ void UK2Node_CreateDragDropOperation::ExpandNode(class FKismetCompilerContext& C
 	// create 'set var' nodes
 
 	// Get 'result' pin from 'begin spawn', this is the actual actor we want to set properties on
-	UEdGraphPin* LastThen = FKismetCompilerUtilities::GenerateAssignmentNodes(CompilerContext, SourceGraph, CallCreateNode, CreateOpNode, CallCreateResult, GetClassToSpawn());
+	UEdGraphPin* LastThen = FKismetCompilerUtilities::GenerateAssignmentNodes(CompilerContext, SourceGraph, CallCreateNode, CreateOpNode, CallCreateResult, GetClassToSpawn(), CallCreateOperationClassPin);
 
 	// Move 'then' connection from create widget node to the last 'then'
 	CompilerContext.MovePinLinksToIntermediate(*SpawnNodeThen, *LastThen);

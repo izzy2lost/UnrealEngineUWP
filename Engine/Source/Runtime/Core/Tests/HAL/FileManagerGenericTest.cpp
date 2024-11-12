@@ -4,6 +4,7 @@
 #include "Containers/UnrealString.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
+#include "HAL/PlatformProcess.h"
 #include "Misc/Paths.h"
 #include "Misc/StringBuilder.h"
 #include "Tests/TestHarnessAdapter.h"

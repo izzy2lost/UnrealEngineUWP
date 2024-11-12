@@ -4869,16 +4869,20 @@ TryObjectArgumentInitialization(Sema &S, QualType FromType,
 
   // First check the qualifiers.
   QualType FromTypeCanon = S.Context.getCanonicalType(FromType);
-  // HLSL Change Starts - for calls other than subscript overloads, disregard const
+  // HLSL Change Starts
+  // HLSL Note: For calls that aren't compiler-generated C++ overloads, we 
+  // disregard const qualifiers so that member functions can be called on
+  // `const` objects from constant buffer types. This should change in the
+  // future if we support const instance methods.
   FromTypeCanon.removeLocalRestrict(); // HLSL Change - disregard restrict.
   if (!S.getLangOpts().HLSL ||
-     (Method != nullptr && Method->getDeclName() == S.Context.DeclarationNames.getCXXOperatorName(OO_Subscript))) {
-  // HLSL Change Ends
-    if (ImplicitParamType.getCVRQualifiers()
-                                      != FromTypeCanon.getLocalCVRQualifiers() &&
+      (Method != nullptr && Method->hasAttr<HLSLCXXOverloadAttr>())) {
+    // HLSL Change Ends
+    if (ImplicitParamType.getCVRQualifiers() !=
+            FromTypeCanon.getLocalCVRQualifiers() &&
         !ImplicitParamType.isAtLeastAsQualifiedAs(FromTypeCanon)) {
-      ICS.setBad(BadConversionSequence::bad_qualifiers,
-                 FromType, ImplicitParamType);
+      ICS.setBad(BadConversionSequence::bad_qualifiers, FromType,
+                 ImplicitParamType);
       return ICS;
     }
   } // HLSL Change - end branch
@@ -4983,8 +4987,8 @@ Sema::PerformObjectArgumentInitialization(Expr *From,
                                           NamedDecl *FoundDecl,
                                           CXXMethodDecl *Method) {
   QualType FromRecordType, DestType;
-  QualType ImplicitParamRecordType  =
-    Method->getThisType(Context)->getAs<PointerType>()->getPointeeType();
+  // HLSL Change - this is a reference.
+  QualType ImplicitParamRecordType = Method->getThisObjectType(Context);
 
   Expr::Classification FromClassification;
   if (const PointerType *PT = From->getType()->getAs<PointerType>()) {
@@ -8664,12 +8668,12 @@ OverloadCandidateSet::BestViableFunction(Sema &S, SourceLocation Loc,
                                          iterator &Best,
                                          bool UserDefinedConversion) {
   // HLSL Change Starts
-  // Function calls should use HLSL-style overloading. operator[] overloads
-  // (used for const support) aren't supported by the defined rules, so
-  // use C++ overload resolution for those.
+  // Function calls should use HLSL-style overloading. Except for compiler
+  // generated functions which are annotated as requiring C++ overload
+  // resolution like operator[] overloads where `const` methods are aren't
+  // supported by HLSL's defined rules.
   if (S.getLangOpts().HLSL && !empty() && begin()->Function != nullptr &&
-      (begin()->Function->getDeclName() !=
-            S.Context.DeclarationNames.getCXXOperatorName(OO_Subscript))) {
+      !begin()->Function->hasAttr<HLSLCXXOverloadAttr>()) {
     return ::hlsl::GetBestViableFunction(S, Loc, *this, Best);
   }
   // HLSL Change Ends
@@ -9046,7 +9050,7 @@ static void DiagnoseBadConversion(Sema &S, OverloadCandidate *Cand,
         return;
       }
   }
-  
+
   // Emit the generic diagnostic and, optionally, add the hints to it.
   PartialDiagnostic FDiag = S.PDiag(diag::note_ovl_candidate_bad_conv);
   FDiag << (unsigned) FnKind << FnDesc
@@ -9486,13 +9490,19 @@ static void NoteFunctionCandidate(Sema &S, OverloadCandidate *Cand,
     return S.NoteOverloadCandidate(Fn);
 
   case ovl_fail_bad_conversion: {
-    unsigned I = (Cand->IgnoreObjectArgument ? 1 : 0);
-    for (unsigned N = Cand->NumConversions; I != N; ++I)
-      if (Cand->Conversions[I].isInitialized() && Cand->Conversions[I].isBad()) // HLSL Change: check in and out, check out conversions
-        return DiagnoseBadConversion(S, Cand, I, Cand->Conversions[I], OpLoc); // HLSL Change: add OpLoc
-    if (Cand->OutConversions[I].isInitialized() && Cand->OutConversions[I].isBad()) // HLSL Change: check in and out, check out conversions
-      return DiagnoseBadConversion(S, Cand, I, Cand->OutConversions[I], OpLoc); // HLSL Change: add OpLoc
-
+    for (unsigned I = (Cand->IgnoreObjectArgument ? 1 : 0),
+                  N = Cand->NumConversions;
+         I != N; ++I) {
+      // HLSL Change: check in and out, check out conversions
+      if (Cand->Conversions[I].isInitialized() && Cand->Conversions[I].isBad())
+        return DiagnoseBadConversion(S, Cand, I, Cand->Conversions[I],
+                                     OpLoc); // HLSL Change: add OpLoc
+      // HLSL Change: check in and out, check out conversions
+      if (Cand->OutConversions[I].isInitialized() &&
+          Cand->OutConversions[I].isBad())
+        return DiagnoseBadConversion(S, Cand, I, Cand->OutConversions[I],
+                                     OpLoc); // HLSL Change: add OpLoc
+    }
     // FIXME: this currently happens when we're called from SemaInit
     // when user-conversion overload fails.  Figure out how to handle
     // those conditions and diagnose them well.
@@ -10932,7 +10942,11 @@ bool Sema::buildOverloadedCallSet(Scope *S, Expr *Fn,
     // We don't perform ADL for implicit declarations of builtins.
     // Verify that this was correctly set up.
     FunctionDecl *F;
-    if (ULE->decls_begin() + 1 == ULE->decls_end() &&
+    if (
+        // HLSL change begin
+        (ULE->getNumDecls() > 0) &&
+        // HLSL change end
+        ULE->decls_begin() + 1 == ULE->decls_end() &&
         (F = dyn_cast<FunctionDecl>(*ULE->decls_begin())) &&
         F->getBuiltinID() && F->isImplicit())
       llvm_unreachable("performing ADL for builtin");
@@ -11908,6 +11922,10 @@ Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
       if (Method != FoundDecl.getDecl() && 
                       DiagnoseUseOfDecl(Method, UnresExpr->getNameLoc()))
         return ExprError();
+      // HLSL Change Start - Check method constraints
+      if (DiagnoseHLSLMethodCall(Method, MemExprE->getLocStart()))
+        return ExprError();
+      // HLSL Change End
       break;
 
     case OR_No_Viable_Function:

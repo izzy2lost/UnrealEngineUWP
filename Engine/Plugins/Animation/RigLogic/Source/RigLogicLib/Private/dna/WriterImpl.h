@@ -4,6 +4,7 @@
 
 #include "dna/BaseImpl.h"
 #include "dna/TypeDefs.h"
+#include "dna/Writer.h"
 #include "dna/utils/Extd.h"
 
 #ifdef _MSC_VER
@@ -14,6 +15,7 @@
 #include <cstddef>
 #include <cstring>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #ifdef _MSC_VER
     #pragma warning(pop)
@@ -21,14 +23,36 @@
 
 namespace dna {
 
-template<class TContainer, typename ... Args>
-void ensureHasSize(TContainer& target,
-                   std::size_t size,
-                   Args&& ... args) {
+template<class TContainer>
+typename std::enable_if<std::is_constructible<typename TContainer::value_type, MemoryResource*>::value>::type
+ensureHasSize(TContainer& target, std::size_t size) {
     target.reserve(size);
     while (target.size() < size) {
-        target.push_back(typename TContainer::value_type(std::forward<Args>(args)...));
+        target.push_back(typename TContainer::value_type(target.get_allocator().getMemoryResource()));
     }
+}
+
+template<class TContainer>
+typename std::enable_if<!std::is_constructible<typename TContainer::value_type, MemoryResource*>::value>::type
+ensureHasSize(TContainer& target, std::size_t size) {
+    if (target.size() < size) {
+        target.resize(size);
+    }
+}
+
+template<class TContainer, typename U>
+typename std::enable_if<std::is_integral<U>::value, typename TContainer::value_type&>::type
+getAt(TContainer& target, U index) {
+    ensureHasSize(target, index + 1ul);
+    return target[index];
+}
+
+template<class TContainer, typename TSize, typename TValue>
+typename std::enable_if<std::is_integral<TSize>::value>::type
+setAt(TContainer& target,
+      TSize index,
+      const TValue& value) {
+    getAt(target, index) = value;
 }
 
 template<class TWriterBase>
@@ -197,8 +221,66 @@ class WriterImpl : public TWriterBase, public virtual BaseImpl {
                                           const float* weights,
                                           std::uint32_t count) override;
 
-};
+        // RBFBehaviorWriter methods
+        void clearRBFPoses() override;
+        void setRBFPoseName(std::uint16_t poseIndex, const char* name) override;
+        void setRBFPoseScale(std::uint16_t poseIndex, float scale) override;
+        void clearRBFPoseControlNames() override;
+        void setRBFPoseControlName(std::uint16_t poseControlIndex, const char* name) override;
+        void setRBFPoseInputControlIndices(std::uint16_t poseIndex,
+                                           const std::uint16_t* controlIndices,
+                                           std::uint16_t controlIndexCount) override;
+        void setRBFPoseOutputControlIndices(std::uint16_t poseIndex,
+                                            const std::uint16_t* controlIndices,
+                                            std::uint16_t controlIndexCount) override;
+        void setRBFPoseOutputControlWeights(std::uint16_t poseIndex, const float* controlWeights,
+                                            std::uint16_t controlWeightCount) override;
+        void clearRBFSolvers() override;
+        void clearRBFSolverIndices() override;
+        void setRBFSolverIndices(std::uint16_t index, const std::uint16_t* solverIndices, std::uint16_t count) override;
+        void clearLODRBFSolverMappings() override;
+        void setLODRBFSolverMapping(std::uint16_t lod, std::uint16_t index) override;
+        void setRBFSolverName(std::uint16_t solverIndex, const char* name) override;
+        void setRBFSolverRawControlIndices(std::uint16_t solverIndex, const std::uint16_t* inputIndices,
+                                           std::uint16_t count) override;
+        void setRBFSolverPoseIndices(std::uint16_t solverIndex, const std::uint16_t* poseIndices, std::uint16_t count) override;
+        void setRBFSolverRawControlValues(std::uint16_t solverIndex, const float* values, std::uint16_t count) override;
+        void setRBFSolverType(std::uint16_t solverIndex, RBFSolverType type) override;
+        void setRBFSolverRadius(std::uint16_t solverIndex, float radius) override;
+        void setRBFSolverAutomaticRadius(std::uint16_t solverIndex, AutomaticRadius automaticRadius) override;
+        void setRBFSolverWeightThreshold(std::uint16_t solverIndex, float weightThreshold) override;
+        void setRBFSolverDistanceMethod(std::uint16_t solverIndex, RBFDistanceMethod distanceMethod) override;
+        void setRBFSolverNormalizeMethod(std::uint16_t solverIndex, RBFNormalizeMethod normalizeMethod) override;
+        void setRBFSolverFunctionType(std::uint16_t solverIndex, RBFFunctionType functionType) override;
+        void setRBFSolverTwistAxis(std::uint16_t solverIndex, TwistAxis twistAxis) override;
 
+        // JointBehaviorMetadataWriter
+        void clearJointRepresentations() override;
+        void setJointTranslationRepresentation(std::uint16_t jointIndex, TranslationRepresentation representation) override;
+        void setJointRotationRepresentation(std::uint16_t jointIndex, RotationRepresentation representation) override;
+        void setJointScaleRepresentation(std::uint16_t jointIndex, ScaleRepresentation representation) override;
+
+        // TwistSwingBehaviorWriter
+        void clearTwists() override;
+        void deleteTwist(std::uint16_t twistIndex) override;
+        void setTwistSetupTwistAxis(std::uint16_t twistIndex, TwistAxis twistAxis) override;
+        void setTwistInputControlIndices(std::uint16_t twistIndex,
+                                         const std::uint16_t* controlIndices,
+                                         std::uint16_t controlIndexCount) override;
+        void setTwistOutputJointIndices(std::uint16_t twistIndex, const std::uint16_t* jointIndices,
+                                        std::uint16_t jointIndexCount) override;
+        void setTwistBlendWeights(std::uint16_t twistIndex, const float* blendWeights, std::uint16_t blendWeightCount) override;
+        void clearSwings() override;
+        void deleteSwing(std::uint16_t swingIndex) override;
+        void setSwingSetupTwistAxis(std::uint16_t swingIndex, TwistAxis twistAxis) override;
+        void setSwingInputControlIndices(std::uint16_t swingIndex,
+                                         const std::uint16_t* controlIndices,
+                                         std::uint16_t controlIndexCount) override;
+        void setSwingOutputJointIndices(std::uint16_t swingIndex, const std::uint16_t* jointIndices,
+                                        std::uint16_t jointIndexCount) override;
+        void setSwingBlendWeights(std::uint16_t swingIndex, const float* blendWeights, std::uint16_t blendWeightCount) override;
+
+};
 
 #ifdef _MSC_VER
     #pragma warning(push)
@@ -315,8 +397,7 @@ inline void WriterImpl<TWriterBase>::clearGUIControlNames() {
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setGUIControlName(std::uint16_t index, const char* name) {
-    ensureHasSize(dna.definition.guiControlNames, index + 1ul, memRes);
-    dna.definition.guiControlNames[index] = name;
+    setAt(dna.definition.guiControlNames, index, name);
 }
 
 template<class TWriterBase>
@@ -326,8 +407,7 @@ inline void WriterImpl<TWriterBase>::clearRawControlNames() {
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setRawControlName(std::uint16_t index, const char* name) {
-    ensureHasSize(dna.definition.rawControlNames, index + 1ul, memRes);
-    dna.definition.rawControlNames[index] = name;
+    setAt(dna.definition.rawControlNames, index, name);
 }
 
 template<class TWriterBase>
@@ -337,8 +417,7 @@ inline void WriterImpl<TWriterBase>::clearJointNames() {
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setJointName(std::uint16_t index, const char* name) {
-    ensureHasSize(dna.definition.jointNames, index + 1ul, memRes);
-    dna.definition.jointNames[index] = name;
+    setAt(dna.definition.jointNames, index, name);
 }
 
 template<class TWriterBase>
@@ -375,8 +454,7 @@ inline void WriterImpl<TWriterBase>::clearBlendShapeChannelNames() {
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setBlendShapeChannelName(std::uint16_t index, const char* name) {
-    ensureHasSize(dna.definition.blendShapeChannelNames, index + 1ul, memRes);
-    dna.definition.blendShapeChannelNames[index] = name;
+    setAt(dna.definition.blendShapeChannelNames, index, name);
 }
 
 template<class TWriterBase>
@@ -409,8 +487,7 @@ inline void WriterImpl<TWriterBase>::clearAnimatedMapNames() {
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setAnimatedMapName(std::uint16_t index, const char* name) {
-    ensureHasSize(dna.definition.animatedMapNames, index + 1ul, memRes);
-    dna.definition.animatedMapNames[index] = name;
+    setAt(dna.definition.animatedMapNames, index, name);
 }
 
 template<class TWriterBase>
@@ -443,8 +520,7 @@ inline void WriterImpl<TWriterBase>::clearMeshNames() {
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setMeshName(std::uint16_t index, const char* name) {
-    ensureHasSize(dna.definition.meshNames, index + 1ul, memRes);
-    dna.definition.meshNames[index] = name;
+    setAt(dna.definition.meshNames, index, name);
 }
 
 template<class TWriterBase>
@@ -567,44 +643,39 @@ template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setJointGroupLODs(std::uint16_t jointGroupIndex,
                                                        const std::uint16_t* lods,
                                                        std::uint16_t count) {
-    auto& jointGroups = dna.behavior.joints.jointGroups;
-    ensureHasSize(jointGroups, jointGroupIndex + 1ul, memRes);
-    jointGroups[jointGroupIndex].lods.assign(lods, lods + count);
+    auto& jointGroup = getAt(dna.behavior.joints.jointGroups, jointGroupIndex);
+    jointGroup.lods.assign(lods, lods + count);
 }
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setJointGroupInputIndices(std::uint16_t jointGroupIndex,
                                                                const std::uint16_t* inputIndices,
                                                                std::uint16_t count) {
-    auto& jointGroups = dna.behavior.joints.jointGroups;
-    ensureHasSize(jointGroups, jointGroupIndex + 1ul, memRes);
-    jointGroups[jointGroupIndex].inputIndices.assign(inputIndices, inputIndices + count);
+    auto& jointGroup = getAt(dna.behavior.joints.jointGroups, jointGroupIndex);
+    jointGroup.inputIndices.assign(inputIndices, inputIndices + count);
 }
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setJointGroupOutputIndices(std::uint16_t jointGroupIndex,
                                                                 const std::uint16_t* outputIndices,
                                                                 std::uint16_t count) {
-    auto& jointGroups = dna.behavior.joints.jointGroups;
-    ensureHasSize(jointGroups, jointGroupIndex + 1ul, memRes);
-    jointGroups[jointGroupIndex].outputIndices.assign(outputIndices, outputIndices + count);
+    auto& jointGroup = getAt(dna.behavior.joints.jointGroups, jointGroupIndex);
+    jointGroup.outputIndices.assign(outputIndices, outputIndices + count);
 }
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setJointGroupValues(std::uint16_t jointGroupIndex, const float* values,
                                                          std::uint32_t count) {
-    auto& jointGroups = dna.behavior.joints.jointGroups;
-    ensureHasSize(jointGroups, jointGroupIndex + 1ul, memRes);
-    jointGroups[jointGroupIndex].values.assign(values, values + count);
+    auto& jointGroup = getAt(dna.behavior.joints.jointGroups, jointGroupIndex);
+    jointGroup.values.assign(values, values + count);
 }
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setJointGroupJointIndices(std::uint16_t jointGroupIndex,
                                                                const std::uint16_t* jointIndices,
                                                                std::uint16_t count) {
-    auto& jointGroups = dna.behavior.joints.jointGroups;
-    ensureHasSize(jointGroups, jointGroupIndex + 1ul, memRes);
-    jointGroups[jointGroupIndex].jointIndices.assign(jointIndices, jointIndices + count);
+    auto& jointGroup = getAt(dna.behavior.joints.jointGroups, jointGroupIndex);
+    jointGroup.jointIndices.assign(jointIndices, jointIndices + count);
 }
 
 template<class TWriterBase>
@@ -672,16 +743,16 @@ inline void WriterImpl<TWriterBase>::deleteMesh(std::uint16_t meshIndex) {
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setVertexPositions(std::uint16_t meshIndex, const Position* positions, std::uint32_t count) {
-    ensureHasSize(dna.geometry.meshes, meshIndex + 1ul, memRes);
-    dna.geometry.meshes[meshIndex].positions.assign(positions, positions + count);
+    auto& mesh = getAt(dna.geometry.meshes, meshIndex);
+    mesh.positions.assign(positions, positions + count);
 }
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setVertexTextureCoordinates(std::uint16_t meshIndex,
                                                                  const TextureCoordinate* textureCoordinates,
                                                                  std::uint32_t count) {
-    ensureHasSize(dna.geometry.meshes, meshIndex + 1ul, memRes);
-    auto& destination = dna.geometry.meshes[meshIndex].textureCoordinates;
+    auto& mesh = getAt(dna.geometry.meshes, meshIndex);
+    auto& destination = mesh.textureCoordinates;
     destination.clear();
     destination.us.resize_uninitialized(count);
     destination.vs.resize_uninitialized(count);
@@ -693,14 +764,14 @@ inline void WriterImpl<TWriterBase>::setVertexTextureCoordinates(std::uint16_t m
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setVertexNormals(std::uint16_t meshIndex, const Normal* normals, std::uint32_t count) {
-    ensureHasSize(dna.geometry.meshes, meshIndex + 1ul, memRes);
-    dna.geometry.meshes[meshIndex].normals.assign(normals, normals + count);
+    auto& mesh = getAt(dna.geometry.meshes, meshIndex);
+    mesh.normals.assign(normals, normals + count);
 }
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setVertexLayouts(std::uint16_t meshIndex, const VertexLayout* layouts, std::uint32_t count) {
-    ensureHasSize(dna.geometry.meshes, meshIndex + 1ul, memRes);
-    auto& destination = dna.geometry.meshes[meshIndex].layouts;
+    auto& mesh = getAt(dna.geometry.meshes, meshIndex);
+    auto& destination = mesh.layouts;
     destination.clear();
     destination.positions.resize_uninitialized(count);
     destination.textureCoordinates.resize_uninitialized(count);
@@ -724,16 +795,15 @@ inline void WriterImpl<TWriterBase>::setFaceVertexLayoutIndices(std::uint16_t me
                                                                 std::uint32_t faceIndex,
                                                                 const std::uint32_t* layoutIndices,
                                                                 std::uint32_t count) {
-    ensureHasSize(dna.geometry.meshes, meshIndex + 1ul, memRes);
-    auto& faces = dna.geometry.meshes[meshIndex].faces;
-    ensureHasSize(faces, faceIndex + 1ul, memRes);
-    faces[faceIndex].layoutIndices.assign(layoutIndices, layoutIndices + count);
+    auto& mesh = getAt(dna.geometry.meshes, meshIndex);
+    auto& face = getAt(mesh.faces, faceIndex);
+    face.layoutIndices.assign(layoutIndices, layoutIndices + count);
 }
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setMaximumInfluencePerVertex(std::uint16_t meshIndex, std::uint16_t maxInfluenceCount) {
-    ensureHasSize(dna.geometry.meshes, meshIndex + 1ul, memRes);
-    dna.geometry.meshes[meshIndex].maximumInfluencePerVertex = maxInfluenceCount;
+    auto& mesh = getAt(dna.geometry.meshes, meshIndex);
+    mesh.maximumInfluencePerVertex = maxInfluenceCount;
 }
 
 template<class TWriterBase>
@@ -748,10 +818,9 @@ inline void WriterImpl<TWriterBase>::setSkinWeightsValues(std::uint16_t meshInde
                                                           std::uint32_t vertexIndex,
                                                           const float* weights,
                                                           std::uint16_t count) {
-    ensureHasSize(dna.geometry.meshes, meshIndex + 1ul, memRes);
-    auto& skinWeights = dna.geometry.meshes[meshIndex].skinWeights;
-    ensureHasSize(skinWeights, vertexIndex + 1ul, memRes);
-    skinWeights[vertexIndex].weights.assign(weights, weights + count);
+    auto& mesh = getAt(dna.geometry.meshes, meshIndex);
+    auto& vertexSkinWeights = getAt(mesh.skinWeights, vertexIndex);
+    vertexSkinWeights.weights.assign(weights, weights + count);
 }
 
 template<class TWriterBase>
@@ -759,10 +828,9 @@ inline void WriterImpl<TWriterBase>::setSkinWeightsJointIndices(std::uint16_t me
                                                                 std::uint32_t vertexIndex,
                                                                 const std::uint16_t* jointIndices,
                                                                 std::uint16_t count) {
-    ensureHasSize(dna.geometry.meshes, meshIndex + 1ul, memRes);
-    auto& skinWeights = dna.geometry.meshes[meshIndex].skinWeights;
-    ensureHasSize(skinWeights, vertexIndex + 1ul, memRes);
-    skinWeights[vertexIndex].jointIndices.assign(jointIndices, jointIndices + count);
+    auto& mesh = getAt(dna.geometry.meshes, meshIndex);
+    auto& vertexSkinWeights = getAt(mesh.skinWeights, vertexIndex);
+    vertexSkinWeights.jointIndices.assign(jointIndices, jointIndices + count);
 }
 
 template<class TWriterBase>
@@ -776,9 +844,9 @@ template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setBlendShapeChannelIndex(std::uint16_t meshIndex,
                                                                std::uint16_t blendShapeTargetIndex,
                                                                std::uint16_t blendShapeChannelIndex) {
-    ensureHasSize(dna.geometry.meshes, meshIndex + 1ul, memRes);
-    ensureHasSize(dna.geometry.meshes[meshIndex].blendShapeTargets, blendShapeTargetIndex + 1ul, memRes);
-    dna.geometry.meshes[meshIndex].blendShapeTargets[blendShapeTargetIndex].blendShapeChannelIndex = blendShapeChannelIndex;
+    auto& mesh = getAt(dna.geometry.meshes, meshIndex);
+    auto& blendShapeTarget = getAt(mesh.blendShapeTargets, blendShapeTargetIndex);
+    blendShapeTarget.blendShapeChannelIndex = blendShapeChannelIndex;
 }
 
 template<class TWriterBase>
@@ -786,9 +854,9 @@ inline void WriterImpl<TWriterBase>::setBlendShapeTargetDeltas(std::uint16_t mes
                                                                std::uint16_t blendShapeTargetIndex,
                                                                const Delta* deltas,
                                                                std::uint32_t count) {
-    ensureHasSize(dna.geometry.meshes, meshIndex + 1ul, memRes);
-    ensureHasSize(dna.geometry.meshes[meshIndex].blendShapeTargets, blendShapeTargetIndex + 1ul, memRes);
-    dna.geometry.meshes[meshIndex].blendShapeTargets[blendShapeTargetIndex].deltas.assign(deltas, deltas + count);
+    auto& mesh = getAt(dna.geometry.meshes, meshIndex);
+    auto& blendShapeTarget = getAt(mesh.blendShapeTargets, blendShapeTargetIndex);
+    blendShapeTarget.deltas.assign(deltas, deltas + count);
 }
 
 template<class TWriterBase>
@@ -796,10 +864,9 @@ inline void WriterImpl<TWriterBase>::setBlendShapeTargetVertexIndices(std::uint1
                                                                       std::uint16_t blendShapeTargetIndex,
                                                                       const std::uint32_t* vertexIndices,
                                                                       std::uint32_t count) {
-    ensureHasSize(dna.geometry.meshes, meshIndex + 1ul, memRes);
-    auto& blendShapeTargets = dna.geometry.meshes[meshIndex].blendShapeTargets;
-    ensureHasSize(blendShapeTargets, blendShapeTargetIndex + 1ul, memRes);
-    blendShapeTargets[blendShapeTargetIndex].vertexIndices.assign(vertexIndices, vertexIndices + count);
+    auto& mesh = getAt(dna.geometry.meshes, meshIndex);
+    auto& blendShapeTarget = getAt(mesh.blendShapeTargets, blendShapeTargetIndex);
+    blendShapeTarget.vertexIndices.assign(vertexIndices, vertexIndices + count);
 }
 
 template<class TWriterBase>
@@ -809,8 +876,7 @@ inline void WriterImpl<TWriterBase>::clearMLControlNames() {
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setMLControlName(std::uint16_t index, const char* name) {
-    ensureHasSize(dna.machineLearnedBehavior.mlControlNames, index + 1ul, memRes);
-    dna.machineLearnedBehavior.mlControlNames[index] = name;
+    setAt(dna.machineLearnedBehavior.mlControlNames, index, name);
 }
 
 template<class TWriterBase>
@@ -855,9 +921,8 @@ inline void WriterImpl<TWriterBase>::clearMeshRegionNames(std::uint16_t meshInde
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setMeshRegionName(std::uint16_t meshIndex, std::uint16_t regionIndex, const char* name) {
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworkToMeshRegion.regionNames, meshIndex + 1ul, memRes);
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworkToMeshRegion.regionNames[meshIndex], regionIndex + 1ul, memRes);
-    dna.machineLearnedBehavior.neuralNetworkToMeshRegion.regionNames[meshIndex][regionIndex] = name;
+    auto& meshRegionNames = getAt(dna.machineLearnedBehavior.neuralNetworkToMeshRegion.regionNames, meshIndex);
+    setAt(meshRegionNames, regionIndex, name);
 }
 
 template<class TWriterBase>
@@ -870,9 +935,8 @@ inline void WriterImpl<TWriterBase>::setNeuralNetworkIndicesForMeshRegion(std::u
                                                                           std::uint16_t regionIndex,
                                                                           const std::uint16_t* netIndices,
                                                                           std::uint16_t count) {
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworkToMeshRegion.indices, meshIndex + 1ul, memRes);
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworkToMeshRegion.indices[meshIndex], regionIndex + 1ul, memRes);
-    auto& region = dna.machineLearnedBehavior.neuralNetworkToMeshRegion.indices[meshIndex][regionIndex];
+    auto& neuralNetworkToMeshRegionIndices = getAt(dna.machineLearnedBehavior.neuralNetworkToMeshRegion.indices, meshIndex);
+    auto& region = getAt(neuralNetworkToMeshRegionIndices, regionIndex);
     region.assign(netIndices, netIndices + count);
 }
 
@@ -888,8 +952,7 @@ template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setNeuralNetworkInputIndices(std::uint16_t netIndex,
                                                                   const std::uint16_t* inputIndices,
                                                                   std::uint16_t count) {
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworks, netIndex + 1ul, memRes);
-    auto& neuralNet = dna.machineLearnedBehavior.neuralNetworks[netIndex];
+    auto& neuralNet = getAt(dna.machineLearnedBehavior.neuralNetworks, netIndex);
     neuralNet.inputIndices.assign(inputIndices, inputIndices + count);
 }
 
@@ -897,24 +960,22 @@ template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setNeuralNetworkOutputIndices(std::uint16_t netIndex,
                                                                    const std::uint16_t* outputIndices,
                                                                    std::uint16_t count) {
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworks, netIndex + 1ul, memRes);
-    auto& neuralNet = dna.machineLearnedBehavior.neuralNetworks[netIndex];
+    auto& neuralNet = getAt(dna.machineLearnedBehavior.neuralNetworks, netIndex);
     neuralNet.outputIndices.assign(outputIndices, outputIndices + count);
 }
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::clearNeuralNetworkLayers(std::uint16_t netIndex) {
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworks, netIndex + 1ul, memRes);
-    dna.machineLearnedBehavior.neuralNetworks[netIndex].layers.clear();
+    auto& neuralNet = getAt(dna.machineLearnedBehavior.neuralNetworks, netIndex);
+    neuralNet.layers.clear();
 }
 
 template<class TWriterBase>
 inline void WriterImpl<TWriterBase>::setNeuralNetworkLayerActivationFunction(std::uint16_t netIndex,
                                                                              std::uint16_t layerIndex,
                                                                              ActivationFunction function) {
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworks, netIndex + 1ul, memRes);
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworks[netIndex].layers, layerIndex + 1ul, memRes);
-    auto& layer = dna.machineLearnedBehavior.neuralNetworks[netIndex].layers[layerIndex];
+    auto& neuralNet = getAt(dna.machineLearnedBehavior.neuralNetworks, netIndex);
+    auto& layer = getAt(neuralNet.layers, layerIndex);
     layer.activationFunction.functionId = static_cast<std::uint16_t>(function);
 }
 
@@ -923,9 +984,8 @@ inline void WriterImpl<TWriterBase>::setNeuralNetworkLayerActivationFunctionPara
                                                                                        std::uint16_t layerIndex,
                                                                                        const float* activationFunctionParameters,
                                                                                        std::uint16_t count) {
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworks, netIndex + 1ul, memRes);
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworks[netIndex].layers, layerIndex + 1ul, memRes);
-    auto& layer = dna.machineLearnedBehavior.neuralNetworks[netIndex].layers[layerIndex];
+    auto& neuralNet = getAt(dna.machineLearnedBehavior.neuralNetworks, netIndex);
+    auto& layer = getAt(neuralNet.layers, layerIndex);
     layer.activationFunction.parameters.assign(activationFunctionParameters, activationFunctionParameters + count);
 }
 
@@ -934,9 +994,8 @@ inline void WriterImpl<TWriterBase>::setNeuralNetworkLayerBiases(std::uint16_t n
                                                                  std::uint16_t layerIndex,
                                                                  const float* biases,
                                                                  std::uint32_t count) {
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworks, netIndex + 1ul, memRes);
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworks[netIndex].layers, layerIndex + 1ul, memRes);
-    auto& layer = dna.machineLearnedBehavior.neuralNetworks[netIndex].layers[layerIndex];
+    auto& neuralNet = getAt(dna.machineLearnedBehavior.neuralNetworks, netIndex);
+    auto& layer = getAt(neuralNet.layers, layerIndex);
     layer.biases.assign(biases, biases + count);
 }
 
@@ -945,10 +1004,278 @@ inline void WriterImpl<TWriterBase>::setNeuralNetworkLayerWeights(std::uint16_t 
                                                                   std::uint16_t layerIndex,
                                                                   const float* weights,
                                                                   std::uint32_t count) {
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworks, netIndex + 1ul, memRes);
-    ensureHasSize(dna.machineLearnedBehavior.neuralNetworks[netIndex].layers, layerIndex + 1ul, memRes);
-    auto& layer = dna.machineLearnedBehavior.neuralNetworks[netIndex].layers[layerIndex];
+    auto& neuralNet = getAt(dna.machineLearnedBehavior.neuralNetworks, netIndex);
+    auto& layer = getAt(neuralNet.layers, layerIndex);
     layer.weights.assign(weights, weights + count);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::clearRBFPoses() {
+    dna.rbfBehavior.poses.clear();
+    dna.rbfBehaviorExt.poses.clear();
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFPoseName(std::uint16_t poseIndex, const char* name) {
+    auto& pose = getAt(dna.rbfBehavior.poses, poseIndex);
+    pose.name = name;
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFPoseScale(std::uint16_t poseIndex, float scale) {
+    auto& pose = getAt(dna.rbfBehavior.poses, poseIndex);
+    pose.scale = scale;
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::clearRBFPoseControlNames() {
+    dna.rbfBehaviorExt.poseControlNames.clear();
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFPoseControlName(std::uint16_t poseControlIndex, const char* name) {
+    setAt(dna.rbfBehaviorExt.poseControlNames, poseControlIndex, name);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFPoseInputControlIndices(std::uint16_t poseIndex,
+                                                                   const std::uint16_t* controlIndices,
+                                                                   std::uint16_t controlIndexCount) {
+    auto& pose = getAt(dna.rbfBehaviorExt.poses, poseIndex);
+    pose.inputControlIndices.assign(controlIndices, controlIndices + controlIndexCount);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFPoseOutputControlIndices(std::uint16_t poseIndex,
+                                                                    const std::uint16_t* controlIndices,
+                                                                    std::uint16_t controlIndexCount) {
+    auto& pose = getAt(dna.rbfBehaviorExt.poses, poseIndex);
+    pose.outputControlIndices.assign(controlIndices, controlIndices + controlIndexCount);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFPoseOutputControlWeights(std::uint16_t poseIndex,
+                                                                    const float* controlWeights,
+                                                                    std::uint16_t controlWeightCount) {
+    auto& pose = getAt(dna.rbfBehaviorExt.poses, poseIndex);
+    pose.outputControlWeights.assign(controlWeights, controlWeights + controlWeightCount);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::clearRBFSolvers() {
+    dna.rbfBehavior.solvers.clear();
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::clearRBFSolverIndices() {
+    dna.rbfBehavior.lodSolverMapping.resetIndices();
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFSolverIndices(std::uint16_t index,
+                                                         const std::uint16_t* solverIndices,
+                                                         std::uint16_t count) {
+    dna.rbfBehavior.lodSolverMapping.clearIndices(index);
+    dna.rbfBehavior.lodSolverMapping.addIndices(index, solverIndices, count);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::clearLODRBFSolverMappings() {
+    dna.rbfBehavior.lodSolverMapping.resetLODs();
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setLODRBFSolverMapping(std::uint16_t lod, std::uint16_t index) {
+    dna.rbfBehavior.lodSolverMapping.associateLODWithIndices(lod, index);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFSolverName(std::uint16_t solverIndex, const char* name) {
+    auto& solver = getAt(dna.rbfBehavior.solvers, solverIndex);
+    solver.name = name;
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFSolverRawControlIndices(std::uint16_t solverIndex,
+                                                                   const std::uint16_t* rawControlIndices,
+                                                                   std::uint16_t count) {
+    auto& solver = getAt(dna.rbfBehavior.solvers, solverIndex);
+    solver.rawControlIndices.assign(rawControlIndices, rawControlIndices + count);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFSolverPoseIndices(std::uint16_t solverIndex,
+                                                             const std::uint16_t* poseIndices,
+                                                             std::uint16_t count) {
+    auto& solver = getAt(dna.rbfBehavior.solvers, solverIndex);
+    solver.poseIndices.assign(poseIndices, poseIndices + count);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFSolverRawControlValues(std::uint16_t solverIndex,
+                                                                  const float* values,
+                                                                  std::uint16_t count) {
+    auto& solver = getAt(dna.rbfBehavior.solvers, solverIndex);
+    solver.rawControlValues.assign(values, values + count);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFSolverType(std::uint16_t solverIndex, RBFSolverType type) {
+    auto& solver = getAt(dna.rbfBehavior.solvers, solverIndex);
+    solver.solverType = static_cast<std::uint16_t>(type);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFSolverRadius(std::uint16_t solverIndex, float radius) {
+    auto& solver = getAt(dna.rbfBehavior.solvers, solverIndex);
+    solver.radius = radius;
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFSolverAutomaticRadius(std::uint16_t solverIndex, AutomaticRadius automaticRadius) {
+    auto& solver = getAt(dna.rbfBehavior.solvers, solverIndex);
+    solver.automaticRadius = static_cast<std::uint16_t>(automaticRadius);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFSolverWeightThreshold(std::uint16_t solverIndex, float weightThreshold) {
+    auto& solver = getAt(dna.rbfBehavior.solvers, solverIndex);
+    solver.weightThreshold = weightThreshold;
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFSolverDistanceMethod(std::uint16_t solverIndex, RBFDistanceMethod distanceMethod) {
+    auto& solver = getAt(dna.rbfBehavior.solvers, solverIndex);
+    solver.distanceMethod = static_cast<std::uint16_t>(distanceMethod);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFSolverNormalizeMethod(std::uint16_t solverIndex, RBFNormalizeMethod normalizeMethod) {
+    auto& solver = getAt(dna.rbfBehavior.solvers, solverIndex);
+    solver.normalizeMethod = static_cast<std::uint16_t>(normalizeMethod);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFSolverFunctionType(std::uint16_t solverIndex, RBFFunctionType functionType) {
+    auto& solver = getAt(dna.rbfBehavior.solvers, solverIndex);
+    solver.functionType = static_cast<std::uint16_t>(functionType);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setRBFSolverTwistAxis(std::uint16_t solverIndex, TwistAxis twistAxis) {
+    auto& solver = getAt(dna.rbfBehavior.solvers, solverIndex);
+    solver.twistAxis = static_cast<std::uint16_t>(twistAxis);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::clearJointRepresentations() {
+    dna.jointBehaviorMetadata.jointRepresentations.clear();
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setJointTranslationRepresentation(std::uint16_t jointIndex,
+                                                                       TranslationRepresentation representation) {
+    auto& jointRepresentation = getAt(dna.jointBehaviorMetadata.jointRepresentations, jointIndex);
+    jointRepresentation.translation = static_cast<std::uint16_t>(representation);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setJointRotationRepresentation(std::uint16_t jointIndex,
+                                                                    RotationRepresentation representation) {
+    auto& jointRepresentation = getAt(dna.jointBehaviorMetadata.jointRepresentations, jointIndex);
+    jointRepresentation.rotation = static_cast<std::uint16_t>(representation);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setJointScaleRepresentation(std::uint16_t jointIndex, ScaleRepresentation representation) {
+    auto& jointRepresentation = getAt(dna.jointBehaviorMetadata.jointRepresentations, jointIndex);
+    jointRepresentation.scale = static_cast<std::uint16_t>(representation);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::clearTwists() {
+    dna.twistSwingBehavior.twists.clear();
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::deleteTwist(std::uint16_t twistIndex) {
+    if (twistIndex < dna.twistSwingBehavior.twists.size()) {
+        auto it = extd::advanced(dna.twistSwingBehavior.twists.begin(), twistIndex);
+        dna.twistSwingBehavior.twists.erase(it);
+    }
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setTwistSetupTwistAxis(std::uint16_t twistIndex, TwistAxis twistAxis) {
+    auto& twist = getAt(dna.twistSwingBehavior.twists, twistIndex);
+    twist.twistAxis = static_cast<std::uint16_t>(twistAxis);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setTwistInputControlIndices(std::uint16_t twistIndex,
+                                                                 const std::uint16_t* controlIndices,
+                                                                 std::uint16_t controlIndexCount) {
+    auto& twist = getAt(dna.twistSwingBehavior.twists, twistIndex);
+    twist.twistInputControlIndices.assign(controlIndices, controlIndices + controlIndexCount);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setTwistOutputJointIndices(std::uint16_t twistIndex,
+                                                                const std::uint16_t* jointIndices,
+                                                                std::uint16_t jointIndexCount) {
+    auto& twist = getAt(dna.twistSwingBehavior.twists, twistIndex);
+    twist.twistOutputJointIndices.assign(jointIndices, jointIndices + jointIndexCount);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setTwistBlendWeights(std::uint16_t twistIndex,
+                                                          const float* blendWeights,
+                                                          std::uint16_t blendWeightCount) {
+    auto& twist = getAt(dna.twistSwingBehavior.twists, twistIndex);
+    twist.twistBlendWeights.assign(blendWeights, blendWeights + blendWeightCount);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::clearSwings() {
+    dna.twistSwingBehavior.swings.clear();
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::deleteSwing(std::uint16_t swingIndex) {
+    if (swingIndex < dna.twistSwingBehavior.swings.size()) {
+        auto it = extd::advanced(dna.twistSwingBehavior.swings.begin(), swingIndex);
+        dna.twistSwingBehavior.swings.erase(it);
+    }
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setSwingSetupTwistAxis(std::uint16_t swingIndex, TwistAxis twistAxis) {
+    auto& swing = getAt(dna.twistSwingBehavior.swings, swingIndex);
+    swing.twistAxis = static_cast<std::uint16_t>(twistAxis);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setSwingInputControlIndices(std::uint16_t swingIndex,
+                                                                 const std::uint16_t* controlIndices,
+                                                                 std::uint16_t controlIndexCount) {
+    auto& swing = getAt(dna.twistSwingBehavior.swings, swingIndex);
+    swing.swingInputControlIndices.assign(controlIndices, controlIndices + controlIndexCount);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setSwingOutputJointIndices(std::uint16_t swingIndex,
+                                                                const std::uint16_t* jointIndices,
+                                                                std::uint16_t jointIndexCount) {
+    auto& swing = getAt(dna.twistSwingBehavior.swings, swingIndex);
+    swing.swingOutputJointIndices.assign(jointIndices, jointIndices + jointIndexCount);
+}
+
+template<class TWriterBase>
+inline void WriterImpl<TWriterBase>::setSwingBlendWeights(std::uint16_t swingIndex,
+                                                          const float* blendWeights,
+                                                          std::uint16_t blendWeightCount) {
+    auto& swing = getAt(dna.twistSwingBehavior.swings, swingIndex);
+    swing.swingBlendWeights.assign(blendWeights, blendWeights + blendWeightCount);
 }
 
 #ifdef _MSC_VER

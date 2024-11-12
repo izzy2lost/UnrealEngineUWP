@@ -24,6 +24,16 @@ namespace HarmonixMetasound
 		Count
 	};
 
+	struct HARMONIXMETASOUND_API FMusicTransportEvent
+	{
+		Metasound::FTime Time;
+		EMusicPlayerTransportRequest Request;
+	};
+
+	// Declare aliases IN the namespace...
+	DECLARE_METASOUND_DATA_REFERENCE_ALIAS_TYPES(FMusicTransportEvent, FMusicTransportEventTypeInfo, FMusicTransportEventReadRef, FMusicTransportEventWriteRef)
+
+
 	class HARMONIXMETASOUND_API FMusicTransportEventStream
 	{
 	public:
@@ -80,6 +90,8 @@ namespace HarmonixMetasound
 		NumStates
 	};
 
+	FString HARMONIXMETASOUND_API MusicPlayerTransportStateToString(EMusicPlayerTransportState State);
+
 	class HARMONIXMETASOUND_API FMusicTransportControllable
 	{
 	public:
@@ -112,6 +124,9 @@ namespace HarmonixMetasound
 		bool bReceivedSeekWhileStopped = false;
 	};
 }
+
+// Declare reference types OUT of the namespace...
+DECLARE_METASOUND_DATA_REFERENCE_TYPES_NO_ALIASES(HarmonixMetasound::FMusicTransportEvent, HARMONIXMETASOUND_API)
 
 // Declare reference types OUT of the namespace...
 DECLARE_METASOUND_DATA_REFERENCE_TYPES_NO_ALIASES(HarmonixMetasound::FMusicTransportEventStream, HARMONIXMETASOUND_API)

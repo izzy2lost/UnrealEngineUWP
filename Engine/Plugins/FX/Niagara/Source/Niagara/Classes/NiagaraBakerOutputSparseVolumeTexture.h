@@ -3,6 +3,7 @@
 #pragma once
 
 #include "NiagaraBakerOutput.h"
+#include "NiagaraParameterBinding.h"
 #include "NiagaraBakerOutputSparseVolumeTexture.generated.h"
 
 UCLASS(meta = (DisplayName = "SparseVolume Texture Output"), MinimalAPI)
@@ -13,10 +14,17 @@ class UNiagaraBakerOutputSparseVolumeTexture : public UNiagaraBakerOutput
 public:
 	UNiagaraBakerOutputSparseVolumeTexture(const FObjectInitializer& Init)	
 	{
+#if WITH_EDITORONLY_DATA
+		VolumeWorldSpaceSizeBinding.SetUsage(ENiagaraParameterBindingUsage::User);
+		VolumeWorldSpaceSizeBinding.SetAllowedTypeDefinitions( { FNiagaraTypeDefinition::GetVec3Def() } );
+#endif
 	}
 
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	FNiagaraBakerTextureSource SourceBinding;
+
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	FNiagaraParameterBinding VolumeWorldSpaceSizeBinding;
 
 	/**
 	When enabled a volume atlas is created, the atlas is along X & Y not Z based on baker settings.

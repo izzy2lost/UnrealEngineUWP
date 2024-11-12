@@ -32,6 +32,10 @@ ALocationVolume* CreateLandscapeRegionVolume(UWorld* InWorld, ALandscapeProxy* I
 	SpawnParameters.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
 
 	ALocationVolume* LocationVolume = InWorld->SpawnActor<ALocationVolume>(Location, Rotation, SpawnParameters);
+	if (LocationVolume == nullptr)
+	{
+		return nullptr;
+	}
 	LocationVolume->SetActorLabel(Label);
 
 	LocationVolume->AttachToActor(InParentLandscapeActor, FAttachmentTransformRules::KeepWorldTransform);
@@ -131,7 +135,7 @@ void ForEachRegion_LoadProcessUnload(ULandscapeInfo* InLandscapeInfo, const FInt
 
 		InLandscapeInfo->ForceLayersFullUpdate();
 
-		LandscapeEditorUtils::SaveLandscapeProxies(MakeArrayView(LandscapeProxies));
+		LandscapeEditorUtils::SaveLandscapeProxies(InWorld, MakeArrayView(LandscapeProxies));
 
 		Region->Unload();
 

@@ -51,14 +51,14 @@ class UWorldPartitionRuntimeLevelStreamingCell : public UWorldPartitionRuntimeCe
 	ENGINE_API virtual void Fixup() override;
 	ENGINE_API virtual int32 GetActorCount() const override;
 	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const override;
-	ENGINE_API virtual bool PrepareCellForCook(UPackage* InPackage) override;
+	ENGINE_API virtual bool PrepareCellForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InGeneratedPackage) override;
 	//~End UWorldPartitionRuntimeCell interface
 
 	//~Begin IWorldPartitionCookPackageObject interface
 	ENGINE_API virtual FString GetPackageNameToCreate() const override;
 	ENGINE_API virtual bool OnPrepareGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) override;
-	ENGINE_API virtual bool OnPopulateGeneratorPackageForCook(UPackage* InPackage) override;
-	ENGINE_API virtual bool OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override;
+	ENGINE_API virtual bool OnPopulateGeneratorPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage) override;
+	ENGINE_API virtual bool OnPopulateGeneratedPackageForCook(const IWorldPartitionCookPackageContext& InCookContext, UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override;
 	//~End IWorldPartitionCookPackageObject interface
 
 	//~Begin IWorldPartitionCell Interface

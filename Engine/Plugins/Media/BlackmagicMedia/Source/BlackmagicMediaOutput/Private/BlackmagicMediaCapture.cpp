@@ -5,7 +5,7 @@
 #include "BlackmagicLib.h"
 #include "BlackmagicMediaOutput.h"
 #include "BlackmagicMediaOutputModule.h"
-#include "ColorSpace.h"
+#include "ColorManagement/ColorSpace.h"
 #include "GPUTextureTransfer.h"
 #include "GPUTextureTransferModule.h"
 #include "Engine/Engine.h"
@@ -679,6 +679,7 @@ bool UBlackmagicMediaCapture::InitBlackmagic(UBlackmagicMediaOutput* InBlackmagi
 	ChannelOptions.NumberOfBuffers = FMath::Clamp(InBlackmagicMediaOutput->NumberOfBlackmagicBuffers, 3, 4);
 	ChannelOptions.bOutputVideo = true;
 	ChannelOptions.bOutputInterlacedFieldsTimecodeNeedToMatch = InBlackmagicMediaOutput->bInterlacedFieldsTimecodeNeedToMatch && InBlackmagicMediaOutput->OutputConfiguration.MediaConfiguration.MediaMode.Standard == EMediaIOStandardType::Interlaced && InBlackmagicMediaOutput->TimecodeFormat != EMediaIOTimecodeFormat::None;
+	ChannelOptions.bOutputInterlaceAsProgressive = InBlackmagicMediaOutput->bOutputInterlaceAsProgressive;
 	ChannelOptions.bLogDropFrames = bLogDropFrame;
 	ChannelOptions.bUseGPUDMA = ShouldCaptureRHIResource();
 	ChannelOptions.bScheduleInDifferentThread = InBlackmagicMediaOutput->bUseMultithreadedScheduling;
@@ -755,7 +756,7 @@ void UBlackmagicMediaCapture::LockDMATexture_RenderThread(FTextureRHIRef InTextu
 		{
 			TexturesToRelease.Add(InTexture);
 
-			FRHITexture2D* Texture = InTexture->GetTexture2D();
+			FRHITexture* Texture = InTexture->GetTexture2D();
 			UE::GPUTextureTransfer::FRegisterDMATextureArgs Args;
 			Args.RHITexture = Texture;
 
@@ -824,7 +825,7 @@ void UBlackmagicMediaCapture::OnFrameCaptured_AnyThread(const FCaptureBaseData& 
 	OnFrameCapturedInternal_AnyThread(InBaseData, InUserData, InResourceData);
 }
 
-void UBlackmagicMediaCapture::OnRHIResourceCaptured_RenderingThread(const FCaptureBaseData& InBaseData, TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, FTextureRHIRef InTexture)
+void UBlackmagicMediaCapture::OnRHIResourceCaptured_RenderingThread(FRHICommandListImmediate& /*RHICmdList*/, const FCaptureBaseData& InBaseData, TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, FTextureRHIRef InTexture)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UBlackmagicMediaCapture::OnRHIResourceCaptured_RenderingThread);
 	OnRHIResourceCaptured_AnyThread(InBaseData, InUserData, InTexture);

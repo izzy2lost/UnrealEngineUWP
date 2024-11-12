@@ -36,7 +36,7 @@ public:
 	virtual FString GetMovieName() override;
 	virtual bool IsLastMovieInPlaylist() override;
 	virtual void Cleanup() override;
-	virtual FTexture2DRHIRef GetTexture() override;
+	virtual FTextureRHIRef GetTexture() override;
 
 	FOnCurrentMovieClipFinished OnCurrentMovieClipFinishedDelegate;
 	virtual FOnCurrentMovieClipFinished& OnCurrentMovieClipFinished() override { return OnCurrentMovieClipFinishedDelegate; }

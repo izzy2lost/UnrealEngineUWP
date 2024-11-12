@@ -7,6 +7,7 @@
 #include "UObject/RenderingObjectVersion.h"
 #include "UObject/ReleaseObjectVersion.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "UObject/UnrealType.h"
 
@@ -471,6 +472,7 @@ FPostProcessSettings::FPostProcessSettings()
 	BloomConvolutionBufferScale = 0.133f;
 	BloomDirtMaskIntensity = 0.0f;
 	BloomDirtMaskTint = FLinearColor(0.5f, 0.5f, 0.5f);
+	bMegaLights = true;
 	AmbientCubemapIntensity = 1.0f;
 	AmbientCubemapTint = FLinearColor(1, 1, 1);
 	CameraShutterSpeed = 60.f;
@@ -508,6 +510,7 @@ FPostProcessSettings::FPostProcessSettings()
 
 	AutoExposureApplyPhysicalCameraExposure = 1;
 
+	LocalExposureMethod = ELocalExposureMethod::Bilateral;
 	LocalExposureContrastScale_DEPRECATED = 1.0f;
 	LocalExposureHighlightContrastScale = 1.0f;
 	LocalExposureShadowContrastScale = 1.0f;
@@ -632,7 +635,7 @@ FPostProcessSettings::FPostProcessSettings()
 
 	PathTracingMaxBounces = 32;
 	PathTracingSamplesPerPixel = 2048;
-	PathTracingMaxPathExposure = 30.0f;
+	PathTracingMaxPathIntensity = 24.0f;
 	PathTracingEnableEmissiveMaterials = 1;
 	PathTracingEnableReferenceDOF = 0;
 	PathTracingEnableReferenceAtmosphere = 0;
@@ -647,6 +650,8 @@ FPostProcessSettings::FPostProcessSettings()
 	PathTracingIncludeIndirectVolume = 1;
 
 	bMobileHQGaussian = false;
+
+	UserFlags = 0;
 
 #if DO_CHECK && WITH_EDITOR
 	static bool bCheckedMembers = false;
@@ -916,6 +921,18 @@ void FPostProcessSettings::PostSerialize(const FArchive& Ar)
 			if (BloomMethod == BM_FFT && BloomIntensity > 0.0)
 			{
 				BloomIntensity = 1.0f;
+			}
+		}
+
+		// Changed HitLighting to HitLightingForReflections, and HitLighting now means hit lighting for entire Lumen
+		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::LumenRayLightingModeOverrideEnum)
+		{
+			if (bOverride_LumenRayLightingMode)
+			{
+				if (LumenRayLightingMode == ELumenRayLightingModeOverride::HitLighting)
+				{
+					LumenRayLightingMode = ELumenRayLightingModeOverride::HitLightingForReflections;
+				}
 			}
 		}
 	}

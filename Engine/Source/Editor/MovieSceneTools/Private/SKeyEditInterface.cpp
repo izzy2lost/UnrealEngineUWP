@@ -101,15 +101,21 @@ FVector2D SKeyEditInterface::ComputeDesiredSize(float LayoutScaleMultiplier) con
 
 TSharedRef<IPropertyTypeCustomization> SKeyEditInterface::CreateBindingIDCustomization()
 {
-	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
-	FMovieSceneSequenceID SequenceID = SequencerPtr.IsValid() ? SequencerPtr->GetFocusedTemplateID() : MovieSceneSequenceID::Root;
-	return MakeShared<FMovieSceneObjectBindingIDCustomization>(SequenceID, WeakSequencer);
+	if (const TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin())
+	{
+		FMovieSceneSequenceID SequenceID = SequencerPtr.IsValid() ? SequencerPtr->GetFocusedTemplateID() : MovieSceneSequenceID::Root;
+		return MakeShared<FMovieSceneObjectBindingIDCustomization>(SequenceID, WeakSequencer);
+	}
+	return MakeShared<FMovieSceneObjectBindingIDCustomization>(FMovieSceneSequenceID(), WeakSequencer);
 }
 
 TSharedRef<IPropertyTypeCustomization> SKeyEditInterface::CreateFrameNumberCustomization()
 {
-	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
-	return MakeShared<FFrameNumberDetailsCustomization>(SequencerPtr->GetNumericTypeInterface());
+	if (const TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin())
+	{
+		return MakeShared<FFrameNumberDetailsCustomization>(SequencerPtr->GetNumericTypeInterface());
+	}
+	return MakeShared<FFrameNumberDetailsCustomization>(nullptr);
 }
 
 TSharedRef<IPropertyTypeCustomization> SKeyEditInterface::CreateEventCustomization()

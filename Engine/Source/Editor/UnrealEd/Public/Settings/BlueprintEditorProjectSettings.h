@@ -38,6 +38,15 @@ public:
 	uint8 bEnableChildActorExpansionInTreeView : 1;
 
 	/**
+	 * In Blueprint graphs, allows conversion of impure nodes to pure ones.
+	 * While this allows full flexibility of graph node visualization, this could potentially introduce unwanted performance hits.
+	 * Specifically, pure nodes are evaluated for each connected output. If an expensive function node were converted to pure, the user
+	 * might not realize that there's now added overhead.
+	 */
+	UPROPERTY(EditAnywhere, config, Category = Blueprints, DisplayName = "Allow conversion of impure nodes to pure ones")
+	uint8 bAllowImpureToPureNodeConversion : 1;
+
+	/**
 	 * Default view mode to use for child actor components in a Blueprint actor's component tree hierarchy (experimental).
 	 */
 	UPROPERTY(EditAnywhere, config, Category = Experimental, meta = (EditCondition = "bEnableChildActorExpansionInTreeView"))

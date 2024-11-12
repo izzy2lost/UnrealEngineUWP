@@ -269,7 +269,7 @@ void FPCGLandscapeCacheEntry::GetInterpolatedPointMetadataInternal(const PCGLand
 
 	if (OutMetadata && !LayerData.IsEmpty())
 	{
-		OutPoint.MetadataEntry = OutMetadata->AddEntry();
+		OutMetadata->InitializeOnSet(OutPoint.MetadataEntry);
 
 		check(LayerData.Num() == LayerDataNames.Num());
 

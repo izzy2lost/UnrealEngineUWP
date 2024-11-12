@@ -4,7 +4,7 @@
 
 #include "Containers/Array.h"
 #include "Templates/Function.h"
-#include "Templates/SharedPointer.h"
+#include "Utils.h"
 
 namespace AutoRTFM
 {
@@ -18,77 +18,171 @@ public:
 	auto end() { return Obj.rend(); }
 };
 
-template<typename T>
+template<typename InKeyType, typename InValType>
+struct TTaskArrayKeyValuePair
+{
+	InKeyType Key;
+	InValType Val;
+
+	TTaskArrayKeyValuePair() = default;
+	TTaskArrayKeyValuePair(const InKeyType& Key, const InValType& Val) : Key(Key), Val(Val){}
+	TTaskArrayKeyValuePair(InKeyType&& Key, InValType&& Val) : Key(MoveTemp(Key)), Val(MoveTemp(Val)){}
+};
+
+template<typename InElementType>
 class TTaskArray
 {
-	template<typename U> using USharedPtr = TSharedPtr<U, ESPMode::NotThreadSafe>;
-
+	using SKey = const void*;
+	using SKeyValuePair = TTaskArrayKeyValuePair<SKey, InElementType>;
+	using FInternalArray = TArray<SKeyValuePair>;
 public:
-	TTaskArray() : Latest(new TArray<T>()) {}
+
+	TTaskArray() = default;
 	TTaskArray(const TTaskArray&) = delete;
 	void operator=(const TTaskArray&) = delete;
 
-    bool IsEmpty() const { return Latest->IsEmpty() && Stash.IsEmpty(); }
+    bool IsEmpty() const { return Latest.IsEmpty() && Stash.IsEmpty(); }
 
-    void Add(T&& value)
+    void Add(InElementType&& Value)
     {
-        Latest->Push(MoveTemp(value));
+		Latest.Push(TTaskArrayKeyValuePair(SKey{}, MoveTemp(Value)));
     }
 
-    void Add(const T& value)
+	void Add(const InElementType& Value)
+	{
+		Latest.Push(TTaskArrayKeyValuePair(SKey{}, Value));
+	}
+
+	void AddKeyed(SKey Key, InElementType&& Value)
     {
-        Latest->Push(value);
+		ASSERT(Key != SKey{});
+		Latest.Push(TTaskArrayKeyValuePair(Key, MoveTemp(Value)));
     }
 
-    void AddAll(TTaskArray<T>&& Other)
+	void AddKeyed(SKey Key, const InElementType& Value)
+    {
+		ASSERT(Key != SKey{});
+		Latest.Push(TTaskArrayKeyValuePair(Key, Value));
+    }
+
+	bool DeleteKey(SKey Key)
+	{
+		ASSERT(Key != SKey{});
+
+		auto EraseLastAddedKeyFromArray = [Key](FInternalArray& Array) -> bool
+		{
+			typename FInternalArray::SizeType LastIdx = Array.FindLastByPredicate([Key](const SKeyValuePair& Pair)
+			{
+				return Pair.Key == Key;
+			});
+
+			if (LastIdx == INDEX_NONE)
+			{
+				return false;
+			}
+
+			// We found our key to erase! Nuke it.
+			Array.RemoveAt(LastIdx);
+			return true;
+		};
+
+		if (EraseLastAddedKeyFromArray(Latest))
+		{
+			return true;
+		}
+
+		for (FInternalArray& StashedVectorBox : TBackwards(Stash))
+		{
+			if (EraseLastAddedKeyFromArray(StashedVectorBox))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	bool DeleteAllMatchingKeys(SKey Key)
+	{
+		ASSERT(Key != SKey{});
+
+		auto EraseKeyFromArray = [Key](FInternalArray& Array) -> size_t
+		{
+			return Array.RemoveAll([Key](const SKeyValuePair& Pair)
+			{
+				return Pair.Key == Key;
+			});
+		};
+
+		size_t NumErased = EraseKeyFromArray(Latest);
+
+		for (FInternalArray& StashedVectorBox : Stash)
+		{
+			NumErased += EraseKeyFromArray(StashedVectorBox);
+		}
+
+		return NumErased > 0;
+	}
+
+    void AddAll(TTaskArray&& Other)
     {
         Canonicalize();
 
-        for (USharedPtr<TArray<T>>& StashedVectorBox : Other.Stash)
+        for (FInternalArray& StashedVectorBox : Other.Stash)
         {
             Stash.Push(MoveTemp(StashedVectorBox));
         }
 
         Other.Stash.Empty();
 
-        if (!Other.Latest->IsEmpty())
+        if (!Other.Latest.IsEmpty())
         {
             Stash.Push(MoveTemp(Other.Latest));
-			USharedPtr<TArray<T>> NewLatest(new TArray<T>());
-			Other.Latest = MoveTemp(NewLatest);
+			Other.Latest = FInternalArray{};
         }
-    }
-
-    void AddAll(const TTaskArray<T>& Other)
-    {
-        Canonicalize();
-        Other.Canonicalize();
-        for (const USharedPtr<TArray<T>>& StashedVectorBox : Other.Stash)
-        {
-            Stash.Push(StashedVectorBox);
-        }
-
-
-		ASSERT(Latest != nullptr);
     }
 
     template<typename TFunc>
     bool ForEachForward(const TFunc& Func) const
     {
-        for (USharedPtr<TArray<T>>& StashedVectorBox : Stash)
+        for (FInternalArray& StashedVectorBox : Stash)
         {
-            for (const T& Entry : *StashedVectorBox)
+            for (const SKeyValuePair& EntryKVP : StashedVectorBox)
             {
-                if (!Func(Entry))
+                if (!Func(EntryKVP.Val))
                 {
                     return false;
                 }
             }
         }
 
-        for (const T& Entry : *Latest)
+        for (const SKeyValuePair& EntryKVP : Latest)
         {
-            if (!Func(Entry))
+            if (!Func(EntryKVP.Val))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    template<typename TFunc>
+    bool ForEachForward(const TFunc& Func)
+    {
+        for (FInternalArray& StashedVectorBox : Stash)
+        {
+            for (SKeyValuePair& EntryKVP : StashedVectorBox)
+            {
+                if (!Func(EntryKVP.Val))
+                {
+                    return false;
+                }
+            }
+        }
+
+        for (SKeyValuePair& EntryKVP : Latest)
+        {
+            if (!Func(EntryKVP.Val))
             {
                 return false;
             }
@@ -99,19 +193,19 @@ public:
     template<typename TFunc>
     bool ForEachBackward(const TFunc& Func) const
     {
-		for (const T& Entry : TBackwards(*Latest))
+		for (const SKeyValuePair& EntryKVP : TBackwards(Latest))
 		{
-			if (!Func(Entry))
+			if (!Func(EntryKVP.Val))
 			{
 				return false;
 			}
 		}
 
-		for (USharedPtr<TArray<T>>& StashedVectorBox : TBackwards(Stash))
+		for (const FInternalArray& StashedVectorBox : TBackwards(Stash))
 		{
-			for (const T& Entry : TBackwards(*StashedVectorBox))
+			for (const SKeyValuePair& EntryKVP : TBackwards(StashedVectorBox))
 			{
-				if (!Func(Entry))
+				if (!Func(EntryKVP.Val))
 				{
 					return false;
 				}
@@ -121,23 +215,48 @@ public:
         return true;
     }
 
+	template<typename TFunc>
+	bool ForEachBackward(const TFunc& Func)
+	{
+		for (SKeyValuePair& EntryKVP : TBackwards(Latest))
+		{
+			if (!Func(EntryKVP.Val))
+			{
+				return false;
+			}
+		}
+
+		for (FInternalArray& StashedVectorBox : TBackwards(Stash))
+		{
+			for (SKeyValuePair& EntryKVP : TBackwards(StashedVectorBox))
+			{
+				if (!Func(EntryKVP.Val))
+				{
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
     void Reset()
     {
-        Latest->Empty();
+        Latest.Empty();
         Stash.Empty();
     }
 
     size_t Num() const
     {
-        size_t Result = Latest->Num();
+		typename FInternalArray::SizeType Result = Latest.Num();
 
-        for (size_t Index = 0; Index < Stash.Num(); Index++)
+        for (typename FInternalArray::SizeType Index = 0; Index < Stash.Num(); Index++)
         {
-            const TArray<T>& StashedVector = *Stash[Index];
+            const FInternalArray& StashedVector = Stash[Index];
             Result += StashedVector.Num();
         }
 
-        return Result;
+		return static_cast<size_t>(Result);
     }
 
 private:
@@ -146,19 +265,15 @@ private:
     // method is `const`.
     void Canonicalize() const
     {
-        if (!Latest->IsEmpty())
+        if (!Latest.IsEmpty())
         {
 			Stash.Push(MoveTemp(Latest));
-			USharedPtr<TArray<T>> NewLatest(new TArray<T>());
-			Latest = MoveTemp(NewLatest);
-        }
-
-		ASSERT(Latest != nullptr);
+			Latest = FInternalArray{};
+		}
     }
     
-    mutable USharedPtr<TArray<T>> Latest;
-    
-    mutable TArray<USharedPtr<TArray<T>>> Stash;
+    mutable FInternalArray Latest;
+    mutable TArray<FInternalArray> Stash;
 };
 
 } // namespace AutoRTFM

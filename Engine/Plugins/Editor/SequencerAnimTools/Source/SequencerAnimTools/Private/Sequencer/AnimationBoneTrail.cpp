@@ -38,8 +38,13 @@ void FAnimTrajectoryCache::Evaluate(FTrajectoryCache* ParentTransformCache)
 	// TODO: for some reason SkeletalMeshComponent becomes invalid sometimes when evaluating, no clue why yet
 	FMovieSceneSequenceTransform MovieSceneSequenceTransform;
 	UAnimSeqExportOption* AnimSeqExportOption = NewObject<UAnimSeqExportOption>(GetTransientPackage(), NAME_None);
-	MovieSceneToolHelpers::ExportToAnimSequence(CachedAnimSequence, AnimSeqExportOption,Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene(), Sequencer.Get(), SkeletalMeshComponent.Get(),
-		Sequencer->GetFocusedTemplateID(), MovieSceneSequenceTransform);
+	FAnimExportSequenceParameters AESP;
+	AESP.Player = Sequencer.Get();
+	AESP.RootToLocalTransform = MovieSceneSequenceTransform;
+	AESP.MovieSceneSequence = Sequencer->GetFocusedMovieSceneSequence();
+	AESP.RootMovieSceneSequence = Sequencer->GetRootMovieSceneSequence();
+
+	MovieSceneToolHelpers::ExportToAnimSequence(CachedAnimSequence, AnimSeqExportOption, AESP, SkeletalMeshComponent.Get());
 	AnimSeqExportOption->MarkAsGarbage();
 	Sequencer->ForceEvaluate();
 

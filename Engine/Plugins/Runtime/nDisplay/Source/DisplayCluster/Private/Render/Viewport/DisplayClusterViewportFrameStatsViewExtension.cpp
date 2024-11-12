@@ -81,7 +81,7 @@ FDisplayClusterViewportFrameStatsViewExtension::FDisplayClusterViewportFrameStat
 	, Configuration(InConfiguration)
 { }
 
-void FDisplayClusterViewportFrameStatsViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass PassId, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
+void FDisplayClusterViewportFrameStatsViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass PassId, const FSceneView& View, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
 {
 	if (IsActive() && PassId == EPostProcessingPass::Tonemap)
 	{
@@ -93,10 +93,18 @@ void FDisplayClusterViewportFrameStatsViewExtension::BeginRenderViewFamily(FScen
 {
 	if (IsActive())
 	{
-		const FTimecode CurrentTimecode = FApp::GetTimecode();
+		const FTimecode GameThreadTimecode = FApp::GetTimecode();
 
-		EncodedTimecode = (static_cast<uint8>(CurrentTimecode.Hours) << 24u) | (static_cast<uint8>(CurrentTimecode.Minutes) << 16u) | (static_cast<uint8>(CurrentTimecode.Seconds) << 8u) | static_cast<uint8>(CurrentTimecode.Frames);
-		FrameCount = GFrameCounter;
+		// Local lambda copy prevents race condition from further game thread updates before rendering.
+		ENQUEUE_RENDER_COMMAND(DCFrameTimeCode)(
+		[CurrentTimecode = GameThreadTimecode, WeakThis = AsWeak()](FRHICommandListImmediate& RHICmdList)
+		{
+			const TSharedPtr<FDisplayClusterViewportFrameStatsViewExtension> DCSVE = StaticCastSharedPtr<FDisplayClusterViewportFrameStatsViewExtension>(WeakThis.Pin());
+			if (DCSVE.IsValid())
+			{
+				DCSVE->EncodedTimecode_RenderThread = (static_cast<uint8>(CurrentTimecode.Hours) << 24u) | (static_cast<uint8>(CurrentTimecode.Minutes) << 16u) | (static_cast<uint8>(CurrentTimecode.Seconds) << 8u) | static_cast<uint8>(CurrentTimecode.Frames);
+			}
+		});
 	}
 }
 
@@ -124,8 +132,8 @@ FScreenPassTexture FDisplayClusterViewportFrameStatsViewExtension::PostProcessPa
 		FDisplayClusterFrameStatsShaderParameters* Parameters = GraphBuilder.AllocParameters<FDisplayClusterFrameStatsShaderParameters>();
 		Parameters->MiniFontTexture = UE::DisplayClusterViewExtension::GetMiniFontTexture();
 		Parameters->RenderTargets[0] = FrameStatsRenderTargetBinding;
-		Parameters->FrameCount = FrameCount;
-		Parameters->Timecode = EncodedTimecode;
+		Parameters->FrameCount = View.Family->FrameCounter; // Copy of GFrameCounter
+		Parameters->Timecode = EncodedTimecode_RenderThread;
 
 		AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DisplayClusterViewportFrameStatsPass"), View, Viewport, Viewport, VertexShader, FrameStatsPixelShader, Parameters);
 	}

@@ -570,6 +570,11 @@ protected:
 	 */
 	void ResetFetchLogic();
 
+	/**
+	 * Check whether the current sequence has valid mip levels or tiles, and a valid mip map info object.
+	 */
+	bool HasMipsOrTilesEnabled() const;
+
 private:
 
 	/** Critical section for synchronizing access to Frames. */

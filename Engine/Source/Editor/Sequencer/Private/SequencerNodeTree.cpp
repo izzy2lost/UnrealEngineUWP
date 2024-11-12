@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SequencerNodeTree.h"
+#include "Filters/SequencerFilterBar.h"
 #include "MVVM/ViewModels/ViewModelHierarchy.h"
 #include "MVVM/Selection/Selection.h"
 #include "MovieSceneBinding.h"
@@ -34,34 +35,21 @@
 #include "ISequencerTrackEditor.h"
 #include "Widgets/Views/STableRow.h"
 #include "CurveEditor.h"
-#include "SequencerTrackFilters.h"
 #include "Channels/MovieSceneChannel.h"
 #include "ScopedTransaction.h"
 #include "SequencerUtilities.h"
 #include "SequencerLog.h"
 #include "SequencerCommonHelpers.h"
+#include "SSequencer.h"
 
 FSequencerNodeTree::~FSequencerNodeTree()
 {
-	if (TrackFilters.IsValid())
-	{
-		TrackFilters->OnChanged().RemoveAll(this);
-	}
-	if (TrackFilterLevelFilter.IsValid())
-	{
-		TrackFilterLevelFilter->OnChanged().RemoveAll(this);
-	}
 }
 
 FSequencerNodeTree::FSequencerNodeTree(FSequencer& InSequencer)
 	: Sequencer(InSequencer)
-	, DisplayNodeCount(0)
 	, bFilterUpdateRequested(false)
 {
-	TrackFilters = MakeShared<FSequencerTrackFilterCollection>();
-	TrackFilters->OnChanged().AddRaw(this, &FSequencerNodeTree::RequestFilterUpdate);
-	TrackFilterLevelFilter = MakeShared< FSequencerTrackFilter_LevelFilter>();
-	TrackFilterLevelFilter->OnChanged().AddRaw(this, &FSequencerNodeTree::RequestFilterUpdate);
 }
 
 TSharedPtr<UE::Sequencer::FObjectBindingModel> FSequencerNodeTree::FindObjectBindingNode(const FGuid& BindingID) const
@@ -78,15 +66,6 @@ TSharedPtr<UE::Sequencer::FObjectBindingModel> FSequencerNodeTree::FindObjectBin
 	return nullptr;
 }
 
-bool FSequencerNodeTree::HasActiveFilter() const
-{
-	return (!FilterString.IsEmpty()
-		|| TrackFilters->Num() > 0
-		|| TrackFilterLevelFilter->IsActive()
-		|| Sequencer.GetSequencerSettings()->GetShowSelectedNodesOnly()
-		|| Sequencer.GetFocusedMovieSceneSequence()->GetMovieScene()->GetNodeGroups().HasAnyActiveFilter());
-}
-
 bool FSequencerNodeTree::UpdateFiltersOnTrackValueChanged()
 {
 	// If filters are already scheduled for update, we can defer until the next update
@@ -95,18 +74,15 @@ bool FSequencerNodeTree::UpdateFiltersOnTrackValueChanged()
 		return false;
 	}
 
-	for (TSharedPtr< FSequencerTrackFilter > TrackFilter : *TrackFilters)
+	if (Sequencer.GetFilterBar()->ShouldUpdateOnTrackValueChanged())
 	{
-		if (TrackFilter->ShouldUpdateOnTrackValueChanged())
-		{
-			// UpdateFilters will only run if bFilterUpdateRequested is true
-			bFilterUpdateRequested = true;
-			bool bFiltersUpdated = UpdateFilters();
+		// UpdateFilters will only run if bFilterUpdateRequested is true
+		bFilterUpdateRequested = true;
+		bool bFiltersUpdated = UpdateFilters();
 
-			// If the filter list was modified, set bFilterUpdateRequested to suppress excessive re-filters between tree update
-			bFilterUpdateRequested = bFiltersUpdated;
-			return bFiltersUpdated;
-		}
+		// If the filter list was modified, set bFilterUpdateRequested to suppress excessive re-filters between tree update
+		bFilterUpdateRequested = bFiltersUpdated;
+		return bFiltersUpdated;
 	}
 
 	return false;
@@ -116,9 +92,7 @@ void FSequencerNodeTree::Update()
 {
 	using namespace UE::Sequencer;
 
-	FViewModelHierarchyOperation UpdateOp(RootNode);
-
-	FilteredNodes.Empty();
+	FViewModelHierarchyOperation UpdateOp(RootNode->GetSharedData());
 
 	if (!ensure(RootNode))
 	{
@@ -136,7 +110,6 @@ void FSequencerNodeTree::Update()
 
 	// Re-filter the tree after updating 
 	// @todo sequencer: Newly added sections may need to be visible even when there is a filter
-	FilterNodes(FilterString);
 	bFilterUpdateRequested = true;
 	UpdateFilters();
 
@@ -147,9 +120,14 @@ void FSequencerNodeTree::Update()
 		SortableChild->SortChildren();
 	}
 
-	// Update all virtual geometries
-	// This must happen after the sorting
-	IGeometryExtension::UpdateVirtualGeometry(0.f, RootNode);
+	// Avoid updating geometry during an undo/redo, as we may have changed the nodes and they won't get updated until next frame.
+	// Any deleted nodes will be present in the hierarchy but garbage.
+	if (!GIsTransacting)
+	{
+		// Update all virtual geometries
+		// This must happen after the sorting
+		IGeometryExtension::UpdateVirtualGeometry(0.f, RootNode);
+	}
 
 	// Cache pinned state of nodes, needs to happen after OnTreeRefreshed
 	FPinnableExtensionShim::UpdateCachedPinnedState(RootNode);
@@ -277,51 +255,6 @@ void FSequencerNodeTree::SortAllNodesAndDescendants()
 	}
 }
 
-void FSequencerNodeTree::AddFilter(TSharedPtr<FSequencerTrackFilter> TrackFilter)
-{
-	GetSequencer().GetSequencerSettings()->SetTrackFilterEnabled(TrackFilter->GetDisplayName().ToString(), true);
-
-	TrackFilters->Add(TrackFilter);
-}
-
-int32 FSequencerNodeTree::RemoveFilter(TSharedPtr<FSequencerTrackFilter> TrackFilter)
-{
-	GetSequencer().GetSequencerSettings()->SetTrackFilterEnabled(TrackFilter->GetDisplayName().ToString(), false);
-
-	return TrackFilters->Remove(TrackFilter);
-}
-
-void FSequencerNodeTree::RemoveAllFilters()
-{
-	for (TSharedPtr< FSequencerTrackFilter > TrackFilter : *TrackFilters)
-	{
-		GetSequencer().GetSequencerSettings()->SetTrackFilterEnabled(TrackFilter->GetDisplayName().ToString(), false);
-	}
-
-	TrackFilters->RemoveAll();
-	TrackFilterLevelFilter->ResetFilter();
-}
-
-bool FSequencerNodeTree::IsTrackFilterActive(TSharedPtr<FSequencerTrackFilter> TrackFilter) const
-{
-	return TrackFilters->Contains(TrackFilter);
-}
-
-void FSequencerNodeTree::AddLevelFilter(const FString& LevelName)
-{
-	TrackFilterLevelFilter->UnhideLevel(LevelName);
-}
-
-void FSequencerNodeTree::RemoveLevelFilter(const FString& LevelName)
-{
-	TrackFilterLevelFilter->HideLevel(LevelName);
-}
-
-bool FSequencerNodeTree::IsTrackLevelFilterActive(const FString& LevelName) const
-{
-	return !TrackFilterLevelFilter->IsLevelHidden(LevelName);
-}
-
 void FSequencerNodeTree::SaveExpansionState(const UE::Sequencer::FViewModel& Node, bool bExpanded)
 {
 	using namespace UE::Sequencer;
@@ -377,8 +310,8 @@ bool FSequencerNodeTree::IsNodeFiltered(const TSharedPtr<UE::Sequencer::FViewMod
 {
 	using namespace UE::Sequencer;
 
-	TViewModelPtr<IOutlinerExtension> OutlinerItem = CastViewModel<IOutlinerExtension>(Node);
-	return OutlinerItem && FilteredNodes.Contains(OutlinerItem);
+	const TViewModelPtr<IOutlinerExtension> OutlinerItem = CastViewModel<IOutlinerExtension>(Node);
+	return OutlinerItem && !OutlinerItem->IsFilteredOut();
 }
 
 TSharedPtr<UE::Sequencer::FSectionModel> FSequencerNodeTree::GetSectionModel(const UMovieSceneSection* Section) const
@@ -393,365 +326,6 @@ TSharedPtr<UE::Sequencer::FSectionModel> FSequencerNodeTree::GetSectionModel(con
 	return nullptr;
 }
 
-static void AddChildNodes(const UE::Sequencer::TViewModelPtr<UE::Sequencer::IOutlinerExtension>& StartNode, TSet<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>>& OutFilteredNodes)
-{
-	using namespace UE::Sequencer;
-
-	for (TViewModelPtr<IOutlinerExtension> ChildNode : StartNode.AsModel()->GetDescendantsOfType<IOutlinerExtension>())
-	{
-		OutFilteredNodes.Add(ChildNode);
-	}
-}
-
-static void AddParentNodes(const UE::Sequencer::TViewModelPtr<UE::Sequencer::IOutlinerExtension>& StartNode, TSet<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>>& OutFilteredNodes)
-{
-	using namespace UE::Sequencer;
-
-	// Gather parent folders up the chain
-	for (TViewModelPtr<IOutlinerExtension> ParentNode : StartNode.AsModel()->GetAncestorsOfType<IOutlinerExtension>())
-	{
-		OutFilteredNodes.Add(ParentNode);
-	}
-}
-
-static bool PassesFilterStrings(FSequencer& Sequencer, const UE::Sequencer::TViewModelPtr<UE::Sequencer::IOutlinerExtension>& StartNode, const TArray<FString>& FilterStrings)
-{
-	using namespace UE::Sequencer;
-
-	// If we have a filter string, make sure we match
-	if (FilterStrings.Num() > 0)
-	{
-		TSharedPtr<FOutlinerViewModel> Outliner = Sequencer.GetViewModel()->GetOutliner();
-
-		if (!Outliner)
-		{
-			return false;
-		}
-
-		FString DisplayLabel = StartNode->GetLabel().ToString();
-
-		// check each string in the filter strings list against 
-		for (const FString& String : FilterStrings)
-		{
-			if (!DisplayLabel.Contains(String))
-			{
-				return false;
-			}
-		}
-
-		for (TViewModelPtr<IOutlinerExtension> Parent : StartNode.AsModel()->GetAncestorsOfType<IOutlinerExtension>())
-		{
-			if (!Parent->IsExpanded())
-			{
-				Parent->SetExpansion(true);
-			}
-		}
-	}
-
-	return true;
-}
-
-/**
- * Recursively filters nodes
- *
- * @param StartNode			The node to start from
- * @param Filters			The filter collection to test against
- * @param OutFilteredNodes	The list of all filtered nodes
- *
- * @return Whether this node passed filtering
-  */
-
-static bool FilterNodesRecursive(
-	  FSequencer& Sequencer
-	, const UE::Sequencer::TViewModelPtr<UE::Sequencer::IOutlinerExtension>& StartNode
-	, TSharedPtr<FSequencerTrackFilterCollection> Filters, const TArray<FString>& FilterStrings
-	, TSharedPtr<FSequencerTrackFilter_LevelFilter> LevelTrackFilter
-	, TSet<UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::IOutlinerExtension>>& OutFilteredNodes)
-{
-	using namespace UE::Sequencer;
-
-	bool bAnyChildPassed = false;
-
-	// Special case: If a parent node matches an active text search filter, the children should also pass the text search filter
-	// so we stop filtering them based on text to eliminate special case conflicts with non-object binding nodes
-	// with potential child object bindings nodes when only showing selected bindings. This is also faster.
-	bool bPassedFilterStrings = PassesFilterStrings(Sequencer, StartNode, FilterStrings);
-	const TArray<FString>& ChildFilterStrings = bPassedFilterStrings ? TArray<FString>() : FilterStrings;
-
-	// Special case: Child nodes should always be processed, as they may force their parents to pass
-	for (TViewModelPtr<IOutlinerExtension> Node : StartNode.AsModel()->GetChildrenOfType<IOutlinerExtension>())
-	{
-		if (FilterNodesRecursive(Sequencer, Node, Filters, ChildFilterStrings, LevelTrackFilter, OutFilteredNodes))
-		{
-			bAnyChildPassed = true;
-		}
-	}
-
-	// After child nodes are processed, if this node didn't pass text filtering, fail it
-	if (!bPassedFilterStrings)
-	{
-		return bAnyChildPassed;
-	}
-
-	// TODO: we can probably completely rewrite this logic by taking advantage of the new modular extensions.
-
-	bool bPassedAnyFilters = false;
-	bool bIsTrackOrObjectBinding = false;
-
-	TSharedPtr<IPinnableExtension> Pinnable = StartNode.ImplicitCast();
-	const bool bIsPinned = Pinnable && Pinnable->IsPinned();
-
-	if (TSharedPtr<FTrackModel> TrackModel = StartNode.ImplicitCast())
-	{
-		bIsTrackOrObjectBinding = true;
-
-		UMovieSceneTrack* Track = TrackModel->GetTrack();
-
-		for (TSharedPtr<FChannelGroupModel> ChannelGroupModel : StartNode.AsModel()->GetDescendantsOfType<FChannelGroupModel>())
-		{
-			for (const TWeakViewModelPtr<FChannelModel>& WeakChannel : ChannelGroupModel->GetChannels())
-			{
-				if (TViewModelPtr<FChannelModel> ChannelModel = WeakChannel.Pin())
-				{
-					const TSharedPtr<IKeyArea>& KeyArea = ChannelModel->GetKeyArea();
-					FMovieSceneChannel* Channel = KeyArea->ResolveChannel();
-					if (Channel)
-					{
-						if (Filters->Num() == 0 || Filters->PassesAnyFilters(Channel))
-						{
-							bPassedAnyFilters = true;
-							break;
-						}
-					}
-				}
-			}
-		}
-	
-		if (bPassedAnyFilters || Filters->Num() == 0 || Filters->PassesAnyFilters(Track, TrackModel->GetLabel()))
-		{
-			bPassedAnyFilters = true;
-
-			// Track nodes do not belong to a level, but might be a child of an objectbinding node that does
-			if (LevelTrackFilter->IsActive())
-			{
-				TSharedPtr<IObjectBindingExtension> ObjectNode = StartNode.AsModel()->FindAncestorOfType<IObjectBindingExtension>();
-				if (ObjectNode)
-				{
-					// The track belongs to an objectbinding node, start by assuming it doesn't match the level filter
-					bPassedAnyFilters = false;
-
-					for (TWeakObjectPtr<>& Object : Sequencer.FindObjectsInCurrentSequence(ObjectNode->GetObjectGuid()))
-					{
-						if (Object.IsValid() && LevelTrackFilter->PassesFilter(Object.Get()))
-						{
-							// If at least one of the objects on the objectbinding node pass the level filter, show the track
-							bPassedAnyFilters = true;
-							break;
-						}
-					}
-				}
-			}
-
-			if (bPassedAnyFilters && Sequencer.GetSequencerSettings()->GetShowSelectedNodesOnly())
-			{
-				TSharedPtr<IObjectBindingExtension> ObjectNode = StartNode.AsModel()->FindAncestorOfType<IObjectBindingExtension>();
-				// Always show pinned items
-				if (!bIsPinned && ObjectNode)
-				{
-					const FMovieSceneBinding* Binding = Sequencer.GetFocusedMovieSceneSequence()->GetMovieScene()->FindBinding(ObjectNode->GetObjectGuid());
-					if (!(Binding && Sequencer.IsBindingVisible(*Binding)))
-					{
-						return bAnyChildPassed;
-					}
-				}
-			}
-		}
-	}
-	else if (TViewModelPtr<FObjectBindingModel> ObjectNode = StartNode.ImplicitCast())
-	{
-		bIsTrackOrObjectBinding = true;
-
-		for (TWeakObjectPtr<>& Object : Sequencer.FindObjectsInCurrentSequence(ObjectNode->GetObjectGuid()))
-		{
-			if (Object.IsValid() && (Filters->Num() == 0 || Filters->PassesAnyFilters(Object.Get(), StartNode->GetLabel()))
-				&& LevelTrackFilter->PassesFilter(Object.Get()))
-			{
-				bPassedAnyFilters = true;
-				break;
-			}
-		}
-
-		if (bPassedAnyFilters && Sequencer.GetSequencerSettings()->GetShowSelectedNodesOnly() && !bIsPinned)
-		{
-			UMovieScene* MovieScene = Sequencer.GetFocusedMovieSceneSequence()->GetMovieScene();
-			const FMovieSceneBinding* Binding = Sequencer.GetFocusedMovieSceneSequence()->GetMovieScene()->FindBinding(ObjectNode->GetObjectGuid());
-			if (Binding && !Sequencer.IsBindingVisible(*Binding))
-			{
-				return bAnyChildPassed;
-			}
-		}
-	}
-	else if (TViewModelPtr<FCategoryModel> CategoryModel = StartNode.ImplicitCast())
-	{
-		if (TSharedPtr<FTrackModel> TrackNode = CategoryModel->FindAncestorOfType<FTrackModel>())
-		{
-			UMovieSceneTrack* Track = TrackNode->GetTrack();
-			if (Filters->Num() == 0 || Filters->PassesAnyFilters(Track, StartNode->GetLabel()))
-			{
-				bPassedAnyFilters = true;
-			}
-		}
-		if (bPassedAnyFilters && Sequencer.GetSequencerSettings()->GetShowSelectedNodesOnly())
-		{
-			TSharedPtr<IObjectBindingExtension> ParentObjectNode = StartNode.AsModel()->FindAncestorOfType<IObjectBindingExtension>();
-			// Always show pinned items
-			if (!bIsPinned && ParentObjectNode)
-			{
-				const FMovieSceneBinding* Binding = Sequencer.GetFocusedMovieSceneSequence()->GetMovieScene()->FindBinding(ParentObjectNode->GetObjectGuid());
-				if (!(Binding && Sequencer.IsBindingVisible(*Binding)))
-				{
-					return bAnyChildPassed;
-				}
-			}
-		}
-	}
-	else if (TViewModelPtr<FCategoryGroupModel> CategoryGroupModel = StartNode.ImplicitCast())
-	{
-		if (TSharedPtr<FTrackModel> TrackNode = CategoryGroupModel->FindAncestorOfType<FTrackModel>())
-		{
-			UMovieSceneTrack* Track = TrackNode->GetTrack();
-			if (Filters->Num() == 0 || Filters->PassesAnyFilters(Track, FText::FromName(CategoryGroupModel->GetCategoryName())))
-			{
-				bPassedAnyFilters = true;
-			}
-		}
-		if (bPassedAnyFilters && Sequencer.GetSequencerSettings()->GetShowSelectedNodesOnly())
-		{
-			TSharedPtr<IObjectBindingExtension> ParentObjectNode = StartNode.AsModel()->FindAncestorOfType<IObjectBindingExtension>();
-			// Always show pinned items
-			if (!bIsPinned && ParentObjectNode)
-			{
-				const FMovieSceneBinding* Binding = Sequencer.GetFocusedMovieSceneSequence()->GetMovieScene()->FindBinding(ParentObjectNode->GetObjectGuid());
-				if (!(Binding && Sequencer.IsBindingVisible(*Binding)))
-				{
-					return bAnyChildPassed;
-				}
-			}
-		}
-	}
-	else if (TViewModelPtr<FChannelGroupModel> ChannelGroupModel = StartNode.ImplicitCast())
-	{
-		for (const TWeakViewModelPtr<FChannelModel>& WeakChannel : ChannelGroupModel->GetChannels())
-		{
-			if (TViewModelPtr<FChannelModel> ChannelModel = WeakChannel.Pin())
-			{
-				const TSharedPtr<IKeyArea>& KeyArea = ChannelModel->GetKeyArea();
-				FMovieSceneChannel* Channel = KeyArea->ResolveChannel();
-				if (Channel)
-				{
-					if (Filters->Num() == 0 || Filters->PassesAnyFilters(Channel))
-					{
-						bPassedAnyFilters = true;
-						break;
-					}
-				}
-			}
-		}
-		if (bPassedAnyFilters && Sequencer.GetSequencerSettings()->GetShowSelectedNodesOnly())
-		{
-			TSharedPtr<IObjectBindingExtension> ParentObjectNode = StartNode.AsModel()->FindAncestorOfType<IObjectBindingExtension>();
-			// Always show pinned items
-			if (!bIsPinned && ParentObjectNode)
-			{
-				const FMovieSceneBinding* Binding = Sequencer.GetFocusedMovieSceneSequence()->GetMovieScene()->FindBinding(ParentObjectNode->GetObjectGuid());
-				if (!(Binding && Sequencer.IsBindingVisible(*Binding)))
-				{
-					bPassedAnyFilters = false;
-				}
-			}
-		}
-	}
-	else if (TViewModelPtr<FFolderModel> FolderModel = StartNode.ImplicitCast())
-	{
-		// Special case: If we're pinned, then we should pass regardless
-		if (bIsPinned)
-		{
-			bPassedAnyFilters = true;
-		}
-
-		// Special case: If we're only filtering on text search, include folders and key areas in the search
-		if (!bPassedAnyFilters && Filters->Num() == 0 && FilterStrings.Num() > 0)
-		{
-			bPassedAnyFilters = true;
-
-			// Special case: but don't include if only showing selected bindings and we don't have child that passed
-			if (Sequencer.GetSequencerSettings()->GetShowSelectedNodesOnly() && !bAnyChildPassed)
-			{
-				bPassedAnyFilters = false;
-
-				// Special case: unless we're the child of a node that is a selected binding
-				TSharedPtr<IObjectBindingExtension> ParentObjectNode = StartNode.AsModel()->FindAncestorOfType<IObjectBindingExtension>();
-				// Always show pinned items
-				if (ParentObjectNode)
-				{
-					const FMovieSceneBinding* Binding = Sequencer.GetFocusedMovieSceneSequence()->GetMovieScene()->FindBinding(ParentObjectNode->GetObjectGuid());
-					if (Binding && Sequencer.IsBindingVisible(*Binding))
-					{
-						bPassedAnyFilters = true;
-					}
-				}
-			}
-		}
-	}
-
-	if (bPassedAnyFilters)
-	{
-		// If filtering on selection set is enabled, we need to run another pass to verify we're in an enabled node group
-		UMovieSceneNodeGroupCollection& NodeGroups = Sequencer.GetFocusedMovieSceneSequence()->GetMovieScene()->GetNodeGroups();
-		if (NodeGroups.HasAnyActiveFilter())
-		{
-			bPassedAnyFilters = false;
-			
-			constexpr bool bIncludeThis = true;
-			for (TViewModelPtr<IOutlinerExtension> Parent : StartNode.AsModel()->GetAncestorsOfType<IOutlinerExtension>(bIncludeThis))
-			{
-				// Special case: Pinned tracks should be visible whether in the node group or not
-				if (bIsPinned)
-				{
-					bPassedAnyFilters = true;
-					break;
-				}
-
-				for (const UMovieSceneNodeGroup* NodeGroup : NodeGroups)
-				{
-					if (NodeGroup->GetEnableFilter() && NodeGroup->ContainsNode(IOutlinerExtension::GetPathName(Parent.AsModel())))
-					{
-						bPassedAnyFilters = true;
-						break;
-					}
-				}
-			}
-		}
-	}
-
-	if (bPassedAnyFilters)
-	{
-		OutFilteredNodes.Add(StartNode);
-		AddParentNodes(StartNode, OutFilteredNodes);
-
-		// Special case: When only showing selected bindings, and a non-object passes text filtering
-		// don't add it's children, as they may be a binding that is not seleceted. Selected child nodes will add themselves.
-		if (!(Sequencer.GetSequencerSettings()->GetShowSelectedNodesOnly() && FilterStrings.Num() > 0 && !bIsTrackOrObjectBinding))
-		{
-			AddChildNodes(StartNode, OutFilteredNodes);
-		}
-
-		return true;
-	}
-
-	return bAnyChildPassed;
-}
-
 bool FSequencerNodeTree::UpdateFilters()
 {
 	using namespace UE::Sequencer;
@@ -761,52 +335,21 @@ bool FSequencerNodeTree::UpdateFilters()
 		return false;
 	}
 
-	TSet<TWeakViewModelPtr<IOutlinerExtension>> PreviousFilteredNodes(FilteredNodes);
-
-	FilteredNodes.Empty();
-	const bool bHasActiveFilter = HasActiveFilter();
-
-	UObject* PlaybackContext = Sequencer.GetPlaybackContext();
-	UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
-	TrackFilterLevelFilter->UpdateWorld(World);
-
-	if (bHasActiveFilter)
+	const TSharedPtr<FSequencerFilterBar> FilterBar = Sequencer.GetFilterBar();
+	if (!FilterBar.IsValid())
 	{
-		// Build a list of strings that must be matched
-		TArray<FString> FilterStrings;
-
-		// Remove whitespace from the front and back of the string
-		FilterString.TrimStartAndEndInline();
-		FilterString.ParseIntoArray(FilterStrings, TEXT(" "), true /*bCullEmpty*/);
-
-		for (const TViewModelPtr<IOutlinerExtension>& Node : GetRootNodes())
-		{
-			// Recursively filter all nodes, matching them against the list of filter strings.  All filter strings must be matched
-			FilterNodesRecursive(Sequencer, Node, TrackFilters, FilterStrings, TrackFilterLevelFilter, FilteredNodes);
-		}
+		return false;
 	}
+
+	const FSequencerFilterData& PreviousFilterData = FilterBar->GetFilterData();
+	const FSequencerFilterData& FilterData = FilterBar->FilterNodes();
 
 	bFilteringOnNodeGroups = Sequencer.GetFocusedMovieSceneSequence()->GetMovieScene()->GetNodeGroups().HasAnyActiveFilter();
 	bFilterUpdateRequested = false;
 
-	// Always include the bottom spacer
-	if (FSequenceModel* SequenceModel = RootNode->CastThis<FSequenceModel>())
-	{
-		FilteredNodes.Add(CastViewModelChecked<IOutlinerExtension>(SequenceModel->GetBottomSpacer()));
-	}
-
-	// Count the total number of display nodes, and update filtered state.
-	DisplayNodeCount = 0;
-	for (const TViewModelPtr<IOutlinerExtension>& Item : RootNode->GetDescendantsOfType<IOutlinerExtension>())
-	{
-		const bool bIsNodeFilteredIn = !bHasActiveFilter || FilteredNodes.Contains(Item);
-		Item->SetFilteredOut(!bIsNodeFilteredIn);
-
-		++DisplayNodeCount;
-	}
-
 	// Return whether the new list of FilteredNodes is different than the previous list
-	return (PreviousFilteredNodes.Num() != FilteredNodes.Num() || !PreviousFilteredNodes.Includes(FilteredNodes));
+	return (PreviousFilterData.GetDisplayNodeCount() != FilterData.GetDisplayNodeCount()
+		|| PreviousFilterData != FilterData);
 }
 
 void FSequencerNodeTree::CleanupMuteSolo(UMovieScene* MovieScene)
@@ -834,22 +377,22 @@ void FSequencerNodeTree::CleanupMuteSolo(UMovieScene* MovieScene)
 
 int32 FSequencerNodeTree::GetTotalDisplayNodeCount() const 
 { 
-	// Subtract 1 for the spacer node which is always added
-	return DisplayNodeCount - 1; 
+	return Sequencer.GetFilterBar()->GetFilterData().GetTotalNodeCount();
 }
 
 int32 FSequencerNodeTree::GetFilteredDisplayNodeCount() const 
 { 
-	// Subtract 1 for the spacer node which is always added
-	return FilteredNodes.Num() - 1;
+	return Sequencer.GetFilterBar()->GetFilterData().GetDisplayNodeCount();
 }
 
-void FSequencerNodeTree::FilterNodes(const FString& InFilter)
+void FSequencerNodeTree::SetTextFilterString(const FString& InFilter)
 {
+	const TSharedRef<FSequencerFilterBar> FilterBar = Sequencer.GetFilterBar();
+	const FString FilterString = FilterBar->GetTextFilterString();
 	if (InFilter != FilterString)
 	{
-		FilterString = InFilter;
 		bFilterUpdateRequested = true;
+		FilterBar->SetTextFilterString(InFilter);
 	}
 }
 
@@ -882,4 +425,3 @@ void FSequencerNodeTree::GetAllNodes(TArray<TSharedRef<UE::Sequencer::FViewModel
 		OutNodes.Add(It.AsModel().ToSharedRef());
 	}
 }
-

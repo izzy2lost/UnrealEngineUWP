@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AssetToolsModule.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Modules/ModuleInterface.h"
 #include "Toolkits/AssetEditorToolkit.h"
@@ -15,10 +16,16 @@
 #include "Customizations/NiagaraDataInterfaceSimCacheVisualizer.h"
 #include "NiagaraEditorModule.generated.h"
 
+namespace UE::Niagara::Wizard
+{
+	class FModuleWizardGenerator;
+}
+
 class FNiagaraRecentAndFavoritesManager;
 class IAssetTools;
 class IAssetTypeActions;
 class INiagaraEditorTypeUtilities;
+class INiagaraEditorPropertyUtilities;
 class UNiagaraDataInterface;
 class UNiagaraSettings;
 class USequencerSettings;
@@ -117,22 +124,11 @@ struct FNiagaraRendererCreationInfo
 	FNiagaraRendererCreationInfo(FText InDisplayName, FText InDescription, const FTopLevelAssetPath& InRendererClassPath, FRendererFactory InFactory) : DisplayName(InDisplayName), Description(InDescription), RendererClassPath(InRendererClassPath), RendererFactory(InFactory)
 	{}
 
-	FNiagaraRendererCreationInfo(FText InDisplayName, bool bInIsSupportedByStateless, const FTopLevelAssetPath& InRendererClassPath, FRendererFactory InFactory) 
-		: DisplayName(InDisplayName), bIsSupportedByStateless(bInIsSupportedByStateless), RendererClassPath(InRendererClassPath), RendererFactory(InFactory)
-	{}
-
-	FNiagaraRendererCreationInfo(FText InDisplayName, FText InDescription, bool bInIsSupportedByStateless, const FTopLevelAssetPath& InRendererClassPath, FRendererFactory InFactory) 
-		: DisplayName(InDisplayName), Description(InDescription), bIsSupportedByStateless(bInIsSupportedByStateless), RendererClassPath(InRendererClassPath), RendererFactory(InFactory)
-	{}
-
 	UPROPERTY()
 	FText DisplayName;
 
 	UPROPERTY()
 	FText Description;
-
-	UPROPERTY()
-	bool bIsSupportedByStateless = false;
 
 	UPROPERTY()
 	FTopLevelAssetPath RendererClassPath;
@@ -187,12 +183,22 @@ public:
 	/** Registers niagara editor type utilities for a specific type. */
 	void RegisterTypeUtilities(FNiagaraTypeDefinition Type, TSharedRef<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe> EditorUtilities);
 
+	/** Registers niagara editor property utilities for a specific struct type. */
+	void RegisterPropertyUtilities(const UScriptStruct* InStruct, TSharedRef<INiagaraEditorPropertyUtilities, ESPMode::ThreadSafe> PropertyUtilities);
+
+	/** Registers niagara wizards that can be used to add generated modules to the stack. */
+	void RegisterModuleWizards(TSharedRef<UE::Niagara::Wizard::FModuleWizardGenerator> WizardGenerator);
+	TConstArrayView<TSharedRef<UE::Niagara::Wizard::FModuleWizardGenerator>> GetModuleWizards() const { return ModuleWizards; }
+
 	/** Register/unregister niagara editor settings. */
 	void RegisterSettings();
 	void UnregisterSettings();
 	
 	/** Gets Niagara editor type utilities for a specific type if there are any registered. */
 	TSharedPtr<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe> NIAGARAEDITOR_API GetTypeUtilities(const FNiagaraTypeDefinition& Type);
+
+	/** Gets Niagara editor property utilities for a specific struct if there are any registered. */
+	TSharedPtr<INiagaraEditorPropertyUtilities, ESPMode::ThreadSafe> NIAGARAEDITOR_API GetPropertyUtilities(const UScriptStruct& Struct);
 
 	NIAGARAEDITOR_API void RegisterWidgetProvider(TSharedRef<INiagaraEditorWidgetProvider> InWidgetProvider);
 	NIAGARAEDITOR_API void UnregisterWidgetProvider(TSharedRef<INiagaraEditorWidgetProvider> InWidgetProvider);
@@ -318,9 +324,15 @@ private:
 			TArray<FAssetData> AssetData;
 			AssetRegistryModule.GetRegistry().GetAssetsByClass(AssetType::StaticClass()->GetClassPathName(), AssetData);
 
+			FAssetToolsModule& AssetToolsModule = FModuleManager::Get().LoadModuleChecked<FAssetToolsModule>("AssetTools");
 			CachedAssets.Reset(AssetData.Num());
 			for (const FAssetData& AssetDatum : AssetData)
 			{
+				if(AssetToolsModule.Get().IsAssetVisible(AssetDatum, true) == false)
+				{
+					continue;
+				}
+				
 				if (AssetDatum.IsAssetLoaded() || (bAllowLoading && FPackageName::GetPackageMountPoint(AssetDatum.PackageName.ToString()) != NAME_None))
 				{
 					AssetType* Asset = nullptr;
@@ -400,10 +412,12 @@ private:
 
 	/** All created asset type actions.  Cached here so that we can unregister it during shutdown. */
 	TArray< TSharedPtr<IAssetTypeActions> > CreatedAssetTypeActions;
+	TArray<TSharedRef<UE::Niagara::Wizard::FModuleWizardGenerator>> ModuleWizards;
 
 	FCriticalSection TypeEditorsCS;
 	TMap<FNiagaraTypeDefinition, TSharedRef<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe>> TypeToEditorUtilitiesMap;
 	TSharedPtr<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe> EnumTypeUtilities;
+	TMap<const UScriptStruct*, TSharedRef<INiagaraEditorPropertyUtilities, ESPMode::ThreadSafe>> StructToPropertyUtilitiesMap;
 
 	FOnScriptApplied OnScriptAppliedDelegate;
 

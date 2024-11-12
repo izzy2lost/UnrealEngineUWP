@@ -1,41 +1,44 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "OSCMessagePacket.h"
 #include "OSCPacket.h"
 #include "OSCTypes.h"
 
 
-class OSC_API FOSCBundlePacket : public IOSCPacket
+namespace UE::OSC
 {
-public:
-	FOSCBundlePacket();
-	virtual ~FOSCBundlePacket();
+	class FBundlePacket : public FPacketBase
+	{
+	public:
+		FBundlePacket(FIPv4Endpoint InEndpoint = FIPv4Endpoint::Any);
 
-	using FPacketBundle = TArray<TSharedPtr<IOSCPacket>>;
+		virtual ~FBundlePacket() = default;
 
-	/** Set the bundle time tag. */
-	void SetTimeTag(uint64 NewTimeTag);
+		/** Set the bundle time tag. */
+		void SetTimeTag(uint64 NewTimeTag);
 
-	/** Get the bundle time tag. */
-	uint64 GetTimeTag() const;
+		/** Get the bundle time tag. */
+		uint64 GetTimeTag() const;
 
-	/** Get OSC packet by index. */
-	FPacketBundle& GetPackets();
+		/** Get OSC packet bundle. */
+		TArray<TSharedRef<UE::OSC::IPacket>>& GetPackets();
 
-	virtual bool IsBundle() override;
-	virtual bool IsMessage() override;
+		virtual bool IsBundle() override;
+		virtual bool IsMessage() override;
 
-	/** Writes bundle data into the OSC stream. */
-	virtual void WriteData(FOSCStream& Stream) override;
+		/** Writes bundle data into the OSC stream. */
+		virtual void WriteData(FStream& Stream) override;
 
-	/** Reads bundle data from provided OSC stream,
-	  * adding packet data to internal packet bundle. */
-	virtual void ReadData(FOSCStream& Stream) override;
+		/** Reads bundle data from provided OSC stream,
+		  * adding packet data to internal packet bundle. */
+		virtual void ReadData(FStream& Stream) override;
 
-private:
-	/** Bundle of OSC packets. */
-	FPacketBundle Packets;
+	private:
+		/** Array of OSC packets. */
+		TArray<TSharedRef<UE::OSC::IPacket>> Packets;
 
-	/** Bundle time tag. */
-	FOSCType TimeTag;
-};
+		/** Bundle time tag. */
+		FOSCData TimeTag;
+	};
+} // namespace UE::OSC

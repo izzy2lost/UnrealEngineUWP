@@ -4,6 +4,17 @@
 
 namespace UE::Sequencer
 {
+ECachedMuteState CombinePropagatedChildFlags(ECachedMuteState ParentFlags, ECachedMuteState CombinedChildFlags)
+{
+	// If this item is mutable, but not muted, do not inherit mute state
+	if ((ParentFlags & (ECachedMuteState::Mutable | ECachedMuteState::Muted)) == ECachedMuteState::Mutable && EnumHasAnyFlags(CombinedChildFlags, ECachedMuteState::Muted))
+	{
+		CombinedChildFlags &= ~ECachedMuteState::Muted;
+		CombinedChildFlags |= ECachedMuteState::PartiallyMutedChildren;
+	}
+
+	return ParentFlags | CombinedChildFlags;
+}
 
 ECachedMuteState FMuteStateCacheExtension::ComputeFlagsForModel(const FViewModelPtr& ViewModel)
 {
@@ -22,6 +33,10 @@ ECachedMuteState FMuteStateCacheExtension::ComputeFlagsForModel(const FViewModel
 		{
 			ThisModelFlags |= ECachedMuteState::Muted;
 		}
+		if (Mutable->IsInheritable())
+		{
+			ThisModelFlags |= ECachedMuteState::Inheritable;
+		}
 	}
 
 	return ThisModelFlags;
@@ -29,6 +44,12 @@ ECachedMuteState FMuteStateCacheExtension::ComputeFlagsForModel(const FViewModel
 
 void FMuteStateCacheExtension::PostComputeChildrenFlags(const FViewModelPtr& ViewModel, ECachedMuteState& OutThisModelFlags, ECachedMuteState& OutPropagateToParentFlags)
 {
+	const bool bIsInheritable          = EnumHasAnyFlags(OutThisModelFlags, ECachedMuteState::Inheritable);
+	if (!bIsInheritable)
+	{
+		return;
+	}
+
 	// --------------------------------------------------------------------
 	// Handle mute state propagation
 	const bool bIsMutable              = EnumHasAnyFlags(OutThisModelFlags, ECachedMuteState::Mutable);

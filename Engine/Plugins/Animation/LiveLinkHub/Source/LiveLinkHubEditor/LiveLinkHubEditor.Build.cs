@@ -16,12 +16,15 @@ namespace UnrealBuildTool.Rules
 			PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"Json",
 				"Engine",
+				"LauncherPlatform",
 				"LiveLink",
 				"LiveLinkEditor",
 				"LiveLinkHub",
 				"LiveLinkHubMessaging",
 				"LiveLinkInterface",
+				"Serialization",
 				"Slate",
 				"SlateCore",
 				"ToolMenus",

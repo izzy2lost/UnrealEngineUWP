@@ -56,6 +56,14 @@ public:
 
 	uint32 AudioBusId = INDEX_NONE;
 	int32 NumChannels = INDEX_NONE;
+
+	friend FORCEINLINE uint32 GetTypeHash(const FAudioBusProxy& InProxy)
+	{
+		return InProxy.TypeHash;
+	}
+
+private: 
+	uint32 TypeHash = INDEX_NONE;
 };
 
 // Function to retrieve an audio bus buffer given a handle

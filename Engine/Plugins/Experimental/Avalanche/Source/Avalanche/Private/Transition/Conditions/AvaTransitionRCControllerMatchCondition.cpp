@@ -3,26 +3,42 @@
 #include "Transition/Conditions/AvaTransitionRCControllerMatchCondition.h"
 #include "AvaSceneSubsystem.h"
 #include "AvaTransitionContext.h"
-#include "AvaTransitionLayer.h"
-#include "AvaTransitionLayerUtils.h"
 #include "AvaTransitionLog.h"
-#include "AvaTransitionScene.h"
-#include "AvaTransitionSubsystem.h"
-#include "Behavior/AvaTransitionBehaviorInstance.h"
-#include "IAvaSceneInterface.h"
-#include "RCVirtualProperty.h"
-#include "RemoteControlPreset.h"
+#include "AvaTransitionUtils.h"
 #include "StateTreeExecutionContext.h"
 #include "StateTreeLinker.h"
-#include "Transition/Extensions/IAvaTransitionRCExtension.h"
+#include "Transition/AvaTransitionRCLibrary.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionRCControllerMatchCondition"
 
-FText FAvaTransitionRCControllerMatchCondition::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
+#if WITH_EDITOR
+FText FAvaTransitionRCControllerMatchCondition::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
-	return FText::Format(LOCTEXT("ConditionDescription", "'{0}' is {1}")
-		, ControllerId.ToText()
-		, UEnum::GetDisplayValueAsText(ValueComparisonType).ToLower());
+	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
+
+	const FText ControllerIdText = InstanceData.ControllerId.ToText();
+	const FText ComparisonText = UEnum::GetDisplayValueAsText(InstanceData.ValueComparisonType).ToLower();
+
+	return InFormatting == EStateTreeNodeFormatting::RichText
+		? FText::Format(LOCTEXT("DescRich", "'<b>{0}</>' <s>is</> <b>{1}</>"), ControllerIdText, ComparisonText)
+		: FText::Format(LOCTEXT("Desc", "'{0}' is {1}"), ControllerIdText, ComparisonText);
+}
+#endif
+
+void FAvaTransitionRCControllerMatchCondition::PostLoad(FStateTreeDataView InInstanceDataView)
+{
+	Super::PostLoad(InInstanceDataView);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (ControllerId_DEPRECATED.Name != NAME_None)
+	{
+		if (FInstanceDataType* InstanceData = UE::AvaTransition::TryGetInstanceData(*this, InInstanceDataView))
+		{
+			InstanceData->ControllerId        = ControllerId_DEPRECATED;
+			InstanceData->ValueComparisonType = ValueComparisonType_DEPRECATED;
+		}
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 bool FAvaTransitionRCControllerMatchCondition::Link(FStateTreeLinker& InLinker)
@@ -34,88 +50,11 @@ bool FAvaTransitionRCControllerMatchCondition::Link(FStateTreeLinker& InLinker)
 
 bool FAvaTransitionRCControllerMatchCondition::TestCondition(FStateTreeExecutionContext& InContext) const
 {
-	const FAvaTransitionContext& TransitionContext = InContext.GetExternalData(TransitionContextHandle);
-	UAvaTransitionSubsystem& TransitionSubsystem   = InContext.GetExternalData(TransitionSubsystemHandle);
-	const UAvaSceneSubsystem& SceneSubsystem       = InContext.GetExternalData(SceneSubsystemHandle);
-	const FAvaTransitionScene* TransitionScene     = TransitionContext.GetTransitionScene();
+	const FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
 
-	URCVirtualPropertyBase* Controller = GetController(SceneSubsystem, TransitionScene);
-	if (!Controller)
-	{
-		return false;
-	}
-
-	// Get all the Behavior Instances in the same Layer
-	TArray<const FAvaTransitionBehaviorInstance*> BehaviorInstances;
-	{
-		FAvaTransitionLayerComparator Comparator = FAvaTransitionLayerUtils::BuildComparator(TransitionContext, EAvaTransitionLayerCompareType::Same, FAvaTagHandle());
-		BehaviorInstances = FAvaTransitionLayerUtils::QueryBehaviorInstances(TransitionSubsystem, Comparator);
-	}
-
-	if (BehaviorInstances.IsEmpty())
-	{
-		return false;
-	}
-
-	// Optional Extension to override Controller Comparison
-	IAvaRCTransitionExtension* const RCTransitionExtension = TransitionScene->FindExtension<IAvaRCTransitionExtension>();
-
-	for (const FAvaTransitionBehaviorInstance* BehaviorInstance : BehaviorInstances)
-	{
-		check(BehaviorInstance);
-
-		const FAvaTransitionScene* OtherTransitionScene = BehaviorInstance->GetTransitionContext().GetTransitionScene();
-		if (!OtherTransitionScene)
-		{
-			continue;
-		}
-
-		EAvaTransitionComparisonResult Result;
-		if (RCTransitionExtension)
-		{
-			Result = RCTransitionExtension->CompareControllers(Controller->Id
-				, *TransitionScene
-				, *OtherTransitionScene);
-		}
-		else if (URCVirtualPropertyBase* OtherController = GetController(SceneSubsystem, OtherTransitionScene))
-		{
-			Result = Controller->IsValueEqual(OtherController)
-				? EAvaTransitionComparisonResult::Same
-				: EAvaTransitionComparisonResult::Different;
-		}
-		else
-		{
-			Result = EAvaTransitionComparisonResult::None;
-		}
-
-		if (ValueComparisonType == Result)
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-URCVirtualPropertyBase* FAvaTransitionRCControllerMatchCondition::GetController(const UAvaSceneSubsystem& InSceneSubsystem, const FAvaTransitionScene* InTransitionScene) const
-{
-	if (!InTransitionScene)
-	{
-		return nullptr;
-	}
-
-	IAvaSceneInterface* SceneInterface = InSceneSubsystem.GetSceneInterface(InTransitionScene->GetLevel());
-	if (!SceneInterface)
-	{
-		return nullptr;
-	}
-
-	if (URemoteControlPreset* RemoteControlPreset = SceneInterface->GetRemoteControlPreset())
-	{
-		return ControllerId.FindController(RemoteControlPreset);
-	}
-
-	return nullptr;
+	return UAvaTransitionRCLibrary::CompareRCControllerValues(InContext.GetExternalData(TransitionContextHandle)
+		, InstanceData.ControllerId
+		, InstanceData.ValueComparisonType);
 }
 
 #undef LOCTEXT_NAMESPACE

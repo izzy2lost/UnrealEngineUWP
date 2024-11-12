@@ -74,19 +74,19 @@ struct ExpatUtils
 	static FString ToFStringL(const XML_LChar* In)
 	{
 		FUTF8ToTCHAR Converted((const ANSICHAR*)In);
-		return FString(Converted.Length(), (TCHAR*)Converted.Get());
+		return FString::ConstructFromPtrSize((TCHAR*)Converted.Get(), Converted.Length());
 	}
 
 	static FString ToFString(const XML_Char* In)
 	{
 		FUTF8ToTCHAR Converted((const ANSICHAR*)In);
-		return FString(Converted.Length(), (TCHAR*)Converted.Get());
+		return FString::ConstructFromPtrSize((TCHAR*)Converted.Get(), Converted.Length());
 	}
 
 	static FString ToFString(const XML_Char* In, int32 Len)
 	{
 		FUTF8ToTCHAR Converted((const ANSICHAR*)In, Len);
-		return FString(Converted.Length(), (TCHAR*)Converted.Get());
+		return FString::ConstructFromPtrSize((TCHAR*)Converted.Get(), Converted.Length());
 	}
 
 	static TArray<FXmlAttribute> ToAttributes(const XML_Char** InAtts)
@@ -884,7 +884,7 @@ bool FTTMLXML_TTElement::ProcessAttributes(FTTMLParser* Parser, const TArray<FXm
 	TArray<FXmlAttribute> Attributes;
 	for(int32 i=0; i<AllAttributes.Num(); ++i)
 	{
-		const FXmlAttribute& Attr = Attributes[i];
+		const FXmlAttribute& Attr = AllAttributes[i];
 
 		// See: https://www.w3.org/TR/ttml2/#parameter-attribute-timeBase
 		if (ElectraSubtitleUtils::StringEquals(*Attr.GetName(), TEXT("timeBase")))

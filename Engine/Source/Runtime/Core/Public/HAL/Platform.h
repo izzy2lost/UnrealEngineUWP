@@ -20,6 +20,9 @@
 #if !defined(PLATFORM_IOS)
 	#define PLATFORM_IOS 0
 #endif
+#if !defined(UE_PLATFORM_IOS_ONLY)
+	#define UE_PLATFORM_IOS_ONLY 0
+#endif
 #if !defined(PLATFORM_TVOS)
 	#define PLATFORM_TVOS 0
 #endif
@@ -110,8 +113,8 @@
 
 #if PLATFORM_COMPILER_CLANG
 	#include "Clang/ClangPlatformCodeAnalysis.h"
-#elif PLATFORM_WINDOWS
-	#include "Windows/WindowsPlatformCodeAnalysis.h"
+#elif PLATFORM_MICROSOFT
+	#include "Microsoft/MicrosoftPlatformCodeAnalysis.h"
 #endif
 
 #ifndef USING_ADDRESS_SANITISER
@@ -166,6 +169,17 @@
 #ifndef PLATFORM_ENABLE_VECTORINTRINSICS
 	#define PLATFORM_ENABLE_VECTORINTRINSICS	0
 #endif
+
+// Defines if the platform can handle setting vectorized exception
+// and rounding modes
+#ifndef PLATFORM_SUPPORTS_VECTOR_CONTROL_REGISTERS
+	#define PLATFORM_SUPPORTS_VECTOR_CONTROL_REGISTERS 1
+#endif
+
+#ifndef PLATFORM_USE_SSE2_FOR_THREAD_YIELD
+	#define PLATFORM_USE_SSE2_FOR_THREAD_YIELD	PLATFORM_CPU_X86_FAMILY
+#endif
+
 // If PLATFORM_MAYBE_HAS_### is 1, then ### intrinsics are compilable.
 // This does not guarantee that the intrinsics are runnable on all instances of the platform however; a runtime check such as cpuid may be required to confirm availability.
 // If PLATFORM_ALWAYS_HAS_### is 1, then ## intrinsics will compile and run on all instances of the platform.  PLATFORM_ALWAYS_HAS_### == 1 implies PLATFORM_MAYBE_HAS_### == 1.
@@ -245,6 +259,9 @@
 // Feature test macro for constexpr __builtin_FILE() and __builtin_LINE()
 #ifndef PLATFORM_COMPILER_SUPPORTS_CONSTEXPR_BUILTIN_FILE_AND_LINE
 	#define PLATFORM_COMPILER_SUPPORTS_CONSTEXPR_BUILTIN_FILE_AND_LINE 1
+#endif
+#ifndef PLATFORM_COMPILER_SUPPORTS_BUILTIN_BITCAST
+	#error PLATFORM_COMPILER_SUPPORTS_BUILTIN_BITCAST should have been defined by now
 #endif
 #ifndef PLATFORM_TCHAR_IS_4_BYTES
 	#define PLATFORM_TCHAR_IS_4_BYTES			0
@@ -351,10 +368,6 @@
 #endif
 #ifndef PLATFORM_USES_MICROSOFT_LIBC_FUNCTIONS
 	#define PLATFORM_USES_MICROSOFT_LIBC_FUNCTIONS 0
-#endif
-
-#ifndef PLATFORM_SUPPORTS_DRAW_MESH_EVENTS
-	#define PLATFORM_SUPPORTS_DRAW_MESH_EVENTS	1
 #endif
 
 #ifndef PLATFORM_USES_GLES
@@ -585,6 +598,10 @@
 	#define PLATFORM_SUPPORTS_PSO_PRECACHING (!UE_SERVER)
 #endif
 
+#ifndef PLATFORM_SUPPORTS_DYNAMIC_SHADER_PRELOADING
+#define PLATFORM_SUPPORTS_DYNAMIC_SHADER_PRELOADING (!UE_SERVER)
+#endif
+
 #ifndef PLATFORM_USES_UNFAIR_LOCKS
 	#define PLATFORM_USES_UNFAIR_LOCKS 0
 #endif
@@ -627,6 +644,9 @@
 
 // These is computed, not predefined
 #define PLATFORM_32BITS					(!PLATFORM_64BITS)
+#if !PLATFORM_64BITS
+	#error "UE only supports 64-bit platforms"
+#endif
 
 // not supported by the platform system yet or maybe ever
 #define PLATFORM_VTABLE_AT_END_OF_CLASS 0
@@ -699,6 +719,14 @@
 	#endif
 #else
 	#error "Compiler is expected to support [[noreturn]]"
+#endif
+
+/* Use in front of initialized global variable to have link once-semantics
+   When multiple definitions of the variable are encountered by the linker, the first is selected and the remainder are discarded */
+#ifdef _MSC_VER
+    #define UE_SELECT_ANY __declspec(selectany)
+#else
+    #define UE_SELECT_ANY __attribute__((selectany))
 #endif
 
 /* Macro wrapper for the consteval keyword which isn't yet present on all compilers - constexpr
@@ -871,6 +899,20 @@
 	#define PLATFORM_CODE_SECTION(Name)
 #endif
 
+// Mark a function or type as unlikely to be used so the compiler can store it away from the warm code paths & optimize it for size rather than speed.
+// Examples:
+//	void UE_COLD HandleError();
+//	auto ErrorHandler = []() UE_COLD { abort(); };
+#if !defined(UE_COLD)
+	#if defined(_MSC_VER)
+		#define UE_COLD __declspec(noinline)
+	#elif defined(__GNUC__) || defined(__clang__) || defined(__llvm__)
+		#define UE_COLD __attribute__((cold))
+	#else
+		#define UE_COLD
+	#endif
+#endif
+
 // These have to be forced inline on some OSes so the dynamic loader will not
 // resolve to our allocators for the system libraries.
 #ifndef OPERATOR_NEW_INLINE
@@ -934,6 +976,17 @@ int32 main(int32 ArgC, ANSICHAR* Utf8ArgV[]) \
 	return Result; \
 } \
 int32 tchar_main(int32 ArgC, TCHAR* ArgV[])
+#endif
+
+// perform an unaligned write to almost-zero (writing to 0 will throw warnings in some compilers, plus it might actually not crash)
+// this allow some platforms to change how they force a crash, in case this isn't enough
+// a platform can likely just #define UE_FORCE_CRASH_AT_OFFSET to override the crash behavior
+#ifndef UE_FORCE_CRASH_AT_OFFSET
+	#define UE_FORCE_CRASH_AT_OFFSET(x) *(int32 *)x = 123
+#endif
+
+#ifndef UE_FORCE_CRASH
+	#define UE_FORCE_CRASH() UE_FORCE_CRASH_AT_OFFSET(3)
 #endif
 
 //--------------------------------------------------------------------------------------------

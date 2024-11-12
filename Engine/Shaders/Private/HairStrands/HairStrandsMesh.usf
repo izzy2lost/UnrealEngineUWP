@@ -142,11 +142,12 @@ struct FMeshSectionData
 	uint UVsChannelOffset;
 	uint UVsChannelCount;
 	uint bIsSwapped;
+	uint bUseFaceNormal;
 };
 
+uint TangentFormat;
 uint MaxSectionCount;
 uint MaxUniqueTriangleCount;
-Buffer<float2> MeshUVsBuffer;
 Buffer<uint> MeshIndexBuffer;
 Buffer<uint> UniqueTriangleIndices;
 StructuredBuffer<uint4> MeshSectionBuffer;
@@ -156,11 +157,14 @@ StructuredBuffer<uint4> MeshSectionBuffer;
 // (while the skin cache system is not converted to RDG). If skin cache is disable, a manual skin compute 
 // update happens in the hair system, and its output are RDG buffers.
 #if PERMUTATION_POSITION_TYPE == 0
+Buffer<float4> MeshTangentBuffer;
 Buffer<float> MeshPositionBuffer;
 Buffer<float> MeshPreviousPositionBuffer;
 #else
+Buffer<float4> RDGMeshTangentBuffer;
 Buffer<float> RDGMeshPositionBuffer;
 Buffer<float> RDGMeshPreviousPositionBuffer;
+#define MeshTangentBuffer RDGMeshTangentBuffer
 #define MeshPositionBuffer RDGMeshPositionBuffer
 #define MeshPreviousPositionBuffer RDGMeshPreviousPositionBuffer
 #endif 
@@ -181,38 +185,46 @@ FMeshSectionData ReadMeshSectionData(uint InSectionIndex)
 	Out.UVsChannelOffset = BitFieldExtractU32(Packed.w, 8, 0);
 	Out.UVsChannelCount = BitFieldExtractU32(Packed.w, 8, 8);
 	Out.bIsSwapped = BitFieldExtractU32(Packed.w, 1, 16);
+	Out.bUseFaceNormal = BitFieldExtractU32(Packed.w, 1, 17);
 	return Out;
 }
 
-FHairMeshTriangleWithUVs GetTriangleData(FHairTriangleIndex TriangleIndex, FMeshSectionData MeshSectionData, bool bPrevious)
+FHairMeshTriangle GetHairMeshTriangle(uint InTriangleIndex, FMeshSectionData MeshSectionData, bool bPrevious, bool bUseVertexTangent)
 {
 	const bool bSamplePrev = (MeshSectionData.bIsSwapped > 0 && !bPrevious) || (MeshSectionData.bIsSwapped == 0 && bPrevious);
 	if (bSamplePrev)
 	{
-		return GetTriangleData(
-			TriangleIndex.TriangleIndex, 
+		return GetHairMeshTriangle(
+			InTriangleIndex, 
 			MeshPreviousPositionBuffer, 
-			MeshUVsBuffer, 
+			MeshTangentBuffer,
 			MeshIndexBuffer, 
 			MeshSectionData.IndexOffset,
 			MeshSectionData.MaxIndexCount,
 			MeshSectionData.MaxVertexCount,
-			MeshSectionData.UVsChannelOffset, 
-			MeshSectionData.UVsChannelCount);
+			TangentFormat,
+			bUseVertexTangent);
 	}
 	else
 	{
-		return GetTriangleData(
-			TriangleIndex.TriangleIndex, 
+		return GetHairMeshTriangle(
+			InTriangleIndex, 
 			MeshPositionBuffer, 
-			MeshUVsBuffer, 
+			MeshTangentBuffer,
 			MeshIndexBuffer, 
 			MeshSectionData.IndexOffset,
 			MeshSectionData.MaxIndexCount,
 			MeshSectionData.MaxVertexCount,
-			MeshSectionData.UVsChannelOffset, 
-			MeshSectionData.UVsChannelCount);
+			TangentFormat,
+			bUseVertexTangent);
 	}
+}
+
+float3 GetTriangleFaceNormal(FHairMeshTriangle Tri)
+{
+	const float3 E0 = Tri.P1 - Tri.P0;
+	const float3 E1 = Tri.P2 - Tri.P0;
+	return normalize(cross(E1, E0));
 }
 
 [numthreads(GROUP_SIZE, 1, 1)]
@@ -231,17 +243,29 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	
 		// Compute the slot index of the resources for the section index (this is done in multiple pass
 		{
-			const FHairMeshTriangleWithUVs Tri = GetTriangleData(TriangleIndex, MeshSectionData, false);
-			OutUniqueTriangleCurrPosition[UniqueTriangleIndex * 3 + 0] = float4(Tri.P0, PackUVsToFloat(Tri.UV0));
-			OutUniqueTriangleCurrPosition[UniqueTriangleIndex * 3 + 1] = float4(Tri.P1, PackUVsToFloat(Tri.UV1));
-			OutUniqueTriangleCurrPosition[UniqueTriangleIndex * 3 + 2] = float4(Tri.P2, PackUVsToFloat(Tri.UV2));
+			FHairMeshTriangle Tri = GetHairMeshTriangle(TriangleIndex.TriangleIndex, MeshSectionData, false, !MeshSectionData.bUseFaceNormal);
+			if (MeshSectionData.bUseFaceNormal)
+			{
+				Tri.N0 = GetTriangleFaceNormal(Tri);
+				Tri.N1 = Tri.N0;
+				Tri.N2 = Tri.N0;
+			}
+			OutUniqueTriangleCurrPosition[UniqueTriangleIndex * 3 + 0] = float4(Tri.P0, PackVertexNormalToFloat(Tri.N0));
+			OutUniqueTriangleCurrPosition[UniqueTriangleIndex * 3 + 1] = float4(Tri.P1, PackVertexNormalToFloat(Tri.N1));
+			OutUniqueTriangleCurrPosition[UniqueTriangleIndex * 3 + 2] = float4(Tri.P2, PackVertexNormalToFloat(Tri.N2));
 		}
 		#if PERMUTATION_PREVIOUS
 		{
-			const FHairMeshTriangleWithUVs Tri = GetTriangleData(TriangleIndex, MeshSectionData, true);
-			OutUniqueTrianglePrevPosition[UniqueTriangleIndex * 3 + 0] = float4(Tri.P0, PackUVsToFloat(Tri.UV0));
-			OutUniqueTrianglePrevPosition[UniqueTriangleIndex * 3 + 1] = float4(Tri.P1, PackUVsToFloat(Tri.UV1));
-			OutUniqueTrianglePrevPosition[UniqueTriangleIndex * 3 + 2] = float4(Tri.P2, PackUVsToFloat(Tri.UV2));
+			FHairMeshTriangle Tri = GetHairMeshTriangle(TriangleIndex.TriangleIndex, MeshSectionData, true, !MeshSectionData.bUseFaceNormal);
+			if (MeshSectionData.bUseFaceNormal)
+			{
+				Tri.N0 = GetTriangleFaceNormal(Tri);
+				Tri.N1 = Tri.N0;
+				Tri.N2 = Tri.N0;
+			}
+			OutUniqueTrianglePrevPosition[UniqueTriangleIndex * 3 + 0] = float4(Tri.P0, PackVertexNormalToFloat(Tri.N0));
+			OutUniqueTrianglePrevPosition[UniqueTriangleIndex * 3 + 1] = float4(Tri.P1, PackVertexNormalToFloat(Tri.N1));
+			OutUniqueTrianglePrevPosition[UniqueTriangleIndex * 3 + 2] = float4(Tri.P2, PackVertexNormalToFloat(Tri.N2));
 		}
 		#endif
 	}

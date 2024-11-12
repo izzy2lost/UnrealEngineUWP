@@ -39,8 +39,14 @@ static TAutoConsoleVariable<int32> CVarMobileEnableMovableSpotLightShadows(
 static TAutoConsoleVariable<int32> CVarMobileMaxVisibleMovableSpotLightShadows(
 	TEXT("r.Mobile.MaxVisibleMovableSpotLightShadows"),
 	8,
-	TEXT("The max number of visible spotlighs can cast shadow sorted by screen size, should be as less as possible for performance reason"),
+	TEXT("The max number of visible spotlights can cast shadow sorted by screen size, should be as less as possible for performance reason"),
 	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarMobileEnableMovablePointLightShadows(
+	TEXT("r.Mobile.EnableMovablePointLightsShadows"),
+	0,
+	TEXT("If 1 then enable movable point light shadow support"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarMobileSceneDepthAux(
 	TEXT("r.Mobile.SceneDepthAux"),
@@ -54,6 +60,28 @@ static TAutoConsoleVariable<int32> CVarMobilePropagateAlpha(
 	0,
 	TEXT("0: Disabled")
 	TEXT("1: Propagate Full Alpha Propagate"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarMobileTonemapSubpass(
+	TEXT("r.Mobile.TonemapSubpass"),
+	0,
+	TEXT(" Whether to enable mobile tonemap subpass \n")
+	TEXT(" 0 = Off [default]\n")
+	TEXT(" 1 = On"),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarMobileEnableCapsuleShadows(
+	TEXT("r.Mobile.EnableCapsuleShadows"),
+	0,
+	TEXT("0: Capsule shadows are disabled in the mobile renderer")
+	TEXT("1: Enables capsule shadowing on skinned components with bCastCapsuleDirectShadow or bCastCapsuleIndirectShadow enabled with the mobile renderer"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarMobileEnableCapsuleDirectShadows(
+	TEXT("r.Mobile.EnableCapsuleDirectShadows"),
+	0,
+	TEXT("0: Capsule direct shadows are disabled in the mobile renderer")
+	TEXT("1: Enables capsule direct shadowing on skinned components with bCastCapsuleDirectShadow enabled with the mobile renderer"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
 
@@ -121,35 +149,15 @@ EMobileTranslucentColorTransmittanceMode MobileActiveTranslucentColorTransmittan
 	return bExplicitDefaultMode ? DefaultMode : EMobileTranslucentColorTransmittanceMode::DEFAULT;
 }
 
-bool ShouldCacheShaderByPlatformAndOutputFormat(EShaderPlatform Platform, EOutputFormat OutputFormat)
-{
-	bool bSupportsMobileHDR = IsMobileHDR();
-	bool bShaderUsesLDR = (OutputFormat == LDR_GAMMA_32);
-
-	// only cache this shader if the LDR/HDR output matches what we currently support.  IsMobileHDR can't change, so we don't need
-	// the LDR shaders if we are doing HDR, and vice-versa.
-	return (bShaderUsesLDR && !bSupportsMobileHDR) || (!bShaderUsesLDR && bSupportsMobileHDR);
-}
-
 #define IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_VERTEX_SHADER_TYPE(LightMapPolicyType,LightMapPolicyName) \
-	typedef TMobileBasePassVS< LightMapPolicyType, LDR_GAMMA_32 > TMobileBasePassVS##LightMapPolicyName##LDRGamma32; \
-	typedef TMobileBasePassVS< LightMapPolicyType, HDR_LINEAR_64 > TMobileBasePassVS##LightMapPolicyName##HDRLinear64; \
-	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, TMobileBasePassVS##LightMapPolicyName##LDRGamma32, TEXT("/Engine/Private/MobileBasePassVertexShader.usf"), TEXT("Main"), SF_Vertex); \
-	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, TMobileBasePassVS##LightMapPolicyName##HDRLinear64, TEXT("/Engine/Private/MobileBasePassVertexShader.usf"), TEXT("Main"), SF_Vertex);
-
-#define IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_PIXEL_SHADER_TYPE2(LightMapPolicyType, LightMapPolicyName, LocalLightSetting, ThinTranslucencyEnum, ThinTranslucencyName) \
-	typedef TMobileBasePassPS< LightMapPolicyType, LDR_GAMMA_32, false, LocalLightSetting, EMobileTranslucentColorTransmittanceMode::ThinTranslucencyEnum > TMobileBasePassPS##LightMapPolicyName##LDRGamma32##LocalLightSetting##ThinTranslucencyName; \
-	typedef TMobileBasePassPS< LightMapPolicyType, HDR_LINEAR_64, false, LocalLightSetting, EMobileTranslucentColorTransmittanceMode::ThinTranslucencyEnum > TMobileBasePassPS##LightMapPolicyName##HDRLinear64##LocalLightSetting##ThinTranslucencyName; \
-	typedef TMobileBasePassPS< LightMapPolicyType, LDR_GAMMA_32, true, LocalLightSetting, EMobileTranslucentColorTransmittanceMode::ThinTranslucencyEnum > TMobileBasePassPS##LightMapPolicyName##LDRGamma32##Skylight##LocalLightSetting##ThinTranslucencyName; \
-	typedef TMobileBasePassPS< LightMapPolicyType, HDR_LINEAR_64, true, LocalLightSetting, EMobileTranslucentColorTransmittanceMode::ThinTranslucencyEnum > TMobileBasePassPS##LightMapPolicyName##HDRLinear64##Skylight##LocalLightSetting##ThinTranslucencyName; \
-	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, TMobileBasePassPS##LightMapPolicyName##LDRGamma32##LocalLightSetting##ThinTranslucencyName, TEXT("/Engine/Private/MobileBasePassPixelShader.usf"), TEXT("Main"), SF_Pixel); \
-	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, TMobileBasePassPS##LightMapPolicyName##HDRLinear64##LocalLightSetting##ThinTranslucencyName, TEXT("/Engine/Private/MobileBasePassPixelShader.usf"), TEXT("Main"), SF_Pixel); \
-	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, TMobileBasePassPS##LightMapPolicyName##LDRGamma32##Skylight##LocalLightSetting##ThinTranslucencyName, TEXT("/Engine/Private/MobileBasePassPixelShader.usf"), TEXT("Main"), SF_Pixel); \
-	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, TMobileBasePassPS##LightMapPolicyName##HDRLinear64##Skylight##LocalLightSetting##ThinTranslucencyName, TEXT("/Engine/Private/MobileBasePassPixelShader.usf"), TEXT("Main"), SF_Pixel);
+	typedef TMobileBasePassVS< LightMapPolicyType > TMobileBasePassVS##LightMapPolicyName; \
+	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, TMobileBasePassVS##LightMapPolicyName, TEXT("/Engine/Private/MobileBasePassVertexShader.usf"), TEXT("Main"), SF_Vertex); \
 
 #define IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_PIXEL_SHADER_TYPE(LightMapPolicyType, LightMapPolicyName, LocalLightSetting) \
-	IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_PIXEL_SHADER_TYPE2(LightMapPolicyType, LightMapPolicyName, LocalLightSetting, DEFAULT,) \
-	IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_PIXEL_SHADER_TYPE2(LightMapPolicyType, LightMapPolicyName, LocalLightSetting, SINGLE_SRC_BLENDING, ThinTranslGrey)
+	typedef TMobileBasePassPS< LightMapPolicyType, LocalLightSetting, EMobileTranslucentColorTransmittanceMode::DEFAULT > TMobileBasePassPS##LightMapPolicyName##LocalLightSetting; \
+	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, TMobileBasePassPS##LightMapPolicyName##LocalLightSetting, TEXT("/Engine/Private/MobileBasePassPixelShader.usf"), TEXT("Main"), SF_Pixel); \
+	typedef TMobileBasePassPS< LightMapPolicyType, LocalLightSetting, EMobileTranslucentColorTransmittanceMode::SINGLE_SRC_BLENDING > TMobileBasePassPS##LightMapPolicyName##LocalLightSetting##ThinTranslGrey; \
+	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, TMobileBasePassPS##LightMapPolicyName##LocalLightSetting##ThinTranslGrey, TEXT("/Engine/Private/MobileBasePassPixelShader.usf"), TEXT("Main"), SF_Pixel); \
 
 #define IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_SHADER_TYPE(LightMapPolicyType, LightMapPolicyName) \
 	IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_VERTEX_SHADER_TYPE(LightMapPolicyType, LightMapPolicyName) \
@@ -165,9 +173,12 @@ IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_SHADER_TYPE(TUniformLightMapPolicy
 IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_SHADER_TYPE(TUniformLightMapPolicy<LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_LIGHTMAP>, FMobileDirectionalLightCSMAndLightMapPolicy);
 IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_SHADER_TYPE(TUniformLightMapPolicy<LMP_MOBILE_DIRECTIONAL_LIGHT_AND_SH_INDIRECT>, FMobileDirectionalLightAndSHIndirectPolicy);
 IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_SHADER_TYPE(TUniformLightMapPolicy<LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_SH_INDIRECT>, FMobileDirectionalLightCSMAndSHIndirectPolicy);
-IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_SHADER_TYPE(TUniformLightMapPolicy<LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_WITH_LIGHTMAP>, FMobileMovableDirectionalLightWithLightmapPolicy);
-IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_SHADER_TYPE(TUniformLightMapPolicy<LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_CSM_WITH_LIGHTMAP>, FMobileMovableDirectionalLightCSMWithLightmapPolicy);
 IMPLEMENT_MOBILE_SHADING_BASEPASS_LIGHTMAPPED_SHADER_TYPE(TUniformLightMapPolicy<LMP_MOBILE_DIRECTIONAL_LIGHT_CSM>, FMobileDirectionalLightAndCSMPolicy);
+
+bool MaterialRequiresColorTransmittanceBlending(const FMaterial& MaterialResource)
+{
+	return MaterialResource.GetShadingModels().HasShadingModel(MSM_ThinTranslucent) || MaterialResource.GetBlendMode() == BLEND_TranslucentColoredTransmittance;
+}
 
 bool MaterialRequiresColorTransmittanceBlending(const FMaterialShaderParameters& MaterialParameters)
 {
@@ -190,12 +201,13 @@ bool ShouldCacheShaderForColorTransmittanceFallback(const FMaterialShaderPermuta
 }
 
 // shared defines for mobile base pass VS and PS
-void MobileBasePassModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment, EOutputFormat OutputFormat)
+void MobileBasePassModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 {
 	static auto* MobileUseHWsRGBEncodingCVAR = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.UseHWsRGBEncoding"));
 	const bool bMobileUseHWsRGBEncoding = (MobileUseHWsRGBEncodingCVAR && MobileUseHWsRGBEncodingCVAR->GetValueOnAnyThread() == 1);
-	OutEnvironment.SetDefine( TEXT("OUTPUT_GAMMA_SPACE"), OutputFormat == LDR_GAMMA_32 && !bMobileUseHWsRGBEncoding);
-	OutEnvironment.SetDefine( TEXT("OUTPUT_MOBILE_HDR"), OutputFormat == HDR_LINEAR_64 ? 1u : 0u);
+	const bool bMobileHDR = IsMobileHDR();
+	OutEnvironment.SetDefine( TEXT("OUTPUT_GAMMA_SPACE"), !bMobileHDR && !bMobileUseHWsRGBEncoding);
+	OutEnvironment.SetDefine( TEXT("OUTPUT_MOBILE_HDR"), bMobileHDR ? 1u : 0u);
 	
 	const bool bTranslucentMaterial = 
 		IsTranslucentBlendMode(Parameters.MaterialParameters) ||
@@ -253,7 +265,17 @@ void SetupMobileBasePassUniformParameters(
 	const FMobileBasePassTextures& MobileBasePassTextures,
 	FMobileBasePassUniformParameters& BasePassParameters)
 {
+	const FViewInfo* InstancedView = View.GetInstancedView();
+
 	SetupFogUniformParameters(GraphBuilder, View, BasePassParameters.Fog);
+	if (InstancedView && (View.bIsMobileMultiViewEnabled || View.Aspects.IsMobileMultiViewEnabled()))
+	{
+		SetupFogUniformParameters(GraphBuilder, *InstancedView, BasePassParameters.FogMMV);
+	}
+	else
+	{
+		BasePassParameters.FogMMV = BasePassParameters.Fog;
+	}
 
 	if (View.ForwardLightingResources.ForwardLightData)
 	{
@@ -265,7 +287,6 @@ void SetupMobileBasePassUniformParameters(
 	}
 
 	// Setup forward light data for mobile multi-view secondary view if enabled and available
-	const FViewInfo* InstancedView = View.GetInstancedView();
 	const FForwardLightData* InstancedForwardLightData = InstancedView ? InstancedView->ForwardLightingResources.ForwardLightData : nullptr;
 	if (View.bIsMobileMultiViewEnabled && InstancedForwardLightData)
 	{
@@ -291,24 +312,27 @@ void SetupMobileBasePassUniformParameters(
 	}
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
+	const FSceneTextures* SceneTextures = View.GetSceneTexturesChecked();
 
-	SetupMobileSceneTextureUniformParameters(GraphBuilder, View.GetSceneTexturesChecked(), SetupMode, BasePassParameters.SceneTextures);
+	SetupMobileSceneTextureUniformParameters(GraphBuilder, SceneTextures, SetupMode, BasePassParameters.SceneTextures);
 
 	BasePassParameters.PreIntegratedGFTexture = GSystemTextures.PreintegratedGF->GetRHI();
 	BasePassParameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	BasePassParameters.EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
 
-	FRDGTextureRef AmbientOcclusionTexture = SystemTextures.White;
-	if (BasePass == EMobileBasePass::Opaque && MobileBasePassTextures.ScreenSpaceAO != nullptr)
+	if (SceneTextures && HasBeenProduced(SceneTextures->ScreenSpaceAO))
 	{
-		AmbientOcclusionTexture = MobileBasePassTextures.ScreenSpaceAO;
+		BasePassParameters.AmbientOcclusionTexture = SceneTextures->ScreenSpaceAO;
 	}
-	
-	BasePassParameters.DBuffer = GetDBufferParameters(GraphBuilder, MobileBasePassTextures.DBufferTextures, View.GetShaderPlatform());
-
-	BasePassParameters.AmbientOcclusionTexture = AmbientOcclusionTexture;
+	else
+	{
+		BasePassParameters.AmbientOcclusionTexture = SystemTextures.White;
+	}
 	BasePassParameters.AmbientOcclusionSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	BasePassParameters.AmbientOcclusionStaticFraction = FMath::Clamp(View.FinalPostProcessSettings.AmbientOcclusionStaticFraction, 0.0f, 1.0f);
+	
+	const bool bIsMobileMultiViewEnabled = View.bIsMobileMultiViewEnabled || View.Aspects.IsMobileMultiViewEnabled();
+	BasePassParameters.DBuffer = GetDBufferParameters(GraphBuilder, MobileBasePassTextures.DBufferTextures, View.GetShaderPlatform(), bIsMobileMultiViewEnabled);
 
 	const bool bMobileUsesShadowMaskTexture = MobileUsesShadowMaskTexture(View.GetShaderPlatform());
 	
@@ -316,11 +340,13 @@ void SetupMobileBasePassUniformParameters(
 	{
 		FRDGTextureRef ScreenShadowMaskTexture = GraphBuilder.RegisterExternalTexture(GScreenSpaceShadowMaskTextureMobileOutputs.ScreenSpaceShadowMaskTextureMobile, TEXT("ScreenSpaceShadowMaskTextureMobile"));
 		BasePassParameters.ScreenSpaceShadowMaskTexture = ScreenShadowMaskTexture;
+		BasePassParameters.ScreenSpaceShadowMaskTextureArray = ScreenShadowMaskTexture;
 		BasePassParameters.ScreenSpaceShadowMaskSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	}
 	else
 	{
 		BasePassParameters.ScreenSpaceShadowMaskTexture = GSystemTextures.GetWhiteDummy(GraphBuilder);
+		BasePassParameters.ScreenSpaceShadowMaskTextureArray = GSystemTextures.GetDefaultTexture(GraphBuilder, ETextureDimension::Texture2DArray, PF_DepthStencil, FClearValueBinding::White);
 		BasePassParameters.ScreenSpaceShadowMaskSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	}
 
@@ -337,7 +363,23 @@ void SetupMobileBasePassUniformParameters(
 
 	BasePassParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
 
+	// We need to compose the half resolution LFV texture when rendering mesh with Sky materials. So that the Fog passes remains cheap and we can keep the stencil test on the fog pass.
+	if (BasePass > EMobileBasePass::DepthPrePass)
+	{
+		// HalfResLocalFogVolumeView is rendered after the depth pre pass so we only bind it after the depth pre pass
+		BasePassParameters.bApplyHalfResLocalFogToSkyMeshes = View.LocalFogVolumeViewData.bUseHalfResLocalFogVolume ? 1 : 0;
+		BasePassParameters.HalfResLocalFogVolumeViewTexture = View.LocalFogVolumeViewData.HalfResLocalFogVolumeView;
+	}
+	else
+	{
+		BasePassParameters.bApplyHalfResLocalFogToSkyMeshes = 0;
+		BasePassParameters.HalfResLocalFogVolumeViewTexture = SystemTextures.BlackAlphaOne;
+	}
+	BasePassParameters.HalfResLocalFogVolumeViewSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+
 	SetupReflectionUniformParameters(GraphBuilder, View, BasePassParameters.ReflectionsParameters);
+
+	SetupMobileSSRParameters(GraphBuilder, View, BasePassParameters.SSRParams);
 }
 
 TRDGUniformBufferRef<FMobileBasePassUniformParameters> CreateMobileBasePassUniformBuffer(
@@ -386,7 +428,8 @@ void SetupMobileDirectionalLightUniformParameters(
 		const FVector2D FadeParams = Light->Proxy->GetDirectionalLightDistanceFadeParameters(FeatureLevel, Light->IsPrecomputedLightingValid(), SceneView.MaxShadowCascades);
 		Params.DirectionalLightDistanceFadeMADAndSpecularScale.X = FadeParams.Y;
 		Params.DirectionalLightDistanceFadeMADAndSpecularScale.Y = -FadeParams.X * FadeParams.Y;
-		Params.DirectionalLightDistanceFadeMADAndSpecularScale.Z = Light->Proxy->GetSpecularScale();
+		Params.DirectionalLightDistanceFadeMADAndSpecularScale.Z = FMath::Clamp(Light->Proxy->GetSpecularScale(), 0.f, 1.f);
+		Params.DirectionalLightDistanceFadeMADAndSpecularScale.W = FMath::Clamp(Light->Proxy->GetDiffuseScale(), 0.f, 1.f);
 
 		const int32 ShadowMapChannel = IsStaticLightingAllowed() ? Light->Proxy->GetShadowMapChannel() : INDEX_NONE;
 		int32 DynamicShadowMapChannel = Light->GetDynamicShadowMapChannel();
@@ -423,7 +466,6 @@ void SetupMobileDirectionalLightUniformParameters(
 						Params.DirectionalLightShadowTexture = ShadowInfo->RenderTargets.DepthTarget->GetRHI();
 						Params.DirectionalLightDirectionAndShadowTransition.W = 1.0f / ShadowInfo->ComputeTransitionSize();
 						Params.DirectionalLightShadowSize = ShadowBufferSizeValue;
-						Params.DirectionalLightDistanceFadeMADAndSpecularScale.W = ShadowInfo->GetShaderReceiverDepthBias();
 					}
 					Params.DirectionalLightScreenToShadow[OutShadowIndex] = FMatrix44f(ShadowInfo->GetScreenToShadowMatrix(SceneView));		// LWC_TODO: Precision loss?
 					Params.DirectionalLightShadowDistances[OutShadowIndex] = ShadowInfo->CascadeSettings.SplitFar;
@@ -470,16 +512,17 @@ void SetupMobileSkyReflectionUniformParameters(FSkyLightSceneProxy* SkyLight, FM
 void FMobileSceneRenderer::RenderMobileBasePass(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams)
 {
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(RenderBasePass);
-	SCOPED_DRAW_EVENT(RHICmdList, MobileBasePass);
 	SCOPE_CYCLE_COUNTER(STAT_BasePassDrawTime);
+
+	RHI_BREADCRUMB_EVENT_STAT(RHICmdList, Basepass, "MobileBasePass");
 	SCOPED_GPU_STAT(RHICmdList, Basepass);
 
 	RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
-	View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass].DispatchDraw(nullptr, RHICmdList, InstanceCullingDrawParams);
+	View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass].Draw(RHICmdList, InstanceCullingDrawParams);
 		
 	if (View.Family->EngineShowFlags.Atmosphere)
 	{
-		View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].DispatchDraw(nullptr, RHICmdList, &SkyPassInstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].Draw(RHICmdList, &SkyPassInstanceCullingDrawParams);
 	}
 
 	// editor primitives

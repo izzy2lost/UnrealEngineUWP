@@ -10,7 +10,7 @@ class SWindow;
 
 namespace UE::EditorPixelStreaming
 {
-	enum class PIXELSTREAMINGEDITOR_API EStreamTypes : uint8
+	enum class EStreamTypes : uint8
 	{
 		LevelEditorViewport = 0,
 		Editor = 1
@@ -18,5 +18,5 @@ namespace UE::EditorPixelStreaming
 
 	FString ToString(EStreamTypes StreamType);
 	const TCHAR* ToString(EWindowType Type);
-	const FString HashWindow(SWindow& SlateWindow, const FTexture2DRHIRef& FrameBuffer);
+	const FString HashWindow(SWindow& SlateWindow, const FTextureRHIRef& FrameBuffer);
 }

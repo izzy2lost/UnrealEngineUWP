@@ -27,23 +27,26 @@ enum class EAvfMediaCaptureAuthStatus : uint32
 @interface AvfMediaCaptureHelper : NSObject
 
 // Returns current status or error
-+ (EAvfMediaCaptureAuthStatus) authorizationStatusForMediaType:(AVMediaType)mediaType;
++ (EAvfMediaCaptureAuthStatus)authorizationStatusForMediaType:(AVMediaType)mediaType;
 
 // Returns current status or error and requests access if not determined
-+ (EAvfMediaCaptureAuthStatus) requestAcessForMediaType:(AVMediaType)mediaType completionCallback:(void(^)(EAvfMediaCaptureAuthStatus AuthStatus))cbHandler;
++ (EAvfMediaCaptureAuthStatus)requestAccessForMediaType:(AVMediaType)mediaType completionCallback:(void(^)(EAvfMediaCaptureAuthStatus AuthStatus))cbHandler;
 
-- (BOOL) setupCaptureSession:(NSString*)deviceID sampleBufferCallback:(void(^)(CMSampleBufferRef sampleBuffer))sampleCallbackBlock
-												 notificationCallback:(void(^)(NSNotification* const notification))notificationCallbackBlock;
-- (void) stopCaptureSession;
-- (void) startCaptureSession;
-- (BOOL) isCaptureRunning;
+- (instancetype)init:(AVMediaType)mediaType;
 
-- (NSString*) 	getCaptureDeviceName;
-- (AVMediaType) getCaptureDeviceMediaType;
+- (BOOL)setupCaptureSession:(NSString*)deviceID
+        sampleBufferCallback:(void(^)(CMSampleBufferRef sampleBuffer))sampleCallbackBlock
+        notificationCallback:(void(^)(NSNotification* const notification))notificationCallbackBlock;
+- (void)stopCaptureSession;
+- (void)startCaptureSession;
+- (BOOL)isCaptureRunning;
 
-- (NSArray<AVCaptureDeviceFormat*>*) getCaptureDeviceAvailableFormats;
+- (NSString*)getCaptureDeviceName;
+- (AVMediaType)getCaptureDeviceMediaType;
 
-- (NSInteger) 	getCaptureDeviceActiveFormatIndex;
-- (BOOL) 		setCaptureDeviceActiveFormatIndex:(NSInteger)formatIdx;
+- (NSArray<AVCaptureDeviceFormat*>*)getCaptureDeviceAvailableFormats;
+
+- (NSInteger)getCaptureDeviceActiveFormatIndex;
+- (BOOL)setCaptureDeviceActiveFormatIndex:(NSInteger)formatIdx;
 
 @end

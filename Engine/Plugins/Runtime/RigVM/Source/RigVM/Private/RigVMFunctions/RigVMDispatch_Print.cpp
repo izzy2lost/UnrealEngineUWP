@@ -7,17 +7,9 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMDispatch_Print)
 
-
-const FName FRigVMDispatch_Print::PrefixName = TEXT("Prefix");
-const FName FRigVMDispatch_Print::ValueName = TEXT("Value");
-const FName FRigVMDispatch_Print::EnabledName = TEXT("Enabled");
-const FName FRigVMDispatch_Print::ScreenDurationName = TEXT("ScreenDuration");
-const FName FRigVMDispatch_Print::ScreenColorName = TEXT("ScreenColor");
-
-
 FName FRigVMDispatch_Print::GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const
 {
-	static const FName ArgumentNames[] = {
+	static const FLazyName ArgumentNames[] = {
 		PrefixName,
 		ValueName,
 		EnabledName,
@@ -42,7 +34,7 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_Print::GetArgumentInfos
 		Infos.Emplace(ValueName, ERigVMPinDirection::Input, ValueCategories);
 		Infos.Emplace(EnabledName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::Bool);
 		Infos.Emplace(ScreenDurationName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::Float);
-		Infos.Emplace(ScreenColorName, ERigVMPinDirection::Input, FRigVMRegistry::Get().GetTypeIndex<FLinearColor>());
+		Infos.Emplace(ScreenColorName, ERigVMPinDirection::Input, FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FLinearColor>());
 	}
 	return Infos;
 }
@@ -63,7 +55,7 @@ FRigVMTemplateTypeMap FRigVMDispatch_Print::OnNewArgumentType(const FName& InArg
 	Types.Add(ValueName, InTypeIndex);
 	Types.Add(EnabledName, RigVMTypeUtils::TypeIndex::Bool);
 	Types.Add(ScreenDurationName, RigVMTypeUtils::TypeIndex::Float);
-	Types.Add(ScreenColorName, FRigVMRegistry::Get().GetTypeIndex<FLinearColor>());
+	Types.Add(ScreenColorName, FRigVMRegistry_NoLock::GetForRead().GetTypeIndex_NoLock<FLinearColor>());
 	return Types;
 }
 

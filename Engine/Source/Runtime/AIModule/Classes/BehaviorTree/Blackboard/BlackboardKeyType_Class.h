@@ -16,9 +16,12 @@ class UBlackboardKeyType_Class : public UBlackboardKeyType
 	typedef UClass* FDataType;
 	static AIMODULE_API const FDataType InvalidValue;
 
-	UPROPERTY(Category=Blackboard, EditDefaultsOnly, meta=(AllowAbstract="1"))
+	UPROPERTY(Category=Blackboard, EditDefaultsOnly, NoClear, meta=(AllowAbstract="1"))
 	TObjectPtr<UClass> BaseClass;
 	
+	UPROPERTY(Category=Blackboard, EditDefaultsOnly)
+	TObjectPtr<UClass> DefaultValue;
+
 	static AIMODULE_API UClass* GetValue(const UBlackboardKeyType_Class* KeyOb, const uint8* RawData);
 	static AIMODULE_API bool SetValue(UBlackboardKeyType_Class* KeyOb, uint8* RawData, UClass* Value);
 
@@ -27,6 +30,8 @@ class UBlackboardKeyType_Class : public UBlackboardKeyType
 
 	AIMODULE_API virtual FString DescribeSelf() const override;
 	AIMODULE_API virtual bool IsAllowedByFilter(UBlackboardKeyType* FilterOb) const override;
+
+	AIMODULE_API virtual void InitializeMemory(UBlackboardComponent& OwnerComp, uint8* MemoryBlock) override;
 
 protected:
 	AIMODULE_API virtual FString DescribeValue(const UBlackboardComponent& OwnerComp, const uint8* RawData) const override;

@@ -19,6 +19,7 @@
 #include "GameFramework/InputSettings.h"
 #include "HAL/PlatformCrt.h"
 #include "Internationalization/Internationalization.h"
+#include "KismetCompiler.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/CompilerResultsLog.h"
 #include "Misc/AssertionMacros.h"
@@ -27,6 +28,7 @@
 #include "Templates/SubclassOf.h"
 #include "UObject/Class.h"
 #include "UObject/ObjectVersion.h"
+#include "Blueprint/UserWidget.h"
 
 #define LOCTEXT_NAMESPACE "K2Node_InputAxisEvent"
 
@@ -211,6 +213,20 @@ FBlueprintNodeSignature UK2Node_InputAxisEvent::GetSignature() const
 	NodeSignature.AddKeyValue(InputAxisName.ToString());
 
 	return NodeSignature;
+}
+
+void UK2Node_InputAxisEvent::ExpandNode(FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph)
+{
+	Super::ExpandNode(CompilerContext, SourceGraph);
+
+	// Widget blueprints require the bAutomaticallyRegisterInputOnConstruction to be set to true in order to receive callbacks
+	CompilerContext.AddPostCDOCompiledStep([](const UObject::FPostCDOCompiledContext& Context, UObject* NewCDO)
+		{
+			if (UUserWidget* Widget = Cast<UUserWidget>(NewCDO))
+			{
+				Widget->bAutomaticallyRegisterInputOnConstruction = true;
+			}
+		});
 }
 
 #undef LOCTEXT_NAMESPACE

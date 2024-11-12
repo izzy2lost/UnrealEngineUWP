@@ -4,7 +4,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -65,21 +64,24 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
+		public Task<long> GetSizeAsync(ObjectKey key, CancellationToken cancellationToken)
+		{
+			byte[]? data;
+			if (_keyToData.TryGetValue(key, out data))
+			{
+				return Task.FromResult<long>(data.Length);
+			}
+			else
+			{
+				return Task.FromResult<long>(-1);
+			}
+		}
+
+		/// <inheritdoc/>
 		public Task DeleteAsync(ObjectKey key, CancellationToken cancellationToken)
 		{
 			_keyToData.TryRemove(key, out _);
 			return Task.CompletedTask;
-		}
-
-		/// <inheritdoc/>
-		public async IAsyncEnumerable<ObjectKey> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
-		{
-			foreach (ObjectKey key in _keyToData.Keys)
-			{
-				yield return key;
-				cancellationToken.ThrowIfCancellationRequested();
-				await Task.Yield();
-			}
 		}
 
 		/// <inheritdoc/>

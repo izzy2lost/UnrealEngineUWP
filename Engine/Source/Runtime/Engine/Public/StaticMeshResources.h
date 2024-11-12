@@ -19,12 +19,9 @@
 #include "Components.h"
 #include "LocalVertexFactory.h"
 #include "PrimitiveViewRelevance.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "PrimitiveSceneProxy.h"
-#endif
-#include "Engine/MeshMerging.h"
 #include "UObject/UObjectHash.h"
 #include "MeshBatch.h"
+#include "MeshReductionSettings.h"
 #include "SceneManagement.h"
 #include "Components/StaticMeshComponent.h"
 #include "BodySetupEnums.h"
@@ -38,7 +35,7 @@
 #include "Templates/UniquePtr.h"
 #include "Serialization/BulkData.h"
 #include "WeightedRandomSampler.h"
-#include "PerPlatformProperties.h"
+#include "UObject/PerPlatformProperties.h"
 #include "RayTracingGeometry.h"
 #if WITH_EDITORONLY_DATA
 #include "Interface_CollisionDataProviderCore.h"
@@ -425,6 +422,9 @@ public:
 	/** Card Representation data associated with this mesh, null if not present.  */
 	class FCardRepresentationData* CardRepresentationData;
 
+	/** Geometry for ray tracing. */
+	FRayTracingGeometry* RayTracingGeometry = nullptr;
+
 	/** The maximum distance by which this LOD deviates from the base from which it was generated. */
 	float MaxDeviation;
 
@@ -440,9 +440,6 @@ public:
 	uint32 bHasColorVertexData : 1;
 
 	uint32 bHasWireframeIndices : 1;
-
-	/** True if the ray tracing resources struct contained data at init. */
-	uint32 bHasRayTracingGeometry : 1;
 
 	/** True if vertex and index data are serialized inline */
 	uint32 bBuffersInlined : 1;
@@ -479,9 +476,6 @@ public:
 	FRawStaticIndexBuffer DepthOnlyIndexBuffer;
 
 	FAdditionalStaticMeshIndexBuffers* AdditionalIndexBuffers = nullptr;
-
-	/** Geometry for ray tracing. */
-	FRayTracingGeometry RayTracingGeometry;
 
 	/**	Allows uniform random selection of mesh sections based on their area. */
 	FStaticMeshAreaWeightedSectionSampler AreaWeightedSampler;
@@ -525,7 +519,7 @@ public:
 	ENGINE_API void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) const;
 
 #if RHI_RAYTRACING
-	void SetupRayTracingGeometryInitializer(FRayTracingGeometryInitializer& Initializer, const FName& DebugName, const FName& OwnerName) const;
+	void SetupRayTracingGeometryInitializer(FRayTracingGeometryInitializer& Initializer, const FDebugName& DebugName, const FName& OwnerName) const;
 #endif // RHI_RAYTRACING
 
 	/** Get the estimated memory overhead of buffers marked as NeedsCPUAccess. */
@@ -660,10 +654,22 @@ struct FStaticMeshVertexFactories
 	* @param	InParentMesh					Parent static mesh
 	* @param	bInOverrideColorVertexBuffer	If true, make a vertex factory ready for per-instance colors
 	*/
-	ENGINE_API void InitVertexFactory(const FStaticMeshLODResources& LodResources, FLocalVertexFactory& InOutVertexFactory, uint32 LODIndex, const UStaticMesh* InParentMesh, bool bInOverrideColorVertexBuffer);
+	ENGINE_API void InitVertexFactory(const FStaticMeshVertexBuffers& VertexBuffers, FLocalVertexFactory& InOutVertexFactory, uint32 LODIndex, const UStaticMesh* InParentMesh, bool bInOverrideColorVertexBuffer);
+
+	UE_DEPRECATED(5.5, "Provide FStaticMeshVertexBuffers instead of FStaticMeshLODResources")
+	ENGINE_API void InitVertexFactory(const FStaticMeshLODResources& LodResources, FLocalVertexFactory& InOutVertexFactory, uint32 LODIndex, const UStaticMesh* InParentMesh, bool bInOverrideColorVertexBuffer)
+	{
+		InitVertexFactory(LodResources.VertexBuffers, InOutVertexFactory, LODIndex, InParentMesh, bInOverrideColorVertexBuffer);
+	}
 
 	/** Initializes all rendering resources. */
-	ENGINE_API void InitResources(const FStaticMeshLODResources& LodResources, uint32 LODIndex, const UStaticMesh* Parent);
+	ENGINE_API void InitResources(const FStaticMeshVertexBuffers& VertexBuffers, uint32 LODIndex, const UStaticMesh* Parent);
+
+	UE_DEPRECATED(5.5, "Provide FStaticMeshVertexBuffers instead of FStaticMeshLODResources")
+	ENGINE_API void InitResources(const FStaticMeshLODResources& LodResources, uint32 LODIndex, const UStaticMesh* Parent)
+	{
+		InitResources(LodResources.VertexBuffers, LODIndex, Parent);
+	}
 
 	/** Releases all rendering resources. */
 	ENGINE_API void ReleaseResources();
@@ -671,6 +677,55 @@ struct FStaticMeshVertexFactories
 
 using FStaticMeshLODResourcesArray = TIndirectArray<FStaticMeshLODResources>;
 using FStaticMeshVertexFactoriesArray = TArray<FStaticMeshVertexFactories>;
+
+struct FStaticMeshRayTracingProxyLOD
+{
+	FRayTracingGeometry* RayTracingGeometry = nullptr;
+
+	FStaticMeshSectionArray* Sections = nullptr;
+
+	FStaticMeshVertexBuffers* VertexBuffers = nullptr;
+	FRawStaticIndexBuffer* IndexBuffer = nullptr;
+
+	FByteBulkData StreamableData;
+
+	bool bOwnsRayTracingGeometry : 1 = true;
+	bool bOwnsBuffers : 1 = true;
+	bool bBuffersInlined : 1 = false;
+
+	ENGINE_API ~FStaticMeshRayTracingProxyLOD();
+
+	void InitResources(UStaticMesh* Owner, int32 LODIndex);
+	void ReleaseResources();
+
+	void Serialize(FArchive& Ar, UObject* Owner, int32 Index);
+
+	uint32 SerializeBuffers(FArchive& Ar, UStaticMesh* OwnerStaticMesh, uint8 InStripFlags);
+
+	/** Discard loaded data. Used when a streaming request is cancelled */
+	void DiscardCPUData();
+
+#if RHI_RAYTRACING
+	void SetupRayTracingGeometryInitializer(FRayTracingGeometryInitializer& Initializer, const FDebugName& DebugName, const FName& OwnerName) const;
+#endif // RHI_RAYTRACING
+};
+
+using FStaticMeshRayTracingProxyLODArray = TIndirectArray<FStaticMeshRayTracingProxyLOD>;
+
+struct FStaticMeshRayTracingProxy
+{
+	FStaticMeshRayTracingProxyLODArray LODs;
+	FStaticMeshVertexFactoriesArray* LODVertexFactories = nullptr;
+
+	bool bUsingRenderingLODs = false;
+
+	~FStaticMeshRayTracingProxy();
+
+	void InitResources(UStaticMesh* Owner);
+	void ReleaseResources();
+
+	void Serialize(FArchive& Ar, UObject* Owner, FStaticMeshRenderData* RenderData, bool bCooked);
+};
 
 /**
  * FStaticMeshRenderData - All data needed to render a static mesh.
@@ -694,6 +749,9 @@ public:
 	FPerPlatformFloat ScreenSize[MAX_STATIC_MESH_LODS];
 
 	TPimplPtr<Nanite::FResources> NaniteResourcesPtr;
+
+	/** Ray tracing representation of this mesh, null if not present.  */
+	FStaticMeshRayTracingProxy* RayTracingProxy = nullptr;
 
 	/** Bounds of the renderable mesh. */
 	FBoxSphereBounds Bounds;
@@ -790,6 +848,8 @@ public:
 
 	void BuildAreaWeighedSamplingData();
 
+	ENGINE_API void InitializeRayTracingRepresentationFromRenderingLODs();
+
 #if WITH_EDITOR
 	/** Resolve all per-section settings. */
 	ENGINE_API void ResolveSectionInfo(UStaticMesh* Owner);
@@ -850,8 +910,12 @@ public:
 	ENGINE_API ~FStaticMeshComponentRecreateRenderStateContext();
 
 private:
-
-	TMap<void*, TArray<UStaticMeshComponent*>> StaticMeshComponents;
+	struct FData
+	{
+		TArray<UStaticMeshComponent*> UStaticMeshComponents;
+		TArray<IStaticMeshComponent*> IStaticMeshComponents;
+	};
+	TMap<void*, FData> StaticMeshComponents;
 	bool bUnbuildLighting;
 	bool bRefreshBounds;
 };
@@ -1582,3 +1646,8 @@ ENGINE_API void RemapPaintedVertexColors(
 	TArray<FColor>& OutOverrideColors
 	);
 #endif // #if WITH_EDITOR
+
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#endif

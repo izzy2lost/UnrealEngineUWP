@@ -82,6 +82,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Light Rendering", meta = (ClampMin = "0"))
 	float SpecularScale = 1.0f;
 
+	/** The diffuse scale to use for all lights if no binding was found */
+	UPROPERTY(EditAnywhere, Category = "Light Rendering", meta = (ClampMin = "0"))
+	float DiffuseScale = 1.0f;
+
 	/** A static color shift applied to each rendered light */
 	UPROPERTY(EditAnywhere, Category = "Light Rendering")
 	FVector3f ColorAdd;
@@ -130,6 +134,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Bindings")
 	FNiagaraVariableAttributeBinding SpecularScaleBinding;
 
+	/** Which attribute should we use for the diffuse scale when generating lights?*/
+	UPROPERTY(EditAnywhere, Category = "Bindings")
+	FNiagaraVariableAttributeBinding DiffuseScaleBinding;
+
 	FNiagaraDataSetAccessor<FNiagaraPosition> PositionDataSetAccessor;
 	FNiagaraDataSetAccessor<FLinearColor> ColorDataSetAccessor;
 	FNiagaraDataSetAccessor<float> RadiusDataSetAccessor;
@@ -138,6 +146,7 @@ public:
 	FNiagaraDataSetAccessor<FNiagaraBool> EnabledDataSetAccessor;
 	FNiagaraDataSetAccessor<int32> RendererVisibilityTagAccessor;
 	FNiagaraDataSetAccessor<float> SpecularScaleAccessor;
+	FNiagaraDataSetAccessor<float> DiffuseScaleAccessor;
 
 private:
 	static TArray<TWeakObjectPtr<UNiagaraLightRendererProperties>> LightRendererPropertiesToDeferredInit;

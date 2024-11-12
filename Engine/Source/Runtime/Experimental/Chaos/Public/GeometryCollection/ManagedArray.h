@@ -11,6 +11,7 @@
 #include "Chaos/ParticleHandle.h"
 #include "Chaos/BVHParticles.h"
 #include "Math/Vector.h"
+#include "Chaos/Matrix.h"
 #include "Templates/TypeHash.h"
 
 struct FManagedArrayCollection;
@@ -804,7 +805,7 @@ public:
 	virtual void CopyRange(const FManagedArrayBase& ConstArray, int32 Start, int32 Stop, int32 Offset = 0) override
 	{
 		ensureMsgf(ConstArray.GetTypeSize() == GetTypeSize(), TEXT("TManagedArrayBase<T>::Init : Invalid array types."));
-		if (ensureMsgf(Stop + Offset < Array.Num(), TEXT("Error : Index out of bounds")))
+		if (ensureMsgf(Stop + Offset <= Array.Num(), TEXT("Error : Index out of bounds")))
 		{
 			const FManagedBitArrayBase& TypedConstArray = static_cast<const FManagedBitArrayBase&>(ConstArray);
 			for (int32 Sdx = Start, Tdx = Start + Offset; Sdx < ConstArray.Num() && Tdx < Array.Num() && Sdx < Stop; Sdx++, Tdx++)
@@ -841,6 +842,16 @@ public:
 		FManagedBitArrayBase& NewTypedArray = static_cast<FManagedBitArrayBase&>(NewArray);
 
 		Exchange(*this, NewTypedArray);
+	}
+	
+	/**
+	* return true if index is in array range.
+	*
+	* @param Index Index to check.
+	*/
+	FORCEINLINE bool IsValidIndex(int32 Index) const
+	{
+		return Array.IsValidIndex(Index);
 	}
 
 	/**

@@ -2,7 +2,7 @@
 
 #include "Message.h"
 
-#if UE_TRACE_ENABLED
+#if TRACE_PRIVATE_MINIMAL_ENABLED
 
 #include "Trace/Trace.h"
 
@@ -33,4 +33,4 @@ void Message_Send(EMessageType Type, const char* TypeStr, const char* Descriptio
 
 } } } // namespace UE::Trace::Private
 
-#endif // UE_TRACE_ENABLED
+#endif // TRACE_PRIVATE_MINIMAL_ENABLED

@@ -26,10 +26,11 @@ UNavigationSystemBase* UNavigationSystemConfig::CreateAndConfigureNavigationSyst
 {
 	UNavigationSystemBase* NavSys = nullptr;
 
-	TSubclassOf<UNavigationSystemBase> NavSysClass = NavigationSystemClass.ResolveClass();
+	const TSubclassOf<UNavigationSystemBase> NavSysClass = NavigationSystemClass.ResolveClass();
 	ensure(NavSysClass != nullptr || NavigationSystemClass.IsValid() == false);
 	
-	if (NavSysClass)
+	if (NavSysClass
+		&& NavSysClass->GetDefaultObject<UNavigationSystemBase>()->ShouldCreateNavigationSystemInstance(&World))
 	{
 		NavSys = NewObject<UNavigationSystemBase>(&World, NavSysClass);
 		if (NavSys)
@@ -38,7 +39,7 @@ UNavigationSystemBase* UNavigationSystemConfig::CreateAndConfigureNavigationSyst
 		}
 	}
 
-	return NavSys;	
+	return NavSys;
 }
 
 #if WITH_EDITOR

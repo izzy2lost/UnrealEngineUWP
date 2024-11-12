@@ -48,7 +48,7 @@ class Boot(flow.cmd.Cmd):
         os.environ["PATH"] = env["PATH"]
 
         # Set a session id and somewhere to store per-session information
-        session_id = str(os.getpid())
+        session_id = str(os.getppid())
         env["FLOW_SID"] = session_id
         os.environ["FLOW_SID"] = session_id
 
@@ -66,9 +66,12 @@ class Boot(flow.cmd.Cmd):
         except KeyError:
             raise RuntimeError(f"Unable to find a shell named '{shell_name}'")
 
+        # This is a bit crude, but some shell support allows for customisation
+        user_script = getattr(self, "_user_script", None)
+
         # Run the shell
         system = channel.get_system()
-        shell_class(system).boot_shell(env, shell_cookie)
+        shell_class(system).boot_shell(env, shell_cookie, user_script)
 
         # Apply a theme
         if self.args.theme:

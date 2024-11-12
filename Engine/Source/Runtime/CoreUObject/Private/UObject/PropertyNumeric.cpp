@@ -14,10 +14,22 @@ IMPLEMENT_FIELD(FFloatProperty)
 IMPLEMENT_FIELD(FDoubleProperty)
 IMPLEMENT_FIELD(FLargeWorldCoordinatesRealProperty)
 
-FNumericProperty::FNumericProperty(FFieldVariant InOwner, const UECodeGen_Private::FPropertyParamsBaseWithOffset& Prop, EPropertyFlags AdditionalPropertyFlags /*= CPF_None*/)
-	: FProperty(InOwner, Prop, AdditionalPropertyFlags)
+FNumericProperty::FNumericProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: FProperty(InOwner, InName, InObjectFlags)
 {
 }
+
+FNumericProperty::FNumericProperty(FFieldVariant InOwner, const UECodeGen_Private::FPropertyParamsBaseWithOffset& Prop, EPropertyFlags AdditionalPropertyFlags /*= CPF_None*/)
+	: Super(InOwner, Prop, AdditionalPropertyFlags)
+{
+}
+
+#if WITH_EDITORONLY_DATA
+FNumericProperty::FNumericProperty(UField* InField)
+	: Super(InField)
+{
+}
+#endif // WITH_EDITORONLY_DATA
 
 int64 FNumericProperty::ReadEnumAsInt64(FStructuredArchive::FSlot Slot, UStruct* DefaultsStruct, const FPropertyTag& Tag)
 {
@@ -27,7 +39,11 @@ int64 FNumericProperty::ReadEnumAsInt64(FStructuredArchive::FSlot Slot, UStruct*
 
 	FName EnumTypeName = Tag.GetType().GetParameterName(0);
 
-	UEnum* Enum = FindUField<UEnum>(dynamic_cast<UClass*>(DefaultsStruct) ? static_cast<UClass*>(DefaultsStruct) : DefaultsStruct->GetTypedOuter<UClass>(), EnumTypeName);
+	UEnum* Enum = nullptr;
+	if (DefaultsStruct)
+	{
+		Enum = FindUField<UEnum>(DefaultsStruct->IsA<UClass>() ? (UClass*)DefaultsStruct : DefaultsStruct->GetTypedOuter<UClass>(), EnumTypeName);
+	}
 	if (!Enum)
 	{
 		// Enums (at least native) are stored as short names (for now) so find the Tag enum by name
@@ -43,9 +59,11 @@ int64 FNumericProperty::ReadEnumAsInt64(FStructuredArchive::FSlot Slot, UStruct*
 	Slot.GetUnderlyingArchive().Preload(Enum);
 
 	// This handles redirects internally
-	int64 Result = Enum->GetValueByName(EnumName);
-	if (!Enum->IsValidEnumValue(Result))
+	int64 Result = Enum->GetValueOrBitfieldFromString(EnumName.ToString());
+	if (!Enum->IsValidEnumValueOrBitfield(Result))
 	{
+		int64 ReplacementValue = Enum->HasAnyEnumFlags(EEnumFlags::Flags) ? 0 : Enum->GetMaxEnumValue();
+
 		UE_LOG(
 			LogClass,
 			Warning,
@@ -53,10 +71,10 @@ int64 FNumericProperty::ReadEnumAsInt64(FStructuredArchive::FSlot Slot, UStruct*
 			*EnumName.ToString(),
 			*Enum->GetName(),
 			*Tag.Name.ToString(),
-			*Enum->GetNameByValue(Enum->GetMaxEnumValue()).ToString()
+			*Enum->GetNameByValue(ReplacementValue).ToString()
 			);
 
-		return Enum->GetMaxEnumValue();
+		return ReplacementValue;
 	}
 
 	return Result;
@@ -274,50 +292,4 @@ FString FNumericProperty::GetNumericPropertyValueToString_InContainer(void const
 {
 	check(0);
 	return FString();
-}
-
-
-FInt8Property::FInt8Property(FFieldVariant InOwner, const UECodeGen_Private::FInt8PropertyParams& Prop)
-	: TProperty_Numeric(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
-{
-}
-
-FInt16Property::FInt16Property(FFieldVariant InOwner, const UECodeGen_Private::FInt16PropertyParams& Prop)
-	: TProperty_Numeric(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
-{
-}
-
-FIntProperty::FIntProperty(FFieldVariant InOwner, const UECodeGen_Private::FIntPropertyParams& Prop)
-	: TProperty_Numeric(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
-{
-}
-
-FInt64Property::FInt64Property(FFieldVariant InOwner, const UECodeGen_Private::FInt64PropertyParams& Prop)
-	: TProperty_Numeric(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
-{
-}
-
-FUInt16Property::FUInt16Property(FFieldVariant InOwner, const UECodeGen_Private::FUInt16PropertyParams& Prop)
-	: TProperty_Numeric(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
-{
-}
-
-FUInt32Property::FUInt32Property(FFieldVariant InOwner, const UECodeGen_Private::FUInt32PropertyParams& Prop)
-	: TProperty_Numeric(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
-{
-}
-
-FUInt64Property::FUInt64Property(FFieldVariant InOwner, const UECodeGen_Private::FUInt64PropertyParams& Prop)
-	: TProperty_Numeric(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
-{
-}
-
-FFloatProperty::FFloatProperty(FFieldVariant InOwner, const UECodeGen_Private::FFloatPropertyParams& Prop)
-	: TProperty_Numeric(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
-{
-}
-
-FDoubleProperty::FDoubleProperty(FFieldVariant InOwner, const UECodeGen_Private::FDoublePropertyParams& Prop)
-	: TProperty_Numeric(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
-{
 }

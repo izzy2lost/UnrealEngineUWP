@@ -1,9 +1,10 @@
-![Horde](Images/Logo.png#gh-light-mode-only)![Horde](Images/Logo-DarkMode.png#gh-dark-mode-only)
+![Horde](Images/ue-horde-black.png#gh-light-mode-only)![Horde](Images/ue-horde-white.png#gh-dark-mode-only)
 
 ## Getting Started
 
 * **[Install the Horde agent](Tutorials/InstallHorde.md)**
-* **[Enable remote C++ compilation with Unreal Build Accelerator](Tutorials/RemoteCompilation.md)**
+* **[Enable remote C++ compilation](Tutorials/RemoteCompilation.md)**
+* **[Enable remote shader compilation](Tutorials/RemoteShaderCompilation.md)**
 * **[Set up build automation](Tutorials/BuildAutomation.md)**
 * **[Enable test automation with Gauntlet](Tutorials/TestAutomation.md)**
 * **[Get telemetry and analytics for your team](Tutorials/Analytics.md)**
@@ -27,11 +28,9 @@ Horde's reference documentation is divided into sections by target audience:
 
 ## Status
 
-Horde is under heavy development, and large parts of it are still in flux. While we use aspects of it
-(particularly the CI system) heavily at Epic, we consider it experimental for Unreal Engine licensees
-and offer limited support for it.
+Horde is considered production ready for Unreal Engine licensees.
 
-See also: [Feature Status](Features.md)
+See: [Feature Status](Features.md)
 
 ## Further Reading
 

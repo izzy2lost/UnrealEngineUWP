@@ -23,6 +23,7 @@
 #include "SceneDefinitions.h"
 #include "MeshDrawCommandStatsDefines.h"
 #include "InstanceDataTypes.h"
+#include "PSOPrecacheFwd.h"
 
 class FLightSceneInfo;
 class FLightSceneProxy;
@@ -57,6 +58,39 @@ namespace RayTracing
 }
 #endif
 
+struct FDesiredLODLevel
+{
+	enum class EType : uint8
+	{
+		// LOD is the first in a set of LODs that can be selected from.
+		First,
+
+		// LOD is fixed to a pre-selected level.
+		Fixed
+	};
+
+	static FDesiredLODLevel CreateFixed(uint8 LOD)
+	{
+		return FDesiredLODLevel(LOD, EType::Fixed);
+	}
+	
+	static FDesiredLODLevel CreateFirst(uint8 LOD)
+	{
+		return FDesiredLODLevel(LOD, EType::First);
+	}
+
+	FDesiredLODLevel(uint8 InLOD, EType InType)
+		: LOD(InLOD)
+		, Type(InType)
+	{}
+
+	bool IsFixed() const { return Type == EType::Fixed; }
+	bool IsFirst() const { return Type == EType::First; }
+
+	uint8 LOD = 0;
+	EType Type = EType::First;
+};
+
 /** Data for a simple dynamic light. */
 class FSimpleLightEntry
 {
@@ -67,6 +101,7 @@ public:
 	float InverseExposureBlend = 0.0f;
 	float VolumetricScatteringIntensity;
 	float SpecularScale = 1.0f;
+	float DiffuseScale = 1.0f;
 	bool bAffectTranslucency;
 };
 
@@ -209,7 +244,7 @@ public:
 	ENGINE_API FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InDesc, FName ResourceName = NAME_None);
 
 	/** Copy constructor. */
-	FPrimitiveSceneProxy(FPrimitiveSceneProxy const&) = default;
+	ENGINE_API FPrimitiveSceneProxy(FPrimitiveSceneProxy const&);
 
 	/** Virtual destructor. */
 	ENGINE_API virtual ~FPrimitiveSceneProxy();
@@ -256,17 +291,27 @@ public:
 	void SetIsBeingMovedByEditor_GameThread(bool bIsBeingMoved);
 
 	/**
+	 * Force the proxy to render as though it is selected. Shows outlines and overlays.
+	 */
+	void SetSelectionOverride_GameThread(bool bForceSelection);
+	
+	/**
 	 * Enqueue updated selection outline color for the render thread to use.
 	 */
 	void SetSelectionOutlineColorIndex_GameThread(uint8 ColorIndex);
-#endif
+
+	/**
+	 * Enqueue updated overlay color for the render thread to use.
+	 */
+	void SetOverlayColor_GameThread(FColor OverlayColor);
+#endif // WITH_EDITOR
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	/**
 	 * Enqueue and update for the render thread to notify it that the primitive color changed.
 	 */
 	void SetPrimitiveColor_GameThread(const FLinearColor& InPrimitiveColor);
-#endif	// WITH_EDITOR
+#endif	
 
 	/** Enqueue and update for the render thread to remove the velocity data for this component from the scene. */
 	ENGINE_API void ResetSceneVelocity_GameThread();
@@ -347,6 +392,8 @@ public:
 	/** Gathers shadow shapes from this proxy. */
 	virtual void GetShadowShapes(FVector PreViewTranslation, TArray<FCapsuleShape3f>& OutCapsuleShapes) const {}
 
+	virtual bool IsCullingReversedByComponent() const { return false; }
+
 #if RHI_RAYTRACING
 	// TODO: remove these individual functions in favor of ERayTracingPrimitiveFlags
 	virtual bool IsRayTracingRelevant() const { return false; }
@@ -356,6 +403,9 @@ public:
 	virtual bool HasRayTracingRepresentation() const { return false; }
 
 	/** Gathers dynamic ray tracing instances from this proxy. */
+	virtual void GetDynamicRayTracingInstances(class FRayTracingInstanceCollector& Collector) {}
+
+	UE_DEPRECATED(5.5, "Use FRayTracingInstanceCollector instead.")
 	virtual void GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances) {}
 
 	virtual TArray<FRayTracingGeometry*> GetStaticRayTracingGeometries() const { return {}; }
@@ -680,6 +730,7 @@ public:
 	inline bool IsIndividuallySelected() const { return bIndividuallySelected; }
 	inline bool IsEditingLevelInstanceChild() const { return bLevelInstanceEditingState; }
 	inline bool IsSelected() const { return IsParentSelected() || IsIndividuallySelected(); }
+	inline bool WantsEditorEffects() const { return bWantsEditorEffects; }
 	inline bool WantsSelectionOutline() const { return bWantsSelectionOutline; }
 	ENGINE_API bool ShouldRenderCustomDepth() const;
 	inline bool IsVisibleInSceneCaptureOnly() const { return bVisibleInSceneCaptureOnly; }
@@ -700,6 +751,7 @@ public:
 	inline bool ShouldRenderInMainPass() const { return bRenderInMainPass; }
 	inline bool ShouldRenderInDepthPass() const { return bRenderInMainPass || bRenderInDepthPass; }
 	inline bool SupportsParallelGDME() const { return bSupportsParallelGDME; }
+	inline bool SinglePassGDME() const { return bSinglePassGDME; }
 	inline bool IsCollisionEnabled() const { return bCollisionEnabled; }
 	inline bool IsHovered() const { return bHovered; }
 	inline bool IsOwnedBy(const AActor* Actor) const { return Owners.Find(Actor) != INDEX_NONE; }
@@ -731,7 +783,10 @@ public:
 	ENGINE_API bool UseSingleSampleShadowFromStationaryLights() const;
 	inline bool StaticElementsAlwaysUseProxyPrimitiveUniformBuffer() const { return bStaticElementsAlwaysUseProxyPrimitiveUniformBuffer; }
 	inline bool DoesVFRequirePrimitiveUniformBuffer() const { return bVFRequiresPrimitiveUniformBuffer; }
-	
+
+	/** Whether instance data only exists in the GPU Scene (instance data not present in CPU memory). */
+	ENGINE_API bool IsInstanceDataGPUOnly() const;
+
 	/** 
 	 * Returns true to inform scene update that the mesh batches produced makes use of the (GPU)Scene instance count, and thus don't require recaching if the instance count changed. 
 	 * Defaults to false, the proxy should only opt in if the above condition is true (or risk GPU-crashes).
@@ -743,6 +798,8 @@ public:
 	inline bool AllowApproximateOcclusion() const { return bAllowApproximateOcclusion; }
 	inline bool Holdout() const { return bHoldout; }
 	inline bool IsSplineMesh() const { return bSplineMesh; }
+	inline bool IsSkinnedMesh() const { return bSkinnedMesh; }
+	inline bool IsFirstPerson() const { return bIsFirstPerson; }
 
 	inline FRHIUniformBuffer* GetUniformBuffer() const
 	{
@@ -753,6 +810,7 @@ public:
 
 #if WITH_EDITOR
 	inline uint8 GetSelectionOutlineColorIndex() const { return SelectionOutlineColorIndex; }
+	inline FColor GetOverlayColor() const { return OverlayColor; }
 #endif // WITH_EDITOR
 	
 	inline bool UseEditorCompositing(const FSceneView* View) const { return GIsEditor && bUseEditorCompositing && !View->bIsGameView; }
@@ -938,11 +996,6 @@ public:
 		ImposterIndex = INDEX_NONE;
 	}
 
-	virtual void GetNaniteMaterialMask(FUint32Vector2& OutMaterialMask) const
-	{
-		OutMaterialMask = FUint32Vector2(~uint32(0), ~uint32(0));
-	}
-
 	/** 
 	 * Drawing helper. Draws nice bouncy line.
 	 */
@@ -1066,11 +1119,16 @@ public:
 
 	virtual uint8 GetCurrentFirstLODIdx_RenderThread() const { return 0; }
 
+	virtual FDesiredLODLevel GetDesiredLODLevel_RenderThread(const FSceneView* View) const { return FDesiredLODLevel::CreateFirst(0); }
+
 	/** Returns a scale to apply to ScreenSize used in LOD calculation. */
 	virtual float GetLodScreenSizeScale() const { return 1.f; }
 
 	/** Returns the instance radius to use for per instance GPU LOD calculation. Returns 0.f if GPU LOD isn't enabled on the primitive. */
 	virtual float GetGpuLodInstanceRadius() const { return 0.f; }
+
+	/** */
+	virtual FUintVector2 GetMeshPaintTextureDescriptor() const { return FUintVector2(0, 0); }
 
 	/** 
 	 * Get the custom primitive data for this scene proxy.
@@ -1103,7 +1161,12 @@ public:
 
 	/**
 	 */
-	FInstanceDataBufferHeader GetInstanceDataHeader() const;
+	ENGINE_API FInstanceDataBufferHeader GetInstanceDataHeader() const;
+
+#if UE_WITH_PSO_PRECACHING
+	ENGINE_API void BoostPrecachedPSORequestsOnDraw();
+	ENGINE_API void SetPSORequestsToBoostOnDraw(const TArray<FMaterialPSOPrecacheRequestID>& PSORequestsToBoostOnDrawIN);
+#endif
 
 protected:
 	ENGINE_API void SetupInstanceSceneDataBuffers(const FInstanceSceneDataBuffers* InInstanceSceneDataBuffers);
@@ -1214,6 +1277,15 @@ protected:
 
 	/** Whether the proxy supports asynchronously calling GetDynamicMeshElements. If disabled, all calls for various proxies are serialized with respect to each other. */
 	uint8 bSupportsParallelGDME : 1;
+
+	/**
+	 * Whether to call GetDynamicMeshElements a single time, instead of once per unique FSceneViewFamily.  If set to true, the GetDynamicMeshElements
+	 * implementation must take into account that Views may point to different view families, with different EngineShowFlags.  In practice, this means
+	 * using View->Family in the loop over Views, especially for accessing EngineShowFlags, rather than the ViewFamily parameter passed in.  The
+	 * "AllViews" member, plus certain other members like the frame counter and time, are invariant across view families, and safe to access from
+	 * ViewFamily.  Example use cases are features that do global processing or initialize a common shared buffer across views, which are fairly rare.
+	 */
+	uint8 bSinglePassGDME : 1;
 
 	/** Whether this component should be tracked by Lumen Scene. Turning this off will remove it from Lumen Scene and Lumen won't generate surface cache for it. */
 	uint8 bVisibleInLumenScene : 1;
@@ -1383,16 +1455,26 @@ protected:
 
 	uint8 bVerifyUsedMaterials : 1;
 
+	/** False by default, if true the proxy wants editor-only effects like outlines and overlays. */
+    uint8 bWantsEditorEffects : 1;
+    
 	/** If this is True, this primitive doesn't need exact occlusion info. */
 	uint8 bAllowApproximateOcclusion : 1;
 
 	/**
 	 * If this is True, this primitive should render black with an alpha of 0, but all secondary effects (shadows, refletions, indirect lighting)
-	 * should behave as usual. This feature is currently only implemented in the Path Tracer.
+	 * should behave as usual. This feature requires activating the project setting(s) "Alpha Output", and "Support Primitive Alpha Holdout" if using the deferred renderer.
 	 */
 	uint8 bHoldout : 1;
 
+	/** If this is True, this primitive is a spline mesh */
 	uint8 bSplineMesh : 1;
+
+	/** If this is True, this primitive is a skinned mesh */
+	uint8 bSkinnedMesh : 1;
+
+	/** If this is True, this primitive is to be rendered as a first person view object */
+	uint8 bIsFirstPerson : 1;
 	
 private:
 
@@ -1520,6 +1602,10 @@ private:
 	/** A copy of the actor's group membership for handling per-view group hiding */
 	uint64 HiddenEditorViews;
 
+	/** Color to blend over the object as an overlay in the viewport */
+	FColor OverlayColor = FColor(EForceInit::ForceInitToZero);
+
+	/** Index of the color to use for the object's outline */
 	uint32 SelectionOutlineColorIndex : 8;
 
 	/** Whether this should only draw in any editing mode*/
@@ -1549,7 +1635,10 @@ private:
 
 	TArray<UMaterialInterface*> UsedMaterialsForVerification;
 #endif
-
+#if UE_WITH_PSO_PRECACHING
+	// The pso precache request IDs that will be boosted to the highest priority when drawn.
+	TArray<FMaterialPSOPrecacheRequestID> PSOPrecacheRequestsToBoostOnDraw;
+#endif
 	/**
 	 * Updates the primitive proxy's cached transforms, and calls OnUpdateTransform to notify it of the change.
 	 * Called in the thread that owns the proxy; game or rendering.

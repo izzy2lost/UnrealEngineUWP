@@ -8,6 +8,7 @@
 #include "Containers/StaticBitArray.h"
 #include "Misc/MemStack.h"
 #include "Net/Core/PropertyConditions/RepChangedPropertyTracker.h"
+#include "Net/Core/NetToken/NetTokenExportContext.h"
 #include "Net/Serialization/FastArraySerializer.h"
 #include "EngineStats.h"
 #include "Engine/PackageMapClient.h"
@@ -887,7 +888,7 @@ static void SerializeReadWritePropertyChecksum(
 		Cmd.Property->ArrayDim = 1;
 
 		TArray<uint8> TempPropMemory;
-		TempPropMemory.AddZeroed(Cmd.Property->ElementSize + 4);
+		TempPropMemory.AddZeroed(Cmd.Property->GetElementSize() + 4);
 		uint32* Guard = (uint32*)&TempPropMemory[TempPropMemory.Num() - 4];
 		const uint32 TAG_VALUE = 0xABADF00D;
 		*Guard = TAG_VALUE;
@@ -1162,6 +1163,10 @@ FRepChangelistState::~FRepChangelistState()
 #if WITH_PUSH_MODEL
 	UE_RepLayout_Private::ConditionallyRemovePushModelObject(PushModelObjectHandle);
 #endif // WITH_PUSH_MODEL
+
+	// Explicitly reset members to improve resilience to double-destruction
+	CustomDeltaChangelistState = nullptr;
+	StaticBuffer.Empty();
 }
 
 #if WITH_PUSH_MODEL
@@ -2113,7 +2118,8 @@ bool FRepLayout::ReplicateProperties(
 		// if no shared serialization info exists, build it
 		if (!RepChangelistState->SharedSerialization.IsValid())
 		{
-			BuildSharedSerialization(Data, Changed, true, RepChangelistState->SharedSerialization);
+			UE::Net::FNetTokenStore* NetTokenStore = OwningChannel->Connection->GetDriver()->GetNetTokenStore();
+			BuildSharedSerialization(Data, Changed, true, RepChangelistState->SharedSerialization, NetTokenStore);
 		}
 	}
 
@@ -2147,6 +2153,12 @@ bool FRepLayout::ReplicateProperties(
 	else if (Changed.Num() > 0)
 	{
 		SendProperties(RepState, ChangeTracker, Data, ObjectClass, Writer, Changed, RepChangelistState->SharedSerialization, RepFlags.bSerializePropertyNames ? ESerializePropertyType::Name : ESerializePropertyType::Handle);
+
+		if (UE::Net::FNetTokenExportContext* NetTokenExportContext = RepChangelistState->SharedSerialization.IsValid() ? Writer.NetTokenExportContext.Get() : nullptr)
+		{
+			// For now just append all potential exports, we can be smarter about it if necessary
+			NetTokenExportContext->AppendNetTokensPendingExport(RepChangelistState->SharedSerialization.NetTokensPendingExport);
+		}
 	}
 
 	// See if something actually sent (this may be false due to conditional checks inside the send properties function
@@ -5382,7 +5394,7 @@ static uint32 AddPropertyCmd(
 	Cmd.Property = StackParams.Property;
 	Cmd.Type = ERepLayoutCmdType::Property;		// Initially set to generic type
 	Cmd.Offset = StackParams.Offset;
-	Cmd.ElementSize = Cmd.Property->ElementSize;
+	Cmd.ElementSize = Cmd.Property->GetElementSize();
 	Cmd.RelativeHandle = StackParams.RelativeHandle;
 	Cmd.ParentIndex = SharedParams.ParentIndex;
 	Cmd.CompatibleChecksum = GetRepLayoutCmdCompatibleChecksum(SharedParams, StackParams);
@@ -5523,7 +5535,7 @@ static FORCEINLINE uint32 AddArrayCmd(
 	Cmd.Type = ERepLayoutCmdType::DynamicArray;
 	Cmd.Property = StackParams.Property;
 	Cmd.Offset = StackParams.Offset;
-	Cmd.ElementSize = static_cast<FArrayProperty*>(StackParams.Property)->Inner->ElementSize;
+	Cmd.ElementSize = static_cast<FArrayProperty*>(StackParams.Property)->Inner->GetElementSize();
 	Cmd.RelativeHandle = StackParams.RelativeHandle;
 	Cmd.ParentIndex = SharedParams.ParentIndex;
 	Cmd.CompatibleChecksum = GetRepLayoutCmdCompatibleChecksum(SharedParams, StackParams);
@@ -5607,7 +5619,7 @@ static int32 InitFromStructProperty(
 	{
 		for (int32 j = 0; j < NetProperties[i]->ArrayDim; j++)
 		{
-			const int32 ArrayElementOffset = j * NetProperties[i]->ElementSize;
+			const int32 ArrayElementOffset = j * NetProperties[i]->GetElementSize();
 
 			FInitFromPropertyStackParams NewStackParams{
 				/*Property=*/NetProperties[i],
@@ -6085,7 +6097,7 @@ void FRepLayout::InitFromClass(
 		check(ParentHandle == i);
 		check(Parents[i].Property->RepIndex + Parents[i].ArrayIndex == i);
 
-		const int32 ParentOffset = Property->ElementSize * ArrayIdx;
+		const int32 ParentOffset = Property->GetElementSize() * ArrayIdx;
 
 		FInitFromPropertySharedParams SharedParams
 		{
@@ -6419,7 +6431,7 @@ void FRepLayout::InitFromFunction(
 			FInitFromPropertyStackParams StackParams
 			{
 				/*Property=*/*It,
-				/*Offset=*/It->ElementSize* ArrayIdx,
+				/*Offset=*/It->GetElementSize()* ArrayIdx,
 				/*RelativeHandle=*/RelativeHandle,
 				/*ParentChecksum=*/0,
 				/*StaticArrayIndex=*/ArrayIdx
@@ -6485,7 +6497,7 @@ void FRepLayout::InitFromStruct(
 			FInitFromPropertyStackParams StackParams
 			{
 				/*Property=*/*It,
-				/*Offset=*/It->ElementSize * ArrayIdx,
+				/*Offset=*/It->GetElementSize() * ArrayIdx,
 				/*RelativeHandle=*/RelativeHandle,
 				/*ParentChecksum=*/0,
 				/*StaticArrayIndex=*/ArrayIdx
@@ -6625,6 +6637,7 @@ void FRepLayout::SerializeProperties_r(
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			if ((GNetVerifyShareSerializedData != 0) && Ar.IsSaving())
 			{
+				// TODO: Is this actually a NetBitWriter?
 				FBitWriter& Writer = static_cast<FBitWriter&>(Ar);
 
 				FBitWriterMark BitWriterMark(Writer);
@@ -6742,7 +6755,8 @@ void FRepLayout::BuildSharedSerialization(
 	const FConstRepObjectDataBuffer Data,
 	TArray<uint16>& Changed,
 	const bool bWriteHandle,
-	FRepSerializationSharedInfo& SharedInfo) const
+	FRepSerializationSharedInfo& SharedInfo,
+	UE::Net::FNetTokenStore* NetTokenStore) const
 {
 #ifdef ENABLE_PROPERTY_CHECKSUMS
 	const bool bDoChecksum = (GDoPropertyChecksum == 1);
@@ -6754,6 +6768,9 @@ void FRepLayout::BuildSharedSerialization(
 	FRepHandleIterator HandleIterator(Owner, ChangelistIterator, Cmds, BaseHandleToCmdIndex, 0, 1, 0, Cmds.Num() - 1);
 
 	SharedInfo.Init();
+
+	// Create scope to export NetTokens, storing pending exports in SharedInfoRPC.NetTokensPendingExport
+	UE::Net::FNetTokenExportScope NetTokenExportScope(*SharedInfo.SerializedProperties, NetTokenStore, SharedInfo.NetTokensPendingExport, "BuildSharedSerialization");
 
 	BuildSharedSerialization_r(HandleIterator, Data, bWriteHandle, bDoChecksum, 0, SharedInfo);
 
@@ -6866,12 +6883,15 @@ void FRepLayout::BuildSharedSerializationForRPC_r(
 	}
 }
 
-void FRepLayout::BuildSharedSerializationForRPC(const FConstRepObjectDataBuffer Data)
+void FRepLayout::BuildSharedSerializationForRPC(const FConstRepObjectDataBuffer Data, UE::Net::FNetTokenStore* NetTokenStore)
 {
 	if ((GNetSharedSerializedData != 0) && !SharedInfoRPC.IsValid())
 	{
 		SharedInfoRPC.Init();
 		SharedInfoRPCParentsChanged.Init(false, Parents.Num());
+
+		// Create scope to export NetTokens, storing pending exports in SharedInfoRPC.NetTokensPendingExport
+		UE::Net::FNetTokenExportScope ExportScope(*SharedInfoRPC.SerializedProperties, NetTokenStore, SharedInfoRPC.NetTokensPendingExport, "BuildSharedSerializationForRPC");
 
 		for (int32 i = 0; i < Parents.Num(); i++)
 		{
@@ -6937,6 +6957,7 @@ void FRepLayout::SendPropertiesForRPC(
 		}
 		else
 		{
+			bool bAppendNetTokenExports = false;
 			for (int32 i = 0; i < Parents.Num(); i++)
 			{
 				bool Send = true;
@@ -6961,9 +6982,15 @@ void FRepLayout::SendPropertiesForRPC(
 
 				if (Send)
 				{
+					bAppendNetTokenExports = true;
 					bool bHasUnmapped = false;
 					SerializeProperties_r(Writer, Writer.PackageMap, Parents[i].CmdStart, Parents[i].CmdEnd, const_cast<uint8*>(Data.Data), bHasUnmapped, 0, 0, SharedInfoRPC, GetTraceCollector(Writer), nullptr);
 				}
+			}
+			// Append potential exports from shared serialization			
+			if (UE::Net::FNetTokenExportContext* NetTokenExportContext = bAppendNetTokenExports && SharedInfoRPC.IsValid() ? Writer.NetTokenExportContext.Get() : nullptr)
+			{
+				NetTokenExportContext->AppendNetTokensPendingExport(SharedInfoRPC.NetTokensPendingExport);
 			}
 		}	
 	}
@@ -8381,6 +8408,8 @@ FRepStateStaticBuffer::~FRepStateStaticBuffer()
 	{
 		RepLayout->DestructProperties(*this);
 	}
+
+	Buffer = {};
 }
 
 const TCHAR* LexToString(ERepLayoutFlags Flag)

@@ -22,7 +22,7 @@ struct CORE_API FMacCrashContext : public FApplePlatformCrashContext
 	void GenerateEnsureInfoAndLaunchReporter() const;
 
 	/** Captures all information about all threads */
-	void CaptureAllThreadContext(uint32 ThreadIdEnteredOn);
+	void CaptureAllThreadContext(uint32 ThreadIdEnteredOn) const;
 
 protected:
 	virtual bool GetPlatformAllThreadContextsString(FString& OutStr) const override;
@@ -32,7 +32,7 @@ private:
 		uint32 ThreadIdEnteredOn, 
 		uint32 ThreadId,
 		const FString& ThreadName,
-		const TArray<FCrashStackFrame>& PortableCallStack);
+		const TArray<FCrashStackFrame>& PortableCallStack) const;
 
 	/**
 	* <Thread>
@@ -45,7 +45,6 @@ private:
 	* <Thread>...</Thread>
 	* ...
 	*/
-	FString AllThreadContexts;
 };
 
 typedef FMacCrashContext FPlatformCrashContext;

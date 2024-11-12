@@ -13,6 +13,10 @@ struct FDisplayClusterWarpContext
 {
 	bool bIsValid = false;
 
+	// Frustum has been rotated to fit the size of the context.
+	// This value contains the result of the ShouldRotateFrustumToFitContextSize() function.
+	bool bFrustumRotated = false;
+
 	// Camera
 	FRotator Rotation = FRotator::ZeroRotator;
 	FVector  Location = FVector::ZeroVector;
@@ -84,7 +88,7 @@ struct FDisplayClusterWarpGeometryContext
 {
 	FMatrix GeometryToOrigin = FMatrix::Identity;
 
-	// AABB of geometry
+	// AABB of the warp geometry (in the space of the Origin component).
 	FDisplayClusterWarpAABB AABBox;
 
 	// Static surface average normal for this region

@@ -15,8 +15,14 @@
 #if WITH_ENGINE
 #include "Mesh/InterchangeMeshPayload.h"
 #endif
+#include "Misc/Paths.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
+#include "Nodes/InterchangeSourceNode.h"
 #include "Misc/SecureHash.h"
+#include "InterchangeCommonAnimationPayload.h"
+#include "Serialization/LargeMemoryWriter.h"
+
+#include "FbxAnimation.h"
 
 #define LOCTEXT_NAMESPACE "InterchangeFbxParser"
 
@@ -68,7 +74,7 @@ namespace UE
 				return FbxHelper;
 			}
 
-			bool FFbxParser::LoadFbxFile(const FString& Filename)
+			bool FFbxParser::LoadFbxFile(const FString& Filename, UInterchangeBaseNodeContainer& NodeContainer)
 			{
 				SourceFilename = Filename;
 				int32 SDKMajor, SDKMinor, SDKRevision;
@@ -129,10 +135,50 @@ namespace UE
 
 				bool bStatus = SDKImporter->Import(SDKScene);
 
+				//To be able to re-import legacy fbx imported skeleton hierarchy we need to rename bones the same way legacy was doing, so this rename precede the CleanupFbxData renaming
+				constexpr bool bRemovePath = true;
+				EnsureNodeNameAreValid(FPaths::GetBaseFilename(Filename, bRemovePath));
+
 				//We always convert scene to UE axis and units
-				FFbxConvert::ConvertScene(SDKScene, bConvertScene, bForceFrontXAxis, bConvertSceneUnit);
+				FbxAMatrix AxisConversionInverseMatrix;
+				FFbxConvert::ConvertScene(SDKScene, bConvertScene, bForceFrontXAxis, bConvertSceneUnit, FileDetails.AxisDirection, FileDetails.UnitSystem, AxisConversionInverseMatrix);
+
+				//Save the AxisConversionInverseTransform into InterchangeSourceNode (so that socket transport can use it accordingly).
+				FTransform AxisConversionInverseTransform = FFbxConvert::ConvertTransform<FTransform, FVector, FQuat>(AxisConversionInverseMatrix);
+				UInterchangeSourceNode* SourceNode = UInterchangeSourceNode::FindOrCreateUniqueInstance(&NodeContainer);
+				SourceNode->SetCustomAxisConversionInverseTransform(AxisConversionInverseTransform);
 
 				FrameRate = FbxTime::GetFrameRate(SDKScene->GetGlobalSettings().GetTimeMode());
+				FileDetails.FrameRate = FString::Printf(TEXT("%.2f"), FrameRate);
+
+				// Get the version number of the FBX file format.
+				int32 FileMajor, FileMinor, FileRevision;
+				SDKImporter->GetFileVersion(FileMajor, FileMinor, FileRevision);
+				FileDetails.FbxFileVersion = FString::Printf(TEXT("%d.%d.%d"), FileMajor, FileMinor, FileRevision);
+
+				// Get The Creator of the FBX File.
+				FileDetails.FbxFileCreator = UTF8_TO_TCHAR(SDKImporter->GetFileHeaderInfo()->mCreator.Buffer());
+				{
+					//Example of creator file info string
+					//Blender (stable FBX IO) - 2.78 (sub 0) - 3.7.7
+					//Maya and Max use the same string where they specify the fbx sdk version, so we cannot know it is coming from which software
+					//We need blender creator when importing skeletal mesh containing the "armature" dummy node as the parent of the root joint. We want to remove this dummy "armature" node
+					bCreatorIsBlender = FileDetails.FbxFileCreator.StartsWith(TEXT("Blender"));
+				}
+
+				FbxDocumentInfo* DocInfo = SDKImporter->GetSceneInfo();
+				if (DocInfo)
+				{
+					FString LastSavedVendor(UTF8_TO_TCHAR(DocInfo->LastSaved_ApplicationVendor.Get().Buffer()));
+					FString LastSavedAppName(UTF8_TO_TCHAR(DocInfo->LastSaved_ApplicationName.Get().Buffer()));
+					FString LastSavedAppVersion(UTF8_TO_TCHAR(DocInfo->LastSaved_ApplicationVersion.Get().Buffer()));
+
+					FileDetails.FbxFileCreatorApplication = LastSavedVendor + TEXT(" ") + LastSavedAppName + TEXT(" ") + LastSavedAppVersion;
+				}
+				else
+				{
+					FileDetails.FbxFileCreatorApplication = TEXT("");
+				}
 
 				return true;
 			}
@@ -158,6 +204,8 @@ namespace UE
 				FbxScene.AddHierarchy(SDKScene, NodeContainer, PayloadContexts);
 				FbxScene.AddAnimation(SDKScene, NodeContainer, PayloadContexts);
 				FbxScene.AddMorphTargetAnimations(SDKScene, NodeContainer, PayloadContexts, FbxMesh.GetMorphTargetAnimationsBuildingData());
+
+				ProcessExtraInformation(NodeContainer);
 			}
 
 			bool FFbxParser::FetchPayloadData(const FString& PayloadKey, const FString& PayloadFilepath)
@@ -213,43 +261,111 @@ namespace UE
 			}
 #endif
 
-			bool FFbxParser::FetchAnimationBakeTransformPayload(const FString& PayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& PayloadFilepath)
+			bool FFbxParser::FetchAnimationBakeTransformPayload(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries, const FString& ResultFolder, FCriticalSection* ResultPayloadsCriticalSection, TAtomic<int64>& UniqueIdCounter, TMap<FString, FString>& ResultPayloads/*PayloadUniqueID to FilePath*/)
 			{
-				if (!PayloadContexts.Contains(PayloadKey))
+				//Critical section to force payload to be fetch one by one with no concurrency.
+				FScopeLock Lock(&PayloadCriticalSection);
+
+				TMap<uint32, TArray<const UE::Interchange::FAnimationPayloadQuery*>> PayloadQueriesGrouped;
+
+				for (const UE::Interchange::FAnimationPayloadQuery& PayloadQuery : PayloadQueries)
 				{
-					UInterchangeResultError_Generic* Message = AddMessage<UInterchangeResultError_Generic>();
-					Message->Text = LOCTEXT("CannotRetrievePayload", "Cannot retrieve payload; payload key doesn't have any context.");
-					return false;
+					TArray<const UE::Interchange::FAnimationPayloadQuery*>& PayloadQueriesForHash = PayloadQueriesGrouped.FindOrAdd(PayloadQuery.TimeDescription.GetHash());
+					PayloadQueriesForHash.Add(&PayloadQuery);
 				}
 
+				TArray<FText> OutErrorMessages;
+
+				bool bResult = true;
+				for (const TPair<uint32, TArray<const UE::Interchange::FAnimationPayloadQuery*>>& Group : PayloadQueriesGrouped)
 				{
-					//Critical section to force payload to be fetch one by one with no concurrency.
-					FScopeLock Lock(&PayloadCriticalSection);
-					TSharedPtr<FPayloadContextBase>& PayloadContext = PayloadContexts.FindChecked(PayloadKey);
-					return PayloadContext->FetchAnimationBakeTransformPayloadToFile(*this, BakeFrequency, RangeStartTime, RangeEndTime, PayloadFilepath);
+					bResult = FFbxAnimation::FetchAnimationBakeTransformPayload(*this, GetSDKScene(), PayloadContexts, Group.Value, ResultFolder, ResultPayloadsCriticalSection, UniqueIdCounter, ResultPayloads, OutErrorMessages) && bResult;
+				}
+
+				for (const FText& ErrorMessage : OutErrorMessages)
+				{
+					UInterchangeResultError_Generic* Message = AddMessage<UInterchangeResultError_Generic>();
+					Message->Text = ErrorMessage;
+				}
+
+				return bResult;
+			}
+
+			void ManageNamespace(const bool bKeepFbxNamespace, FString& ObjectName, FbxObject* Object)
+			{
+				if (bKeepFbxNamespace)
+				{
+					if (ObjectName.Contains(TEXT(":")))
+					{
+						ObjectName = ObjectName.Replace(TEXT(":"), TEXT("_"));
+						Object->SetName(TCHAR_TO_UTF8(*ObjectName));
+					}
+				}
+				else
+				{
+					// Remove namespaces
+					int32 LastNamespaceTokenIndex = INDEX_NONE;
+					if (ObjectName.FindLastChar(TEXT(':'), LastNamespaceTokenIndex))
+					{
+						//+1 to remove the ':' character we found
+						ObjectName.RightChopInline(LastNamespaceTokenIndex + 1, EAllowShrinking::Yes);
+						Object->SetName(TCHAR_TO_UTF8(*ObjectName));
+					}
+				}
+			}
+
+			void FFbxParser::EnsureNodeNameAreValid(const FString& BaseFilename)
+			{
+				TSet<FString> AllNodeName;
+				int32 CurrentNameIndex = 1;
+				for (int32 NodeIndex = 0; NodeIndex < SDKScene->GetNodeCount(); ++NodeIndex)
+				{
+					FbxNode* Node = SDKScene->GetNode(NodeIndex);
+					FString NodeName = UTF8_TO_TCHAR(Node->GetName());
+					if (NodeName.IsEmpty())
+					{
+						do
+						{
+							NodeName = TEXT("ncl1_") + FString::FromInt(CurrentNameIndex++);
+						} while (AllNodeName.Contains(NodeName));
+
+						Node->SetName(TCHAR_TO_UTF8(*NodeName));
+						if (!GIsAutomationTesting)
+						{
+							UInterchangeResultDisplay_Generic* Message = AddMessage<UInterchangeResultDisplay_Generic>();
+							Message->Text = FText::Format(LOCTEXT("EnsureNodeNameAreValid_NoNodeName", "Interchange FBX file Loading: Found node with no name, new node name is '{0}'"), FText::FromString(NodeName));
+						}
+					}
+					ManageNamespace(bKeepFbxNamespace, NodeName, Node);
+					
+					// Do not allow node to be named same as filename as this creates problems later on (reimport)
+					if (AllNodeName.Contains(NodeName))
+					{
+						FString UniqueNodeName;
+						do
+						{
+							UniqueNodeName = NodeName + FString::FromInt(CurrentNameIndex++);
+						} while (AllNodeName.Contains(UniqueNodeName));
+
+						FbxString UniqueName(TCHAR_TO_UTF8(*UniqueNodeName));
+						Node->SetName(UniqueName);
+
+						if (!GIsAutomationTesting)
+						{
+							UInterchangeResultDisplay_Generic* Message = AddMessage<UInterchangeResultDisplay_Generic>();
+							Message->Text = FText::Format(LOCTEXT("EnsureNodeNameAreValid_NodeNameClash", "FBX File Loading: Found name clash, node '{0}' was renamed to '{1}'"), FText::FromString(NodeName), FText::FromString(UniqueNodeName));
+						}
+					}
+					AllNodeName.Add(NodeName);
 				}
 			}
 
 			void FFbxParser::CleanupFbxData()
 			{
-				//////////////////////////////////////////////////////////////////////////
-				// Make sure there is a valid bind pose
-
-				//Find root bones
-				const int32 Default_NbPoses = SDKScene->GetFbxManager()->GetBindPoseCount(SDKScene);
-				// If there are no BindPoses, the following will generate them.
-				SDKScene->GetFbxManager()->CreateMissingBindPoses(SDKScene);
-				//if we created missing bind poses, update the number of bind poses
-				const int32 NbPoses = SDKScene->GetFbxManager()->GetBindPoseCount(SDKScene);
-				if (NbPoses != Default_NbPoses && !GIsAutomationTesting)
-				{
-					UInterchangeResultWarning_Generic* Message = AddMessage<UInterchangeResultWarning_Generic>();
-					Message->Text = LOCTEXT("MissingBindPose", "Missing bind pose - the FBX SDK has created one.");
-				}
-
-				auto MakeFbxObjectNameUnique = [](FbxObject* Object, TMap<FString, int32>& Names)
+				auto MakeFbxObjectNameUnique = [bKeepFbxNamespaceClosure = bKeepFbxNamespace](FbxObject* Object, TMap<FString, int32>& Names)
 					{
 						FString ObjectName = UTF8_TO_TCHAR(Object->GetName());
+						ManageNamespace(bKeepFbxNamespaceClosure, ObjectName, Object);
 						if (int32* Count = Names.Find(ObjectName))
 						{
 							(*Count)++;
@@ -269,6 +385,11 @@ namespace UE
 				for (int32 NodeIndex = 0; NodeIndex < SDKScene->GetNodeCount(); ++NodeIndex)
 				{
 					FbxNode* Node = SDKScene->GetNode(NodeIndex);
+					FString NodeName = UTF8_TO_TCHAR(Node->GetName());
+					if (NodeName.IsEmpty())
+					{
+						Node->SetName(TCHAR_TO_UTF8(TEXT("Node")));
+					}
 					MakeFbxObjectNameUnique(Node, NodeNames);
 				}
 
@@ -288,8 +409,40 @@ namespace UE
 					{
 						continue;
 					}
+					FString MeshName = UTF8_TO_TCHAR(Mesh->GetName());
+					if (MeshName.IsEmpty())
+					{
+						Mesh->SetName(TCHAR_TO_UTF8(TEXT("Mesh")));
+					}
 					MakeFbxObjectNameUnique(Mesh, MeshNames);
 				}
+
+				/////////////////////////////////////////////////////////////////////////
+				// Ensure Material Name Validity (uniqueness)
+				// Name clash must be global because we will build Unique ID from the material name
+				TMap<FString, int32> MaterialNames;
+				for (int32 MaterialIndex = 0; MaterialIndex < SDKScene->GetMaterialCount(); ++MaterialIndex)
+				{
+					FbxSurfaceMaterial* Material = SDKScene->GetMaterial(MaterialIndex);
+					FString MaterialName = UTF8_TO_TCHAR(Material->GetName());
+					if (MaterialName.IsEmpty())
+					{
+						Material->SetName(TCHAR_TO_UTF8(TEXT("Material")));
+					}
+					MakeFbxObjectNameUnique(Material, MaterialNames);
+				}
+			}
+
+			void FFbxParser::ProcessExtraInformation(UInterchangeBaseNodeContainer& NodeContainer)
+			{
+				UInterchangeSourceNode* SourceNode = UInterchangeSourceNode::FindOrCreateUniqueInstance(&NodeContainer);
+
+				SourceNode->SetExtraInformation(TEXT("File Version"), FileDetails.FbxFileVersion);
+				SourceNode->SetExtraInformation(TEXT("File Creator"), FileDetails.FbxFileCreator);
+				SourceNode->SetExtraInformation(TEXT("File Creator Application"), FileDetails.FbxFileCreatorApplication);
+				SourceNode->SetExtraInformation(TEXT("File Units"), FileDetails.UnitSystem);
+				SourceNode->SetExtraInformation(TEXT("File Axis Direction"), FileDetails.AxisDirection);
+				SourceNode->SetExtraInformation(TEXT("File Frame Rate"), FileDetails.FrameRate);
 			}
 		} //ns Private
 	} //ns Interchange

@@ -101,7 +101,7 @@ struct FWaterBrushEffectDisplacement
 	float DisplacementTiling;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = BrushEffects)
-	TObjectPtr<UTexture2D> Texture;
+	TSoftObjectPtr<UTexture2D> Texture;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = BrushEffects)
 	float Midpoint;

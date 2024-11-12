@@ -77,6 +77,14 @@ typedef FIOSPlatformTypes FPlatformTypes;
 #define PLATFORM_SUPPORTS_VIRTUAL_TEXTURE_STREAMING		1
 #define PLATFORM_SUPPORTS_BINDLESS_RENDERING			0
 
+// Ensure we can use this builtin - seems to be present on Clang 9, GCC 11 and MSVC 19.26,
+// but gives spurious "non-void function 'BitCast' should return a value" errors on some
+// Mac and Android toolchains when building PCHs, so avoid those.
+#undef PLATFORM_COMPILER_SUPPORTS_BUILTIN_BITCAST
+#define PLATFORM_COMPILER_SUPPORTS_BUILTIN_BITCAST (__clang_major__ >= 13)
+
+#define PLATFORM_RETURN_ADDRESS_FOR_CALLSTACKTRACING    PLATFORM_RETURN_ADDRESS
+
 #define PLATFORM_GLOBAL_LOG_CATEGORY					LogIOS
 
 #define PLATFORM_BREAK()                                __builtin_debugtrap()
@@ -102,6 +110,13 @@ typedef FIOSPlatformTypes FPlatformTypes;
 
 #define ABSTRACT abstract
 
+// We can use pragma optimisation's on and off as of Apple LLVM 7.3.0 but not before.
+#if (__clang_major__ > 7) || (__clang_major__ == 7 && __clang_minor__ >= 3)
+#define PRAGMA_DISABLE_OPTIMIZATION_ACTUAL _Pragma("clang optimize off")
+#define PRAGMA_ENABLE_OPTIMIZATION_ACTUAL  _Pragma("clang optimize on")
+#endif
+
+// Strings.
 // Strings.
 #define LINE_TERMINATOR TEXT("\n")
 #define LINE_TERMINATOR_ANSI "\n"

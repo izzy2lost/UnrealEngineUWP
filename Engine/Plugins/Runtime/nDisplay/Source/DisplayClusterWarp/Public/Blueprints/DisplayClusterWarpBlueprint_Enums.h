@@ -29,6 +29,6 @@ enum class EDisplayClusterWarpCameraViewTarget
 	/** The camera will point in the direction of the geometric center of the stage's geometry */
 	GeometricCenter UMETA(DisplayName = "Geometric Center"),
 
-	/** The camera will point in the same direction as the frustum fit view origin */
-	MatchViewOrigin UMETA(DisplayName = "Match View Origin")
+	/** The camera will point in the same direction as the frustum fit view point. */
+	MatchViewOrigin UMETA(DisplayName = "Match View Point")
 };

@@ -158,6 +158,12 @@ void FCacheStoreAsync::Execute(
 			{
 				COOK_STAT(Timer.AddHit(0));
 			}
+			else if (Response.Status == EStatus::Canceled)
+			{
+				// The request was cancelled so only track the cycles lost, rather than adding a miss
+				COOK_STAT(Timer.TrackCyclesOnly());
+			}
+
 			OnComplete(MoveTemp(Response));
 			Private::AddToAsyncTaskCounter(-1);
 		});

@@ -11,6 +11,7 @@
 #include "UniversalObjectLocator.h"
 #include "UniversalObjectLocatorResolveParams.h"
 #include "Misc/NotifyHook.h"
+#include "MovieSceneTrack.h"
 #include "LevelSequenceEditorSubsystem.generated.h"
 
 class FUICommandList;
@@ -22,6 +23,8 @@ struct FMovieScenePasteFoldersParams;
 struct FMovieScenePasteSectionsParams;
 struct FMovieScenePasteTracksParams;
 struct FBakingAnimationKeySettings;
+struct FSequencerChangeBindingInfo;
+struct FMovieScenePossessable;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogLevelSequenceEditor, Log, All);
 
@@ -33,8 +36,11 @@ class UMovieSceneFolder;
 class UMovieSceneSection;
 class UMovieSceneSequence;
 class USequencerModuleScriptingLayer;
-class IStructureDetailsView;
+class IDetailsView;
 class USequencerCurveEditorObject;
+class UMovieSceneCustomBinding;
+class IMenu;
+class UMovieSceneTrackRowMetadataHelper;
 
 USTRUCT(BlueprintType)
 struct FMovieSceneScriptingParams
@@ -49,28 +55,31 @@ struct FMovieSceneScriptingParams
 
 // Helper struct for Binding Properties UI for locators.
 USTRUCT()
-struct FMovieSceneUniversalLocatorInfo
+struct FMovieSceneBindingPropertyInfo
 {
 	GENERATED_BODY()
 
 	// Locator for the entry
-	UPROPERTY(EditAnywhere, Category = "Default", meta=(AllowedLocators="Actor"))
+	UPROPERTY(EditAnywhere, Category = "Default", meta=(AllowedLocators="Actor, UsdPrim", DisplayName="Actor"))
 	FUniversalObjectLocator Locator;
 
 	// Flags for how to resolve the locator
 	UPROPERTY()
 	ELocatorResolveFlags ResolveFlags = ELocatorResolveFlags::None;
+
+	UPROPERTY(Instanced, VisibleAnywhere, Category = "Default", meta=(EditInline, AllowEditInlineCustomization, DisplayName="Custom Binding Type"))
+	TObjectPtr<UMovieSceneCustomBinding> CustomBinding = nullptr;
 };
 
-// Helper struct for editing arrays of locators for object bindings
-USTRUCT()
-struct FMovieSceneUniversalLocatorList
+// Helper UObject for editing arrays of locators for object bindings. A UObject instead of a UStruct because we need to support instanced sub objects
+UCLASS()
+class UMovieSceneBindingPropertyInfoList : public UObject
 {
 	GENERATED_BODY()
-
+public:
 	// List of locator info for a particular binding
-	UPROPERTY(EditAnywhere, Category = "Default")
-	TArray<FMovieSceneUniversalLocatorInfo> Bindings;
+	UPROPERTY(EditAnywhere, Category = "Binding Properties")
+	TArray<FMovieSceneBindingPropertyInfo> Bindings;
 };
 
 /**
@@ -89,6 +98,8 @@ public:
 
 	void OnSequencerCreated(TSharedRef<ISequencer> InSequencer);
 
+	void OnSequencerClosed(TSharedRef<ISequencer> InSequencer);
+
 	/** Retrieve the scripting layer */
 	UFUNCTION(BlueprintPure, Category = "Level Sequence Editor")
 	USequencerModuleScriptingLayer* GetScriptingLayer();
@@ -105,13 +116,40 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	FMovieSceneBindingProxy CreateCamera(bool bSpawnable, ACineCameraActor*& OutActor);
 
-	/** Convert to spawnable. If there are multiple objects assigned to the possessable, multiple spawnables will be created. */
+	/** 
+	* Convert to spawnable. If there are multiple objects assigned to the possessable, multiple spawnables will be created. 
+	* For level sequences, the bindings created will be custom bindings of type UMovieSceneSpawnableActorBinding.
+	*/
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	TArray<FMovieSceneBindingProxy> ConvertToSpawnable(const FMovieSceneBindingProxy& ObjectBinding);
 
-	/** Convert to possessable */
+	/** Convert to possessable. If there are multiple objects assigned to the spawnable. */
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	FMovieSceneBindingProxy ConvertToPossessable(const FMovieSceneBindingProxy& ObjectBinding);
+
+	/** Convert to a custom binding of the given binding type*/
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	FMovieSceneBindingProxy ConvertToCustomBinding(const FMovieSceneBindingProxy& ObjectBinding, UPARAM(meta = (AllowAbstract = "false")) TSubclassOf<UMovieSceneCustomBinding> BindingType);
+
+	/** In the case that the given binding proxy holds custom bindings, returns an array of the binding objects so properties can be accessed. */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	TArray<UMovieSceneCustomBinding*> GetCustomBindingObjects(const FMovieSceneBindingProxy& ObjectBinding);
+
+	/** Returns all of the bindings in the sequence of the given custom type. */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	TArray<FMovieSceneBindingProxy> GetCustomBindingsOfType(TSubclassOf<UMovieSceneCustomBinding> CustomBindingType);
+
+	/* Returns the custom binding type for the given binding, or nullptr for possessables*/
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	TSubclassOf<UMovieSceneCustomBinding> GetCustomBindingType(const FMovieSceneBindingProxy& ObjectBinding);
+
+	/* Sets the actor class for the spawnable or replaceable template, in the case those binding types support templates. */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	bool ChangeActorTemplateClass(const FMovieSceneBindingProxy& ObjectBinding, TSubclassOf<AActor> ActorClass);
+
+	/* Save the default state of the spawnable. */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	void SaveDefaultSpawnableState(const FMovieSceneBindingProxy& ObjectBinding);
 
 	/** 
 	 * Copy folders 
@@ -225,6 +263,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	void RebindComponent(const TArray<FMovieSceneBindingProxy>& ComponentBindings, const FName& ComponentName);
 
+	// Refreshes the binding details when the bindings change in the menu
+	void RefreshBindingDetails(IDetailsView* DetailsView, FGuid ObjectBindingID);
+
+	// Refreshes the track row metadata details when the track row metadata changes in the menu
+	void RefreshTrackRowMetadataDetails(IDetailsView* DetailsView);
+
 private:
 	/** Used by Baking transforms*/
 	struct FBakeData
@@ -249,9 +293,20 @@ private:
 		virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
 	};
 
+	UPROPERTY()
+	TObjectPtr<UMovieSceneBindingPropertyInfoList> BindingPropertyInfoList = nullptr;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UMovieSceneTrackRowMetadataHelper>> TrackRowMetadataHelperList;
+	
 	FBindingPropertiesNotifyHook NotifyHook;
 
 private:
+
+	void AddBindingDetailCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer, FGuid BindingGuid);
+	void AddTrackRowMetadataCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer, UMovieSceneSequence* Sequence);
+	void OnBindingPropertyMenuBeingDestroyed(const TSharedRef<IMenu>& Menu, TSharedRef<IDetailsView> DetailsView);
+	void OnTrackRowMetadataMenuBeingDestroyed(const TSharedRef<IMenu>& Menu, TSharedRef<IDetailsView> DetailsView);
 
 	TSharedPtr<ISequencer> GetActiveSequencer();
 	
@@ -267,10 +322,34 @@ private:
 
 	void AddAssignActorMenu(FMenuBuilder& MenuBuilder);
 	void AddBindingPropertiesMenu(FMenuBuilder& MenuBuilder);
-	void OnFinishedChangingLocators(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IStructureDetailsView> StructDetailsView, TSharedRef<FStructOnScope> LocatorsStruct, FGuid ObjectBindingID);
+	void AddConvertBindingsMenu(FMenuBuilder& MenuBuilder);
+
+	
+	void FillDirectorBlueprintBindingSubMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToChange, bool bConvert, TFunction<void()> OnBindingChanged, const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType);
+	void PopulateQuickBindSubMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToChange, bool bConvert, TFunction<void()> OnBindingChanged, const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType);
+	void FillBindingClassSubMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToChange, bool bConvert, TFunction<void()> OnBindingChanged, const TArray<const TSubclassOf<UMovieSceneCustomBinding>>& UserCustomBindingTypes);
+	void ChangeBindingTypes(const TSharedRef<ISequencer>& InSequencer
+		, const TArray<FSequencerChangeBindingInfo>& InBindingsToChange
+		, TFunction<FMovieScenePossessable* (FGuid, int32)> InDoChangeType
+		, TFunction<void()> InOnBindingChanged);
+
+	void AddTrackRowMetadataMenu(FMenuBuilder& MenuBuilder);
+public:
+	void AddBindingPropertiesSidebar(FMenuBuilder& MenuBuilder); 
+	
+	/* Creates a menu for changing or converting a binding type. If bConvert is true, it will only show types that state they are able to be converted to from the passed in bindings
+	and will attempt to convert them. If bConvert is false, it will change the binding type and reset to a default binding of that type.*/
+	void AddChangeBindingTypeMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToChange, bool bConvert, TFunction<void()> OnBindingChanged);
+
+private:
+	void OnFinishedChangingLocators(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IDetailsView> DetailsView, FGuid ObjectBindingID);
+
+	void OnFinishedChangingTrackRowMetadata(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IDetailsView> DetailsView);
 
 	void GetRebindComponentNames(TArray<FName>& OutComponentNames);
 	void RebindComponentMenu(FMenuBuilder& MenuBuilder);
+
+	bool IsSelectedBindingRootPossessable();
 
 	FDelegateHandle OnSequencerCreatedHandle;
 
@@ -291,6 +370,9 @@ private:
 	TSharedPtr<FExtender> AssignActorMenuExtender;
 	TSharedPtr<FExtender> BindingPropertiesMenuExtender;
 	TSharedPtr<FExtender> RebindComponentMenuExtender;
+	TSharedPtr<FExtender> SidebarMenuExtender;
+
+	friend class FMovieSceneBindingPropertyInfoListCustomization;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

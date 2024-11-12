@@ -14,6 +14,7 @@
 #include "Templates/Decay.h"
 #include "Templates/IsFloatingPoint.h"
 #include "Templates/UnrealTypeTraits.h"
+#include "Templates/Requires.h"
 #include "Templates/ResolveTypeAmbiguity.h"
 #include "Templates/TypeCompatibleBytes.h"
 #include <limits>
@@ -656,6 +657,12 @@ struct FGenericPlatformMath
 		return pos;
 	}
 
+	/** FloorLog2 but the caller guarantees that Value is not 0. */
+	static constexpr FORCEINLINE uint32 FloorLog2NonZero(uint32 Value)
+	{
+		return FloorLog2(Value);
+	}
+
 	/**
 	 * Computes the base 2 logarithm for a 64-bit value.
 	 * The result is rounded down to the nearest integer.
@@ -673,6 +680,12 @@ struct FGenericPlatformMath
 		if (Value >= 1ull<< 2) { Value >>=  2; pos +=  2; }
 		if (Value >= 1ull<< 1) {               pos +=  1; }
 		return pos;
+	}
+
+	/** FloorLog2_64 but the caller guarantees that Value is not 0. */
+	static constexpr FORCEINLINE uint64 FloorLog2NonZero_64(uint64 Value)
+	{
+		return FloorLog2_64(Value);
 	}
 
 	/**
@@ -782,7 +795,16 @@ struct FGenericPlatformMath
 	 */
 	static constexpr FORCEINLINE uint8 ConstExprCeilLogTwo(SIZE_T Arg)
 	{
-		return Arg <= 1 ? 0 : (1 + ConstExprCeilLogTwo(Arg / 2));
+		if (Arg <= 1)
+		{
+			return 0;
+		}
+		// Integer overflow if we tried to add 1 to maximum value, so handle that case separately
+		if (Arg + 1 < Arg)
+		{
+			return sizeof(Arg) * 8;
+		}
+		return 1 + ConstExprCeilLogTwo((Arg + 1) / 2);
 	}
 
 	/** @return Rounds the given number up to the next highest power of two. */

@@ -19,6 +19,9 @@
 #include "PersonaModule.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
+#include "DynamicMeshBuilder.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialRenderProxy.h"
 
 #include "SEditorViewport.h"
 #include "CanvasTypes.h"
@@ -47,6 +50,10 @@
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "Animation/AnimCompositeBase.h"
 #include "AudioEditorSettings.h"
+#include "Animation/AnimNotifies/AnimNotifyState.h"
+#include "Animation/AnimMontage.h"
+#include "Animation/AnimSequenceHelpers.h"
+#include "AnimationBlueprintLibrary.h"
 
 namespace {
 	static const float AnimationEditorViewport_RotateSpeed = 0.02f;
@@ -75,6 +82,88 @@ namespace UE::Private
 			}
 		}
 		return true;
+	}
+
+	void DrawCoordinateSystem(FPrimitiveDrawInterface* PDI, const FTransform& Transform, const float Thickness, const float Length, const float DepthBias, const bool bScreenSpace, uint8 Alpha)
+	{
+		const FVector Location = Transform.GetLocation();
+		const FVector AxisX = Transform.GetUnitAxis(EAxis::X) * Length;
+		const FVector AxisY = Transform.GetUnitAxis(EAxis::Y) * Length;
+		const FVector AxisZ = Transform.GetUnitAxis(EAxis::Z) * Length;
+		PDI->DrawTranslucentLine(Location, Location + AxisX, FColor::Red.WithAlpha(Alpha), SDPG_World, 1.0f, DepthBias, bScreenSpace);
+		PDI->DrawTranslucentLine(Location, Location + AxisY, FColor::Green.WithAlpha(Alpha), SDPG_World, 1.0f, DepthBias, bScreenSpace);
+		PDI->DrawTranslucentLine(Location, Location + AxisZ, FColor::Blue.WithAlpha(Alpha), SDPG_World, 1.0f, DepthBias, bScreenSpace);
+	}
+
+	FColor GetColorForAxis(EAxis::Type InAxis)
+	{
+		// Just draw all forward-axis versions as black for now.
+		return FColor::Black;
+	}
+
+	void DrawFlatArrow(class FPrimitiveDrawInterface* PDI,const FVector& Base,const FVector& XAxis,const FVector& YAxis,FColor Color,float Length,int32 Width, const FMaterialRenderProxy* MaterialRenderProxy, uint8 DepthPriority, float Thickness = 0.0f)
+	{
+		float DistanceFromBaseToHead = Length/3.0f;
+		float DistanceFromBaseToTip = DistanceFromBaseToHead*2.0f;
+		float WidthOfBase = Width;
+		float WidthOfHead = 2*Width;
+
+		FVector ArrowPoints[7];
+		//base points
+		ArrowPoints[0] = Base - YAxis*(WidthOfBase*.5f);
+		ArrowPoints[1] = Base + YAxis*(WidthOfBase*.5f);
+		//inner head
+		ArrowPoints[2] = ArrowPoints[0] + XAxis*DistanceFromBaseToHead;
+		ArrowPoints[3] = ArrowPoints[1] + XAxis*DistanceFromBaseToHead;
+		//outer head
+		ArrowPoints[4] = ArrowPoints[2] - YAxis*(WidthOfBase*.5f);
+		ArrowPoints[5] = ArrowPoints[3] + YAxis*(WidthOfBase*.5f);
+		//tip
+		ArrowPoints[6] = Base + XAxis*Length;
+
+		//Draw lines
+		{
+			//base
+			PDI->DrawTranslucentLine(ArrowPoints[0], ArrowPoints[1], Color, DepthPriority, Thickness);
+			//base sides																 
+			PDI->DrawTranslucentLine(ArrowPoints[0], ArrowPoints[2], Color, DepthPriority, Thickness);
+			PDI->DrawTranslucentLine(ArrowPoints[1], ArrowPoints[3], Color, DepthPriority, Thickness);
+			//head base																	 
+			PDI->DrawTranslucentLine(ArrowPoints[2], ArrowPoints[4], Color, DepthPriority, Thickness);
+			PDI->DrawTranslucentLine(ArrowPoints[3], ArrowPoints[5], Color, DepthPriority, Thickness);
+			//head sides																 
+			PDI->DrawTranslucentLine(ArrowPoints[4], ArrowPoints[6], Color, DepthPriority, Thickness);
+			PDI->DrawTranslucentLine(ArrowPoints[5], ArrowPoints[6], Color, DepthPriority, Thickness);
+
+		}
+
+		if (MaterialRenderProxy != nullptr)
+		{
+			FDynamicMeshBuilder MeshBuilder(PDI->View->GetFeatureLevel());
+
+			//Compute vertices for base circle.
+			for(int32 i = 0; i< 7; ++i)
+			{
+				FDynamicMeshVertex MeshVertex;
+				MeshVertex.Position = (FVector3f)ArrowPoints[i];
+				MeshVertex.Color = Color;
+				MeshVertex.TextureCoordinate[0] = FVector2f(0.0f, 0.0f);;
+				MeshVertex.SetTangents(FVector3f(XAxis^YAxis), (FVector3f)YAxis, (FVector3f)XAxis);
+				MeshBuilder.AddVertex(MeshVertex); //Add bottom vertex
+			}
+
+			//Add triangles / double sided
+			{
+				MeshBuilder.AddTriangle(0, 2, 1); //base
+				MeshBuilder.AddTriangle(0, 1, 2); //base
+				MeshBuilder.AddTriangle(1, 2, 3); //base
+				MeshBuilder.AddTriangle(1, 3, 2); //base
+				MeshBuilder.AddTriangle(4, 5, 6); //head
+				MeshBuilder.AddTriangle(4, 6, 5); //head
+			}
+
+			MeshBuilder.Draw(PDI, FMatrix::Identity, MaterialRenderProxy, DepthPriority, 0.0f);
+		}
 	}
 }
 
@@ -193,13 +282,11 @@ FAnimationViewportClient::~FAnimationViewportClient()
 				}
 			}
 		}
+
+		AnimationEditorPreviewScene->UnregisterOnSelectedBoneChanged(OnSelectedBoneChangedHandle);
 	}
 	OnPhysicsCreatedDelegateHandle.Reset();
 	OnMeshChangedDelegateHandle.Reset();
-
-	// Clear out the preview scene so any subsequent editor object destruction that tries to poke into the
-	// world will not crash.
-	static_cast<FAssetEditorModeManager*>(ModeTools.Get())->SetPreviewScene(nullptr);
 	
 	UAssetViewerSettings::Get()->OnAssetViewerSettingsChanged().RemoveAll(this);
 }
@@ -218,13 +305,20 @@ void FAnimationViewportClient::Initialize()
 		AnimationEditorPreviewScene->RegisterOnFocusViews(FSimpleDelegate::CreateSP(this, &FAnimationViewportClient::HandleFocusViews));
 		AnimationEditorPreviewScene->RegisterOnPreTick(FSimpleDelegate::CreateSP(this, &FAnimationViewportClient::HandlePreviewScenePreTick));
 		AnimationEditorPreviewScene->RegisterOnPostTick(FSimpleDelegate::CreateSP(this, &FAnimationViewportClient::HandlePreviewScenePostTick));
+
+		OnSelectedBoneChangedHandle = AnimationEditorPreviewScene->RegisterOnSelectedBoneChanged(FOnSelectedBoneChanged::CreateLambda([this](const FName&, ESelectInfo::Type)
+		{
+			UpdateBonesToDraw();
+		}));
 	}
 
 	// Register delegate to update the show flags when the post processing is turned on or off
 	UAssetViewerSettings::Get()->OnAssetViewerSettingsChanged().AddSP(this, &FAnimationViewportClient::OnAssetViewerSettingsChanged);
 	// Set correct flags according to current profile settings
-	SetAdvancedShowFlagsForScene(UAssetViewerSettings::Get()->Profiles[GetMutableDefault<UEditorPerProjectUserSettings>()->AssetViewerProfileIndex].bPostProcessingEnabled);
+	UAssetViewerSettings::GetCurrentUserProjectProfile().SetShowFlags(EngineShowFlags);
 
+	// Setup bones to draw on initialise
+	UpdateBonesToDraw();
 }
 
 void FAnimationViewportClient::OnToggleAutoAlignFloor()
@@ -512,12 +606,15 @@ void FAnimationViewportClient::HandleSkeletalMeshChanged(USkeletalMesh* OldSkele
 		}
 	}
 
+	UpdateBonesToDraw();
+
 	Invalidate();
 }
 
 void FAnimationViewportClient::HandleOnMeshChanged()
 {
 	UpdateCameraSetup();
+	UpdateBonesToDraw();
 	Invalidate();
 }
 
@@ -538,6 +635,8 @@ void FAnimationViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterf
 		return;
 	}
 
+	UpdateBonesToDraw();
+
 	FEditorViewportClient::Draw(View, PDI);
 
 	// draw bones for all debug skeletal meshes
@@ -553,17 +652,14 @@ void FAnimationViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterf
 
 			const FReferenceSkeleton& RefSkeleton = PreviewMeshComponent->GetReferenceSkeleton();
 			const TArray<FBoneIndexType>& DrawBoneIndices = PreviewMeshComponent->GetDrawBoneIndices();
-
-			// if we have BonesOfInterest, draw sub set of the bones only
-			if (GetAnimPreviewScene()->GetSelectedBoneIndex() != INDEX_NONE)
-			{
-				DrawMeshSubsetBones(PreviewMeshComponent, PreviewMeshComponent->BonesOfInterest, PDI);
-			}
-			// otherwise, if we display bones, display
+			
+			// draw the skeleton normally
 			if ( GetBoneDrawMode() != EBoneDrawMode::None )
 			{
 				DrawMeshBones(PreviewMeshComponent, PDI);
 			}
+
+			// special draw modes for debugging various transforms...
 			if (PreviewMeshComponent->bDisplayRawAnimation )
 			{
 				DrawMeshBonesUncompressedAnimation(PreviewMeshComponent, PDI);
@@ -607,12 +703,18 @@ void FAnimationViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterf
 			{
 				DrawAttributes(PreviewMeshComponent, PDI);
 			}
+
+			DrawNotifies(PreviewMeshComponent, PDI);
+
+			DrawRootMotionTrajectory(PreviewMeshComponent, PDI);
+
+			DrawAssetUserData(PDI);
 		}
 		else if (bValidComponent && !bValidSkeletalMesh)
 		{
 			if (const USkeleton* Skeleton = GetPreviewScene()->GetPersonaToolkit()->GetSkeleton())
 			{
-				DrawBonesFromSkeleton(Skeleton, PreviewMeshComponent->BonesOfInterest, PDI);
+				DrawBonesFromSkeleton(PreviewMeshComponent, Skeleton, PreviewMeshComponent->BonesOfInterest, PDI);
 			}
 		}
 	}
@@ -662,6 +764,10 @@ void FAnimationViewportClient::DrawCanvas( FViewport& InViewport, FSceneView& Vi
 			ShowAttributeNames(&Canvas, &View, PreviewMeshComponent);
 		}
 
+		DrawCanvasNotifies(PreviewMeshComponent, Canvas, View);
+
+		DrawCanvasAssetUserData(Canvas, View);
+		
 		if (bDrawUVs)
 		{
 			DrawUVsForMesh(Viewport, &Canvas, 1, PreviewMeshComponent);
@@ -714,6 +820,24 @@ void FAnimationViewportClient::Tick(float DeltaSeconds)
 	FEditorViewportClient::Tick(DeltaSeconds);
 
 	GetAnimPreviewScene()->FlagTickable();
+
+	TimecodeDisplay.Reset();
+	if (GetAnimPreviewScene()->IsShowTimecode())
+	{
+		UAnimationAsset* AnimationAsset = GetAnimPreviewScene()->GetPreviewAnimationAsset();
+		if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(AnimationAsset))
+		{
+			FName BoneName = UAnimationBlueprintLibrary::FindBoneNameWithTimecodeAttributes(AnimSequence);
+
+			FString SlateName;
+			FQualifiedFrameTime QualifiedFrameTime;
+			TOptional<float> PlayPosition = GetAnimPreviewScene()->GetCurrentTime();
+			if (PlayPosition && UAnimationBlueprintLibrary::EvaluateBoneTimecodeAndSlateAttributesAtTime(BoneName, AnimSequence, *PlayPosition, QualifiedFrameTime, SlateName))
+			{
+				TimecodeDisplay = {QualifiedFrameTime, SlateName};
+			}
+		}
+	}
 }
 
 void FAnimationViewportClient::HandlePreviewScenePreTick()
@@ -831,6 +955,11 @@ void FAnimationViewportClient::ShowBoneNames( FCanvas* Canvas, FSceneView* View,
 	for (int32 i=0; i< LODData.RequiredBones.Num(); i++)
 	{
 		const int32 BoneIndex = LODData.RequiredBones[i];
+
+		if (!BonesToDraw.IsValidIndex(BoneIndex) || !BonesToDraw[BoneIndex])
+		{
+			continue;
+		}
 
 		// If previewing a specific section, only show the bone names that belong to it
 		if ((PreviewMeshComponent->GetSectionPreview() >= 0) && !LODData.RenderSections[PreviewMeshComponent->GetSectionPreview()].BoneMap.Contains(BoneIndex))
@@ -1307,9 +1436,9 @@ FText FAnimationViewportClient::GetDisplayInfo(bool bDisplayAllInfo) const
 		TextValue = ConcatenateLine(TextValue, LOCTEXT("MeshMaterialHiddenWarning", "Mesh Materials Hidden"));
 	}
 
-	if (const UAnimSequence* AnimSequence = Cast<UAnimSequence>(GetAnimPreviewScene()->GetPreviewAnimationAsset()))
+	if (const UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(GetAnimPreviewScene()->GetPreviewAnimationAsset()))
 	{
-		TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("FramerateFormat", "Framerate: {0}"), AnimSequence->GetSamplingFrameRate().ToPrettyText()));
+		TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("FramerateFormat", "Framerate: {0}"), AnimSequenceBase->GetSamplingFrameRate().ToPrettyText()));
 	}
 
 	if (const UPoseAsset* PoseAsset = Cast<UPoseAsset>(GetAnimPreviewScene()->GetPreviewAnimationAsset()))
@@ -1320,6 +1449,12 @@ FText FAnimationViewportClient::GetDisplayInfo(bool bDisplayAllInfo) const
 		}
 	}
 
+	if (TimecodeDisplay)
+	{
+		TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("TimecodeInfo", "Timecode: {0}"), FText::FromString(TimecodeDisplay->QualifiedTime.ToTimecode().ToString())));
+		TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("SlateName", "Slate: {0}"), FText::FromString(TimecodeDisplay->Slate)));
+		TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("Rate", "Rate: {0}"), FText::AsNumber(TimecodeDisplay->QualifiedTime.Rate.AsDecimal())));
+	}
 	return TextValue;
 }
 void FAnimationViewportClient::DrawNodeDebugLines(TArray<FText>& Lines, FCanvas* Canvas, FSceneView* View)
@@ -1514,6 +1649,8 @@ void FAnimationViewportClient::SetBoneDrawMode(EBoneDrawMode::Type AxesMode)
 {
 	ConfigOption->SetDefaultBoneDrawSelection(AxesMode);
 	RedrawRequested(Viewport);
+
+	UpdateBonesToDraw();
 }
 
 bool FAnimationViewportClient::IsBoneDrawModeSet(EBoneDrawMode::Type AxesMode) const
@@ -1564,6 +1701,7 @@ void FAnimationViewportClient::DrawBonesFromTransforms(
 
 	constexpr bool bForceDraw = false;
 	const bool bAddHitProxy = MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::GreyedOut;
+	const bool bUseMuliColors = GetDefault<UPersonaOptions>()->bShowBoneColors;
 
 	DrawBones(
 		MeshComponent->GetComponentLocation(),
@@ -1574,7 +1712,8 @@ void FAnimationViewportClient::DrawBonesFromTransforms(
 		BoneColours,
 		PDI,
 		bForceDraw,
-		bAddHitProxy);
+		bAddHitProxy,
+		bUseMuliColors);
 }
 
 void FAnimationViewportClient::DrawBonesFromCompactPose(
@@ -1590,15 +1729,9 @@ void FAnimationViewportClient::DrawBonesFromCompactPose(
 	{
 		return;
 	}
-
-	// optionally override draw color
-	const FLinearColor BoneColor = MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::GreyedOut ? GetDefault<UPersonaOptions>()->DisabledBoneColor : DrawColor;
 	
 	TArray<FTransform> WorldTransforms;
 	WorldTransforms.AddUninitialized(Pose.GetBoneContainer().GetNumBones());
-
-	TArray<FLinearColor> BoneColors;
-	BoneColors.AddUninitialized(Pose.GetBoneContainer().GetNumBones());
 
 	// we could cache parent bones as we calculate, but right now I'm not worried about perf issue of this
 	for (FCompactPoseBoneIndex BoneIndex : Pose.ForEachBoneIndex())
@@ -1615,11 +1748,11 @@ void FAnimationViewportClient::DrawBonesFromCompactPose(
 		{
 			WorldTransforms[MeshBoneIndex.GetInt()] = Pose[BoneIndex] * WorldTransforms[ParentIndex];
 		}
-		BoneColors[MeshBoneIndex.GetInt()] = BoneColor;
 	}
 
 	constexpr bool bForceDraw = true;
 	const bool bAddHitProxy = MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::GreyedOut;
+	const bool bUseMultiColor = GetDefault<UPersonaOptions>()->bShowBoneColors;
 
 	DrawBones(
 		MeshComponent->GetComponentLocation(),
@@ -1627,10 +1760,11 @@ void FAnimationViewportClient::DrawBonesFromCompactPose(
 		MeshComponent->GetReferenceSkeleton(),
 		WorldTransforms,
 		MeshComponent->BonesOfInterest,
-		BoneColors,
+		TArray<FLinearColor>(),
 		PDI,
 		bForceDraw,
-		bAddHitProxy);
+		bAddHitProxy,
+		bUseMultiColor);
 }
 
 void FAnimationViewportClient::DrawMeshBonesUncompressedAnimation(UDebugSkelMeshComponent * MeshComponent, FPrimitiveDrawInterface* PDI) const
@@ -1671,14 +1805,20 @@ void FAnimationViewportClient::DrawWatchedPoses(UDebugSkelMeshComponent * MeshCo
 	{
 		if (UAnimBlueprint* Blueprint = Cast<UAnimBlueprint>(AnimBPGenClass->ClassGeneratedBy))
 		{
-			if (Blueprint->GetObjectBeingDebugged() && MeshComponent)
+			if (const UAnimInstance* DebuggedAnimInstance = Cast<UAnimInstance>(Blueprint->GetObjectBeingDebugged()))
 			{
-				FAnimBlueprintDebugData& DebugData = AnimBPGenClass->GetAnimBlueprintDebugData();
-				DebugData.ForEachActiveVisiblePoseWatchPoseElement([PDI, MeshComponent](FAnimNodePoseWatch& PoseWatch)
+				if (const USkeletalMeshComponent* DebuggedSkeletalMeshComponent = DebuggedAnimInstance->GetSkelMeshComponent())
 				{
-					PoseWatch.CopyPoseWatchData(MeshComponent->GetReferenceSkeleton());
-					SkeletalDebugRendering::DrawBonesFromPoseWatch(PDI, PoseWatch, /*bUseWorldTransform*/false);
-				});
+					if (const USkeletalMesh* SkeletalMesh = DebuggedSkeletalMeshComponent->GetSkeletalMeshAsset())
+					{
+						FAnimBlueprintDebugData& DebugData = AnimBPGenClass->GetAnimBlueprintDebugData();
+						DebugData.ForEachActiveVisiblePoseWatchPoseElement([PDI, SkeletalMesh](FAnimNodePoseWatch& PoseWatch)
+						{
+							PoseWatch.CopyPoseWatchData(SkeletalMesh->GetRefSkeleton());
+							SkeletalDebugRendering::DrawBonesFromPoseWatch(PDI, PoseWatch, /*bUseWorldTransform*/false);
+						});
+					}
+				}
 			}
 		}
 	}
@@ -1692,7 +1832,7 @@ void FAnimationViewportClient::DrawMeshBonesBakedAnimation(UDebugSkelMeshCompone
 	}
 }
 
-void FAnimationViewportClient::DrawBonesFromSkeleton(const USkeleton* Skeleton, const TArray<int32>& InSelectedBones,FPrimitiveDrawInterface* PDI) const
+void FAnimationViewportClient::DrawBonesFromSkeleton(UDebugSkelMeshComponent * MeshComponent, const USkeleton* Skeleton, const TArray<int32>& InSelectedBones,FPrimitiveDrawInterface* PDI) const
 {
 	check(Skeleton);
 
@@ -1708,7 +1848,7 @@ void FAnimationViewportClient::DrawBonesFromSkeleton(const USkeleton* Skeleton, 
 
 	const FReferenceSkeleton& RefSkeleton = Skeleton->GetReferenceSkeleton();
 
-	const UPersonaOptions* PersonaOptions = GetDefault<UPersonaOptions>();
+	
 	for (FBoneIndexType BoneIndex = 0; BoneIndex < SkeletonRefPose.Num(); ++BoneIndex)
 	{
 		const int32 ParentIndex = RefSkeleton.GetParentIndex(BoneIndex);
@@ -1725,17 +1865,20 @@ void FAnimationViewportClient::DrawBonesFromSkeleton(const USkeleton* Skeleton, 
 			WorldTransforms[BoneIndex] = SkeletonRefPose[BoneIndex];
 		}
 
-		BoneColours[BoneIndex] = PersonaOptions->DefaultBoneColor;
+		BoneColours[BoneIndex] = MeshComponent->GetBoneColor(BoneIndex);
 	}
 
 	// color virtual bones
+	const FLinearColor VirtualBoneColor = GetDefault<UPersonaOptions>()->VirtualBoneColor;
 	for (const int16 VirtualBoneIndex : RefSkeleton.GetRequiredVirtualBones())
 	{
-		BoneColours[VirtualBoneIndex] = PersonaOptions->VirtualBoneColor;
+		BoneColours[VirtualBoneIndex] = VirtualBoneColor;
 	}
 
 	constexpr bool bForceDraw = false;
 	constexpr bool bAddHitProxy = true;
+	const bool bUseMultiColor = GetDefault<UPersonaOptions>()->bShowBoneColors;
+	
 	DrawBones(
 		FVector::ZeroVector,
 		RequiredBones,
@@ -1745,7 +1888,29 @@ void FAnimationViewportClient::DrawBonesFromSkeleton(const USkeleton* Skeleton, 
 		BoneColours,
 		PDI,
 		bForceDraw,
-		bAddHitProxy);
+		bAddHitProxy,
+		bUseMultiColor);
+}
+
+void FAnimationViewportClient::UpdateBonesToDraw()
+{
+	if (UDebugSkelMeshComponent* MeshComponent = GetAnimPreviewScene()->GetPreviewMeshComponent())
+	{
+		const FReferenceSkeleton& RefSkeleton = MeshComponent->GetReferenceSkeleton();
+
+		TArray<int32> ParentIndices;
+		ParentIndices.AddUninitialized(RefSkeleton.GetNum());
+		for (int32 BoneIndex = 0; BoneIndex < RefSkeleton.GetNum(); ++BoneIndex)
+		{
+			ParentIndices[BoneIndex] = RefSkeleton.GetParentIndex(BoneIndex);
+		}
+
+		SkeletalDebugRendering::CalculateBonesToDraw(
+			ParentIndices,
+			MeshComponent->BonesOfInterest,
+			GetBoneDrawMode(),
+			BonesToDraw);
+	}
 }
 
 void FAnimationViewportClient::DrawMeshBones(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI) const
@@ -1774,7 +1939,7 @@ void FAnimationViewportClient::DrawMeshBones(UDebugSkelMeshComponent* MeshCompon
 	{
 		const int32 BoneIndex = DrawBoneIndices[Index];
 		WorldTransforms[BoneIndex] = MeshComponent->GetDrawTransform(BoneIndex) * MeshComponent->GetComponentTransform();
-		BoneColours[BoneIndex] = BoneColor;
+		BoneColours[BoneIndex] = MeshComponent->GetBoneColor(BoneIndex);
 	}
 
 	// color virtual bones
@@ -1782,11 +1947,11 @@ void FAnimationViewportClient::DrawMeshBones(UDebugSkelMeshComponent* MeshCompon
 	{
 		BoneColours[VirtualBoneIndex] = VirtualBoneColor;
 	}
-
+	
 	constexpr bool bForceDraw = false;
-
 	// don't allow selection if the skeleton draw mode is greyed out
 	const bool bAddHitProxy = MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::GreyedOut;
+	const bool bUseMultiColors = GetDefault<UPersonaOptions>()->bShowBoneColors;
 
 	DrawBones(
 		MeshComponent->GetComponentLocation(),
@@ -1797,7 +1962,8 @@ void FAnimationViewportClient::DrawMeshBones(UDebugSkelMeshComponent* MeshCompon
 		BoneColours,
 		PDI,
 		bForceDraw,
-		bAddHitProxy);
+		bAddHitProxy,
+		bUseMultiColors);
 }
 
 void FAnimationViewportClient::DrawBones(
@@ -1809,13 +1975,15 @@ void FAnimationViewportClient::DrawBones(
 	const TArray<FLinearColor>& BoneColors,
 	FPrimitiveDrawInterface* PDI,
 	bool bForceDraw,
-	bool bAddHitProxy) const
+	bool bAddHitProxy,
+	bool bUseMultiColors) const
 {
 	FSkelDebugDrawConfig DrawConfig;
 	DrawConfig.BoneDrawMode = GetBoneDrawMode();
 	DrawConfig.BoneDrawSize = GetBoneDrawSize();
 	DrawConfig.bAddHitProxy = bAddHitProxy;
 	DrawConfig.bForceDraw = bForceDraw;
+	DrawConfig.bUseMultiColorAsDefaultColor = bUseMultiColors;
 	DrawConfig.DefaultBoneColor = GetMutableDefault<UPersonaOptions>()->DefaultBoneColor;
 	DrawConfig.AffectedBoneColor = GetMutableDefault<UPersonaOptions>()->AffectedBoneColor;
 	DrawConfig.SelectedBoneColor = GetMutableDefault<UPersonaOptions>()->SelectedBoneColor;
@@ -1841,86 +2009,9 @@ void FAnimationViewportClient::DrawBones(
 		InSelectedBones,
 		BoneColors,
 		HitProxies,
-		DrawConfig
+		DrawConfig,
+		BonesToDraw
 	);
-}
-
-void FAnimationViewportClient::DrawMeshSubsetBones(const UDebugSkelMeshComponent* MeshComponent, const TArray<int32>& BonesOfInterest, FPrimitiveDrawInterface* PDI) const
-{
-	// this BonesOfInterest has to be in MeshComponent base, not Skeleton 
-	if (!MeshComponent ||
-		!MeshComponent->GetSkeletalMeshAsset() ||
-		BonesOfInterest.IsEmpty() ||
-		MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::Hidden)
-	{
-		return;
-	}
-	
-	TArray<FTransform> WorldTransforms;
-	WorldTransforms.AddUninitialized(MeshComponent->GetNumDrawTransform());
-
-	TArray<FLinearColor> BoneColours;
-	BoneColours.AddUninitialized(MeshComponent->GetNumDrawTransform());
-
-	TArray<FBoneIndexType> RequiredBones;
-
-	const FReferenceSkeleton& RefSkeleton = MeshComponent->GetReferenceSkeleton();
-
-	// we could cache parent bones as we calculate, but right now I'm not worried about perf issue of this
-	const TArray<FBoneIndexType>& DrawBoneIndices = MeshComponent->GetDrawBoneIndices();
-	const UPersonaOptions* PersonaOptions = GetDefault<UPersonaOptions>();
-	for ( auto Iter = DrawBoneIndices.CreateConstIterator(); Iter; ++Iter)
-	{
-		const int32 BoneIndex = *Iter;
-		bool bDrawBone = false;
-
-		const int32 ParentIndex = RefSkeleton.GetParentIndex(BoneIndex);
-
-		// need to see if it's child of any of Bones of interest
-		for (auto SubIter=BonesOfInterest.CreateConstIterator(); SubIter; ++SubIter )
-		{
-			const int32 SubBoneIndex = *SubIter;
-			// if I'm child of the BonesOfInterest
-			if(BoneIndex == SubBoneIndex)
-			{
-				//found a bone we are interested in
-				if(ParentIndex >= 0)
-				{
-					WorldTransforms[ParentIndex] = MeshComponent->GetDrawTransform(ParentIndex)*MeshComponent->GetComponentTransform();
-				}
-				BoneColours[BoneIndex] = PersonaOptions->SelectedBoneColor;
-				bDrawBone = true;
-				break;
-			}
-			else if ( RefSkeleton.BoneIsChildOf(BoneIndex, SubBoneIndex) )
-			{
-				BoneColours[BoneIndex] = PersonaOptions->DefaultBoneColor;
-				bDrawBone = true;
-				break;
-			}
-		}
-
-		if (bDrawBone)
-		{
-			//add to the list
-			RequiredBones.AddUnique(static_cast<FBoneIndexType>(BoneIndex));
-			WorldTransforms[BoneIndex] = MeshComponent->GetDrawTransform(BoneIndex) * MeshComponent->GetComponentTransform();
-		}
-	}
-
-	constexpr bool bForceDraw = false;
-	const bool bAddHitProxy = MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::GreyedOut;
-
-	DrawBones(
-		MeshComponent->GetComponentLocation(),
-		RequiredBones,
-		MeshComponent->GetReferenceSkeleton(),
-		WorldTransforms,
-		MeshComponent->BonesOfInterest,
-		BoneColours,
-		PDI,
-		bForceDraw,
-		bAddHitProxy);
 }
 
 void FAnimationViewportClient::DrawAttributes(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI) const
@@ -1950,6 +2041,188 @@ void FAnimationViewportClient::DrawAttributes(UDebugSkelMeshComponent* MeshCompo
 					//DrawDashedLine(PDI, AttributeTransform.GetLocation(), AttributeParentTransform.GetLocation(), FLinearColor(0.0f, 1.0f, 1.0f), 2.0f, SDPG_World);
 				}
 			}
+		}
+	}
+}
+
+void FAnimationViewportClient::DrawNotifies(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI) const
+{
+	if (MeshComponent
+		&& MeshComponent->IsNotificationVisualizationsEnabled()
+		&& MeshComponent->GetSkeletalMeshAsset())
+	{
+		if (const UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(GetAnimPreviewScene()->GetPreviewAnimationAsset()))
+		{
+			for (const FAnimNotifyEvent& Notify : AnimSequenceBase->Notifies)
+			{
+				if (Notify.Notify)
+				{
+					Notify.Notify->DrawInEditor(PDI, MeshComponent, AnimSequenceBase, Notify);
+				}
+				if (Notify.NotifyStateClass)
+				{
+					Notify.NotifyStateClass->DrawInEditor(PDI, MeshComponent, AnimSequenceBase, Notify);
+				}
+			}
+		}
+	}
+}
+
+void FAnimationViewportClient::DrawCanvasNotifies(UDebugSkelMeshComponent* MeshComponent, FCanvas& Canvas, FSceneView& View) const
+{
+	if (MeshComponent
+		&& MeshComponent->IsNotificationVisualizationsEnabled()
+		&& MeshComponent->GetSkeletalMeshAsset())
+	{
+		if (const UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(GetAnimPreviewScene()->GetPreviewAnimationAsset()))
+		{
+			for (const FAnimNotifyEvent& Notify : AnimSequenceBase->Notifies)
+			{
+				if (Notify.Notify)
+				{
+					Notify.Notify->DrawCanvasInEditor(Canvas, View, MeshComponent, AnimSequenceBase, Notify);
+				}
+				if (Notify.NotifyStateClass)
+				{
+					Notify.NotifyStateClass->DrawCanvasInEditor(Canvas, View, MeshComponent, AnimSequenceBase, Notify);
+				}
+			}
+		}
+	}
+}
+
+TArray<IInterface_AssetUserData*> FAnimationViewportClient::GetEditedObjectsWithAssetUserData() const
+{
+	TArray<IInterface_AssetUserData*> Result;
+	if (const TSharedPtr<FAssetEditorToolkit> AssetEditorToolkit = AssetEditorToolkitPtr.Pin())
+	{
+		if (const TArray<UObject*>* ObjectsCurrentlyBeingEdited = AssetEditorToolkit->GetObjectsCurrentlyBeingEdited())
+		{
+			for (UObject* Object : *ObjectsCurrentlyBeingEdited)
+			{
+				if (IInterface_AssetUserData* AssetUserDataInterface = Cast<IInterface_AssetUserData>(Object))
+				{
+					Result.Add(AssetUserDataInterface);
+				}
+			}
+		}
+	}
+
+	return Result;
+}
+
+void FAnimationViewportClient::DrawAssetUserData(FPrimitiveDrawInterface* PDI) const
+{
+	TArray<IInterface_AssetUserData*> AssetsWithUserData = GetEditedObjectsWithAssetUserData();
+	for (const IInterface_AssetUserData* AssetUserDataInterface : AssetsWithUserData)
+	{
+		if (const TArray<UAssetUserData*>* AssetUserDataArray = AssetUserDataInterface->GetAssetUserDataArray())
+		{
+			for (const UAssetUserData* AssetUserData : *AssetUserDataArray)
+			{
+				if (AssetUserData)
+				{
+					AssetUserData->Draw(PDI, PDI->View);
+				}
+			}
+		}
+	}	
+}
+
+void FAnimationViewportClient::DrawCanvasAssetUserData(FCanvas& Canvas, FSceneView& View) const
+{
+	TArray<IInterface_AssetUserData*> AssetsWithUserData = GetEditedObjectsWithAssetUserData();
+	for (const IInterface_AssetUserData* AssetUserDataInterface : AssetsWithUserData)
+	{
+		if (const TArray<UAssetUserData*>* AssetUserDataArray = AssetUserDataInterface->GetAssetUserDataArray())
+		{
+			for (const UAssetUserData* AssetUserData : *AssetUserDataArray)
+			{
+				if (AssetUserData)
+				{
+					AssetUserData->DrawCanvas(Canvas, View);
+				}
+			}
+		}
+	}
+}
+
+void FAnimationViewportClient::DrawRootMotionTrajectory(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI) const
+{
+	constexpr float DepthBias = 2.0f;
+	constexpr bool bScreenSpace = true;
+
+	if (MeshComponent
+		&& !MeshComponent->IsVisualizeRootMotionMode(EVisualizeRootMotionMode::None)
+		&& MeshComponent->GetSkeletalMeshAsset()
+		&& MeshComponent->DoesCurrentAssetHaveRootMotion())
+	{
+		const EVisualizeRootMotionMode VisMode = MeshComponent->GetVisualizeRootMotionMode();
+
+		const FTransform& ReferenceTransform = MeshComponent->RootMotionReferenceTransform;
+		const UMirrorDataTable* MirrorTable = MeshComponent->PreviewInstance ? MeshComponent->PreviewInstance->GetMirrorDataTable() : nullptr;
+		
+		if (const UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(GetAnimPreviewScene()->GetPreviewAnimationAsset()))
+		{
+			// Draw root motion trajectory
+			const int32 NumFrames = AnimSequenceBase->GetNumberOfSampledKeys();
+			const FFrameRate FrameRate = AnimSequenceBase->GetSamplingFrameRate();
+			const float CurrentTime = MeshComponent->GetPosition();
+			const USkeleton* Skeleton = AnimSequenceBase->GetSkeleton();
+			check(Skeleton);
+			EAxis::Type SkeletonForwardAxis = Skeleton->GetPreviewForwardAxis();
+
+			const FColor TrajectoryColor = FColor::Black.WithAlpha(64);
+
+			FVector PrevLocation;
+			float PlayLength = AnimSequenceBase->GetPlayLength();
+			PlayLength = AnimSequenceBase->GetPlayLength();
+			for (int32 Frame = 0; Frame <= NumFrames; Frame++)
+			{
+				const double Time = FMath::Clamp(FrameRate.AsSeconds(Frame), 0., (double)PlayLength);
+				const FTransform Transform = UE::Anim::ExtractRootMotionFromAnimationAsset(AnimSequenceBase, MirrorTable, 0.0, Time) * ReferenceTransform;
+				const FVector Location = Transform.GetLocation();
+
+				const bool bFirstOrLastPoint = Frame == 0 || Frame == NumFrames;
+
+				PDI->DrawPoint(Location, TrajectoryColor, bFirstOrLastPoint ? 2.5f : 1.25f, SDPG_World);
+
+				if (VisMode == EVisualizeRootMotionMode::TrajectoryAndOrientation)
+				{
+					if (bFirstOrLastPoint || (Frame % 3 == 0))
+					{
+						const FVector XAxis = Transform.GetUnitAxis(SkeletonForwardAxis);
+						const FColor AxisColor = UE::Private::GetColorForAxis(SkeletonForwardAxis);
+
+						FVector YAxis, ZAxis;
+						XAxis.FindBestAxisVectors(YAxis,ZAxis);
+						UE::Private::DrawFlatArrow(PDI, Transform.GetLocation(), XAxis, ZAxis, AxisColor.WithAlpha(64), 15.0f, 8, nullptr, SDPG_World, 1.0f);
+					}
+				}
+
+				if (Frame > 0)
+				{
+					PDI->DrawTranslucentLine(PrevLocation, Location, TrajectoryColor, SDPG_World, 1.0f, DepthBias, bScreenSpace);
+				}
+				PrevLocation = Location;
+			}
+
+			// Draw current location on the root motion.
+			{
+				const FTransform Transform = UE::Anim::ExtractRootMotionFromAnimationAsset(AnimSequenceBase, MirrorTable, 0.0, CurrentTime) * ReferenceTransform;
+
+				const FVector XAxis = Transform.GetUnitAxis(SkeletonForwardAxis);
+				const FColor AxisColor = UE::Private::GetColorForAxis(SkeletonForwardAxis);
+
+				FVector YAxis, ZAxis;
+				XAxis.FindBestAxisVectors(YAxis,ZAxis);
+
+				if (VisMode == EVisualizeRootMotionMode::TrajectoryAndOrientation)
+				{
+					UE::Private::DrawFlatArrow(PDI, Transform.GetLocation(), XAxis, ZAxis, AxisColor, 30.0f, 15, GEngine->ArrowMaterialYellow->GetRenderProxy(), SDPG_Foreground, 1.0f);
+				}
+				UE::Private::DrawCoordinateSystem(PDI, Transform, 10.0f, 20.0f, DepthBias, bScreenSpace, 200);
+			}			
 		}
 	}
 }
@@ -2356,6 +2629,7 @@ void FAnimationViewportClient::OnAssetViewerSettingsChanged(const FName& InPrope
 		const int32 ProfileIndex = GetPreviewScene()->GetCurrentProfileIndex();
 		if (Settings->Profiles.IsValidIndex(ProfileIndex))
 		{			
+			Settings->Profiles[ProfileIndex].SetShowFlags(EngineShowFlags);
 			SetAdvancedShowFlagsForScene(Settings->Profiles[ProfileIndex].bPostProcessingEnabled);
 		}
 	}
@@ -2372,7 +2646,6 @@ void FAnimationViewportClient::SetAdvancedShowFlagsForScene(const bool bAdvanced
 		EngineShowFlags.DisableAdvancedFeatures();
 	}
 }
-
 void FAnimationViewportClient::SetPlaybackSpeedMode(EAnimationPlaybackSpeeds::Type InMode)
 {
 	AnimationPlaybackSpeedMode = InMode;

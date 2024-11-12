@@ -25,11 +25,11 @@ void UMoviePipelineEdGraphVariableNode::AllocateDefaultPins()
 {
 	if (const UMovieGraphVariableNode* VariableNode = Cast<UMovieGraphVariableNode>(RuntimeNode))
 	{
-		const TArray<TObjectPtr<UMovieGraphPin>>& OutputPins = RuntimeNode->GetOutputPins();
+		const TArray<UMovieGraphPin*>& OutputPins = RuntimeNode->GetOutputPins();
 		if (!OutputPins.IsEmpty())
 		{
-			UEdGraphPin* NewPin = CreatePin(EGPD_Output, GetPinType(OutputPins[0].Get()), FName(VariableNode->GetVariable()->GetMemberName()));
-			NewPin->PinToolTip = GetPinTooltip(OutputPins[0].Get());
+			UEdGraphPin* NewPin = CreatePin(EGPD_Output, GetPinType(OutputPins[0]), FName(VariableNode->GetVariable()->GetMemberName()));
+			NewPin->PinToolTip = GetPinTooltip(OutputPins[0]);
 		}
 	}
 }
@@ -65,6 +65,48 @@ bool UMoviePipelineEdGraphVariableNode::CanPasteHere(const UEdGraph* TargetGraph
 	}
 
 	return true;
+}
+
+FText UMoviePipelineEdGraphVariableNode::GetTooltipText() const
+{
+	const FString VariableDescription = GetVariableDescription();
+	if (!VariableDescription.IsEmpty())
+	{
+		return FText::FromString(VariableDescription);
+	}
+	
+	return Super::GetTooltipText();
+}
+
+FString UMoviePipelineEdGraphVariableNode::GetPinTooltip(const UMovieGraphPin* InPin) const
+{
+	FString Tooltip = Super::GetPinTooltip(InPin);
+
+	// Add the variable description to the tooltip if available. There's only one pin on the variable node, so we don't need to check to see which
+	// pin is being hovered over.
+	const FString VariableDescription = GetVariableDescription();
+	if (!VariableDescription.IsEmpty())
+	{
+		Tooltip += "\n\n" + VariableDescription;
+	}
+
+	return Tooltip;
+}
+
+FString UMoviePipelineEdGraphVariableNode::GetVariableDescription() const
+{
+	if (const UMovieGraphVariableNode* VariableNode = Cast<UMovieGraphVariableNode>(RuntimeNode))
+	{
+		if (const UMovieGraphVariable* VariableMember = VariableNode->GetVariable())
+		{
+			if (!VariableMember->Description.IsEmpty())
+			{
+				return VariableMember->Description;
+			}
+		}
+	}
+
+	return FString();
 }
 
 #undef LOCTEXT_NAMESPACE

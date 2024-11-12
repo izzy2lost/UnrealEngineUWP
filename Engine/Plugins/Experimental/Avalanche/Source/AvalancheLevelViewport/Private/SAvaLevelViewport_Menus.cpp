@@ -15,19 +15,18 @@
 #include "LevelEditor.h"
 #include "LevelEditor/AvaLevelEditorUtils.h"
 #include "Misc/MessageDialog.h"
-#include "PropertyCustomizationHelpers.h"
 #include "ScopedTransaction.h"
 #include "SEditorViewportToolBarButton.h"
 #include "SEditorViewportToolBarMenu.h"
 #include "SortHelper.h"
 #include "SViewportToolBar.h"
-#include "ThumbnailRendering/ThumbnailManager.h"
+#include "ToolMenus.h"
 #include "Viewport/Interaction/IAvaViewportDataProvider.h"
 #include "ViewportClient/AvaLevelViewportClient.h"
+#include "Widgets/DataTypes/AvaUserInputDialogDataTypeText.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SSpinBox.h"
-#include "Widgets/InputDataTypes/AvaUserInputDataText.h"
 #include "Widgets/SAvaUserInputDialog.h"
 
 #define LOCTEXT_NAMESPACE "SAvaLevelViewport"
@@ -108,7 +107,7 @@ TSharedPtr<SWidget> SAvaLevelViewport::MakeViewportToolbar()
 
 TSharedRef<SWidget> SAvaLevelViewport::OnExtendLevelEditorViewportToolbarForChildActorLock(FWeakObjectPtr InExtensionContext)
 {
-	const FAvaLevelViewportCommands& Commands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& Commands = FAvaLevelViewportCommands::GetInternal();
 
 	return SNew(SEditorViewportToolBarButton)
 		.ButtonType(EUserInterfaceActionType::Check)
@@ -169,7 +168,7 @@ void SAvaLevelViewport::FillCameraMenu(UToolMenu* InMenu)
 		return;
 	}
 
-	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 
 	TArray<TWeakObjectPtr<ACameraActor>> CameraActors;
 	for (ACameraActor* const CameraActor : TActorRange<ACameraActor>(World))
@@ -374,7 +373,7 @@ void SAvaLevelViewport::AddVirtualSizeMenuEntries(UToolMenu* InMenu)
 
 void SAvaLevelViewport::AddVirtualSizeDefaultEntries(FToolMenuSection& InSection)
 {
-	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 
 	InSection.AddMenuEntry("NoSize", LevelViewportCommands.VirtualSizeDisable, INVTEXT("-"));
 	InSection.AddMenuEntry("1920x1080", LevelViewportCommands.VirtualSize1920x1080, INVTEXT("1920 x 1080"));
@@ -384,7 +383,7 @@ void SAvaLevelViewport::AddVirtualSizeSizeSettings(FToolMenuSection& InSection)
 {
 	using namespace UE::AvaLevelViewport::Private;
 
-	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 
 	InSection.AddMenuEntry("UseUnlockedAspectRatio", LevelViewportCommands.VirtualSizeAspectRatioUnlocked, LOCTEXT("VirtualSizeUnlockedAspectRatio", "Free Aspect Ratio"));
 	InSection.AddMenuEntry("UseLockedAspectRatio", LevelViewportCommands.VirtualSizeAspectRatioLocked, LOCTEXT("VirtualSizeLockedAspectRatio", "Locked Aspect Ratio"));
@@ -745,7 +744,7 @@ void SAvaLevelViewport::AddGuidePresetSavedMenu(UToolMenu* InMenu)
 
 void SAvaLevelViewport::AddCameraZoomMenuEntries(UToolMenu* InMenu)
 {
-	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::Get();
+	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::GetInternal();
 
 	FToolMenuSection& PanSection = InMenu->AddSection(TEXT("CameraPanSection"), LOCTEXT("CameraPanSection", "Pan"));
 	PanSection.AddMenuEntry("CameraPanLeft",       LevelViewportCommands.CameraPanLeft,       LOCTEXT("CameraPanLeft",       "Pan Left"));
@@ -865,176 +864,6 @@ FReply SAvaLevelViewport::OnChildActorLockButtonClicked()
 	ExecuteToggleChildActorLock();
 
 	return FReply::Handled();
-}
-
-FString SAvaLevelViewport::GetBackgroundTextureObjectPath() const
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return "";
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return "";
-	}
-
-	FAvaViewportPostProcessInfo* PostProcessInfo = ViewportClient->GetPostProcessManager()->GetPostProcessInfo();
-
-	if (!PostProcessInfo)
-	{
-		return "";
-	}
-
-	return PostProcessInfo->Texture.ToString();
-}
-
-void SAvaLevelViewport::OnBackgroundTextureChanged(const FAssetData& InAssetData)
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return;
-	}
-
-	FAvaViewportPostProcessInfo* PostProcessInfo = ViewportClient->GetPostProcessManager()->GetPostProcessInfo();
-
-	if (!PostProcessInfo)
-	{
-		return;
-	}
-
-	BeginPostProcessInfoTransaction();
-
-	PostProcessInfo->Texture = Cast<UTexture>(InAssetData.GetAsset());
-	ViewportClient->GetPostProcessManager()->LoadPostProcessInfo();
-	ViewportClient->Invalidate();
-
-	EndPostProcessInfoTransaction();
-}
-
-float SAvaLevelViewport::GetBackgroundOpacity() const
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return 1.f;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return 1.f;
-	}
-
-	FAvaViewportPostProcessInfo* PostProcessInfo = ViewportClient->GetPostProcessManager()->GetPostProcessInfo();
-
-	return ViewportClient->GetPostProcessManager()->GetOpacity();
-}
-
-void SAvaLevelViewport::BeginPostProcessInfoTransaction()
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return;
-	}
-
-	IAvaViewportDataProvider* DataProvider = ViewportClient->GetViewportDataProvider();
-
-	if (!DataProvider)
-	{
-		return;
-	}
-
-	UObject* DataObject = DataProvider->ToUObject();
-
-	if (!DataObject)
-	{
-		return;
-	}
-
-	if (!PostProcessInfoTransaction.IsValid())
-	{
-		PostProcessInfoTransaction = MakeShared<FScopedTransaction>(LOCTEXT("PostProcessSettingsChange", "Post Process Settings Change"));
-	}
-
-	DataObject->Modify();
-}
-
-void SAvaLevelViewport::EndPostProcessInfoTransaction()
-{
-	PostProcessInfoTransaction.Reset();
-}
-
-void SAvaLevelViewport::OnBackgroundOpacitySliderBegin()
-{
-	BeginPostProcessInfoTransaction();
-}
-
-void SAvaLevelViewport::OnBackgroundOpacitySliderEnd(float InValue)
-{
-	EndPostProcessInfoTransaction();
-}
-
-void SAvaLevelViewport::OnBackgroundOpacityChanged(float InValue)
-{
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return;
-	}
-
-	ViewportClient->GetPostProcessManager()->SetOpacity(InValue);
-	ViewportClient->Invalidate();
-}
-
-void SAvaLevelViewport::OnBackgroundOpacityCommitted(float InValue, ETextCommit::Type InCommitType)
-{
-	if (InCommitType == ETextCommit::OnCleared)
-	{
-		return;
-	}
-
-	TSharedPtr<FAvaLevelViewportClient> ViewportClient = GetAvaLevelViewportClient();
-
-	if (!ViewportClient.IsValid())
-	{
-		return;
-	}
-
-	if (!ViewportClient->GetPostProcessManager().IsValid())
-	{
-		return;
-	}
-
-	if (InCommitType == ETextCommit::OnEnter)
-	{
-		BeginPostProcessInfoTransaction();
-	}
-
-	ViewportClient->GetPostProcessManager()->SetOpacity(InValue);
-	ViewportClient->Invalidate();
-
-	if (InCommitType == ETextCommit::OnEnter)
-	{
-		EndPostProcessInfoTransaction();
-	}
 }
 
 void SAvaLevelViewport::OnVirtualSizeComponentSliderCommitted(int32 InNewDimension, ETextCommit::Type InCommitType, EAxis::Type InAxis)
@@ -1201,17 +1030,16 @@ void SAvaLevelViewport::ExecuteSaveAsGuidePreset(const FToolMenuContext& InConte
 		return;
 	}
 
-	TSharedRef<FAvaUserInputTextData> TextInput = MakeShared<FAvaUserInputTextData>(
-		LOCTEXT("NewPreset", "NewPreset"),
-		/* Multiline */ false,
-		/* Max Length */ 30
-	);
+	FAvaUserInputDialogTextData::FParams Params;
+	Params.InitialValue = LOCTEXT("NewPreset", "NewPreset");
+	Params.MaxLength = 30;
+
+	TSharedRef<FAvaUserInputDialogTextData> TextInput = MakeShared<FAvaUserInputDialogTextData>(Params);
 
 	const bool bAccepted = SAvaUserInputDialog::CreateModalDialog(
+		TextInput,
 		SharedThis(this),
-		FText::GetEmpty(),
-		LOCTEXT("NewPresetName", "New Preset Name"),
-		TextInput
+		LOCTEXT("NewPresetName", "New Preset Name")
 	);
 
 	if (!bAccepted)

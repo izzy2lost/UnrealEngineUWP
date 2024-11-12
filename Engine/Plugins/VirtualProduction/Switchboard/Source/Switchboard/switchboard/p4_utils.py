@@ -14,7 +14,7 @@ from . import switchboard_utils as sb_utils
 from .devices.unreal.version_helpers import LISTENER_COMPATIBLE_VERSION
 
 
-# Metadata attached to p4 commands for sever analytics
+# Metadata attached to p4 commands for server analytics
 meta_zprog = 'switchboard'
 meta_zversion = '.'.join(str(x) for x in LISTENER_COMPATIBLE_VERSION)  # FIXME?
 
@@ -33,19 +33,30 @@ def p4_login(f):
 
 
 @p4_login
-def p4_latest_changelist(p4_path, working_dir, num_changelists=10):
-    """
-    Return (num_changelists) latest CLs
-    """
-    p4_command = f'p4 -ztag -F "%change%" changes -m {num_changelists} {p4_path}/...'
-    logging.info(f"Executing: {p4_command}")
+def p4_latest_changelists(
+    p4_paths: str | list[str],
+    *,
+    limit: int = 10,
+    exclude_automation: bool = True,
+    user: Optional[str] = None,
+    client: Optional[str] = None,
+) -> list[tuple[int, str]]:
+    ''' Return (cl: int, description: str) for `limit` most recent CLs '''
+    if isinstance(p4_paths, str):
+        p4_paths = [p4_paths]
 
-    p4_result = subprocess.check_output(p4_command, cwd=working_dir, shell=True, startupinfo=sb_utils.get_hidden_sp_startupinfo()).decode()
+    changes = p4_changes(p4_paths, limit=limit, user=user, client=client)
 
-    if p4_result:
-        return p4_result.split()
+    if exclude_automation:
+        changes = filter(lambda x: x[b'user'] != b'buildmachine', changes)
 
-    return None
+    # TODO: Support UnrealGameSync.ini [Options] ExcludeChanges regexes?
+
+    cl_desc_pairs = [(int(change[b'change']), change[b'desc'].decode())
+                     for change in changes]
+
+    return sorted(cl_desc_pairs, reverse=True)[:limit]
+
 
 def run(cmd, args=[], input=None):
     ''' Runs the provided p4 command and arguments with -G python marshaling 
@@ -125,6 +136,9 @@ def p4_from_localpath(localpath, workspaces, preferredClient):
     Returns:
         str,str: The workspace name and matching p4 path.
     '''
+
+    # Normalize path. In particular, a trailing slash may not be accepted by the 'p4 where' command.
+    localpath = pathlib.Path(localpath).as_posix()
 
     # Only take into account workspaces with the same give local path
     wss = [ws for ws in workspaces if workspaceInPath(ws, localpath)]
@@ -359,10 +373,15 @@ def p4_print(
     return results
 
 
+ALL_CODE_EXTS = [
+    '.c', '.cc', '.cpp', '.inl', '.m', '.mm', '.rc', '.cs', '.csproj',
+    '.h', '.hpp', '.usf', '.ush', '.uproject', '.uplugin', '.sln']
+
+
 def p4_latest_code_change(
     paths: list[str],
     *,
-    range: Optional[str] = None,
+    in_range: Optional[str] = None,
     exts: Optional[list[str]] = None,
     user: Optional[str] = None,
     client: Optional[str] = None,
@@ -371,15 +390,10 @@ def p4_latest_code_change(
     Code CL determination compatible with UGS/precompiled binaries.
     See `WorkspaceUpdate.ExecuteAsync` in `WorkspaceUpdate.cs`
     '''
-
-    ALL_CODE_EXTS = [
-        '.c', '.cc', '.cpp', '.inl', '.m', '.mm', '.rc', '.cs', '.csproj',
-        '.h', '.hpp', '.usf', '.ush', '.uproject', '.uplugin', '.sln']
-
     if exts is None:
         exts = ALL_CODE_EXTS
 
-    rangespec = f'@{range}' if range is not None else ''
+    rangespec = f'@{in_range}' if in_range is not None else ''
 
     code_paths: list[str] = []
     for path in paths:

@@ -187,7 +187,7 @@ public:
 		const int32 InFileLine,
 		bool bForceCompleteInitialization = false,
 		FRHIUniformBufferLayoutInitializer* OutLayoutInitializer = nullptr,
-		uint32 InUsageFlags = 0
+		FShaderParametersMetadata::EUsageFlags InUsageFlags = FShaderParametersMetadata::EUsageFlags::None
 		);
 
 private:

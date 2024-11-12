@@ -240,7 +240,19 @@ public:
 	 * In very limited circumstances, it can be beneficial to use the pose from the previous frame.*/
 	UPROPERTY()
 	bool bStartSolveFromInputPose_DEPRECATED = true;
-	
+
+	UFUNCTION(BlueprintCallable, Category = "IKRig")
+	TArray<UIKRig_FBIKEffector*> GetEffectors()
+	{
+		return Effectors;
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "IKRig")
+	TArray<UIKRig_FBIKBoneSettings*> GetBoneSettings()
+	{
+		return BoneSettings;
+	}
+
 	UPROPERTY()
 	TArray<TObjectPtr<UIKRig_FBIKEffector>> Effectors;
 

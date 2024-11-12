@@ -11,11 +11,25 @@
 #include "Grid/PCGLandscapeCache.h"
 #include "Helpers/PCGHelpers.h"
 
+#include "Blueprint/BlueprintExceptionInfo.h"
 #include "Engine/World.h"
 #include "LandscapeProxy.h"
 #include "LandscapeInfo.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGBlueprintHelpers)
+
+void UPCGBlueprintHelpers::ThrowBlueprintException(const FText& ErrorMessage)
+{
+	if (FFrame::GetThreadLocalTopStackFrame() && FFrame::GetThreadLocalTopStackFrame()->Object)
+	{
+		const FBlueprintExceptionInfo ExceptionInfo(EBlueprintExceptionType::FatalError, ErrorMessage);
+		FBlueprintCoreDelegates::ThrowScriptException(FFrame::GetThreadLocalTopStackFrame()->Object, *FFrame::GetThreadLocalTopStackFrame(), ExceptionInfo);
+	}
+	else
+	{
+		UE_LOG(LogPCG, Error, TEXT("%s"), *ErrorMessage.ToString());
+	}
+}
 
 int UPCGBlueprintHelpers::ComputeSeedFromPosition(const FVector& InPosition)
 {
@@ -230,4 +244,35 @@ TArray<FPCGLandscapeLayerWeight> UPCGBlueprintHelpers::GetInterpolatedPCGLandsca
 int64 UPCGBlueprintHelpers::GetTaskId(FPCGContext& Context)
 {
 	return static_cast<int64>(Context.TaskId);
+}
+
+bool UPCGBlueprintHelpers::FlushPCGCache()
+{
+	if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+	{
+		PCGSubsystem->FlushCache();
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+void UPCGBlueprintHelpers::RefreshPCGRuntimeComponent(UPCGComponent* InComponent, const bool bFlushCache)
+{
+	if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+	{
+		if (bFlushCache)
+		{
+			PCGSubsystem->FlushCache();
+		}
+
+		PCGSubsystem->RefreshRuntimeGenComponent(InComponent, EPCGChangeType::GenerationGrid);
+	}
+}
+
+UPCGData* UPCGBlueprintHelpers::DuplicateData(const UPCGData* InData, FPCGContext& Context, bool bInitializeMetadata)
+{
+	return InData ? InData->DuplicateData(&Context, bInitializeMetadata) : nullptr;
 }

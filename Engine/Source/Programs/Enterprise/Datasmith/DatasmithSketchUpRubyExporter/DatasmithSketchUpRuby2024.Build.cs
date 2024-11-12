@@ -11,10 +11,6 @@ namespace UnrealBuildTool.Rules
 		public DatasmithSketchUpRuby2024(ReadOnlyTargetRules Target)
 			: base(Target)
 		{
-OptimizeCode = CodeOptimization.Never;
-bUseUnity = false;
-PCHUsage = PCHUsageMode.NoPCHs;
-
 			PrivateDefinitions.Add("SKP_SDK_2024");
 		}
 

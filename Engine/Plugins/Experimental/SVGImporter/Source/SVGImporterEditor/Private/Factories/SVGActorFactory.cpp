@@ -52,6 +52,10 @@ void USVGActorFactory::PostPlaceAsset(TArrayView<const FTypedElementHandle> InHa
 
 	if (!InPlacementOptions.bIsCreatingPreviewElements && FEngineAnalytics::IsAvailable())
 	{
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.SVGImporter.PlaceSVG"));
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Reserve(2);
+		Attributes.Emplace(TEXT("ToolClass"), GetNameSafe(GetClass()));
+		Attributes.Emplace(TEXT("ActorClass"), GetNameSafe(NewActorClass));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.PlaceActor"), Attributes);
 	}
 }

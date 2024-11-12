@@ -97,8 +97,8 @@ void FGameplayDebuggerCategory_Mover::CollectData(APlayerController* OwnerPC, AA
 	DataPack.Velocity = FVector::ZeroVector;
 	DataPack.MoveIntent = FVector::ZeroVector;
 	DataPack.ActiveLayeredMoves.Empty();
+	DataPack.ActiveModifiers.Empty();
 	DataPack.ModeMap.Empty();
-	DataPack.ActiveLayeredMoves.Empty();
 
 	if (MyMoverComponent)
 	{
@@ -136,6 +136,11 @@ void FGameplayDebuggerCategory_Mover::CollectData(APlayerController* OwnerPC, AA
 			{
 				DataPack.ActiveLayeredMoves.Add(*it->Get()->ToSimpleString());
 			}
+
+			for (auto it = SyncState.MovementModifiers.GetActiveModifiersIterator(); it; ++it)
+			{
+				DataPack.ActiveModifiers.Add(*it->Get()->ToSimpleString());
+			}
 		}
 	}
 }
@@ -153,12 +158,14 @@ void FGameplayDebuggerCategory_Mover::DrawData(APlayerController* OwnerPC, FGame
 		DrawInWorldInfo(*FocusedActor, CanvasContext);
 	}
 	
-	CanvasContext.Printf(TEXT("{yellow}%s\n{grey}Local Role: {white}%s\n{grey}Mode: {white}%s\n{grey}Velocity: {white}%s\n{yellow}Active Moves: {white}\n%s\n{yellow}Mode Map: \n{white}%s\n{yellow}Active Transitions: {white}\n%s"),
+	CanvasContext.Printf(TEXT("{yellow}%s\n{grey}Local Role: {white}%s\n{grey}Mode: {white}%s\n{grey}Velocity: {white}%s\n{grey}Speed: {white}%.2f\n{yellow}Active Moves: {white}\n%s\n{yellow}Active Modifiers: {white}\n%s\n{yellow}Mode Map: \n{white}%s\n{yellow}Active Transitions: {white}\n%s"),
 		*DataPack.PawnName,
 		*DataPack.LocalRole,
 		*DataPack.MovementModeName,
 		*DataPack.Velocity.ToString(),
+		 DataPack.Velocity.Length(),
 		*FString::JoinBy(DataPack.ActiveLayeredMoves, TEXT("\n"), [](FString MoveAsString) { return MoveAsString; }),
+		*FString::JoinBy(DataPack.ActiveModifiers, TEXT("\n"), [](FString ModifierAsString) { return ModifierAsString; }),
 		*FString::JoinBy(DataPack.ModeMap, TEXT("\n"), [](FString ModeMappingAsString) { return ModeMappingAsString; }),
 		*FString::JoinBy(DataPack.ActiveTransitions, TEXT("\n"), [](FString TransitionAsString) { return TransitionAsString; })
 		);
@@ -268,6 +275,7 @@ void FGameplayDebuggerCategory_Mover::FRepData::Serialize(FArchive& Ar)
 	Ar << Velocity;
 	Ar << MoveIntent;
 	Ar << ActiveLayeredMoves;
+	Ar << ActiveModifiers;
 	Ar << ModeMap;
 	Ar << ActiveTransitions;
 }

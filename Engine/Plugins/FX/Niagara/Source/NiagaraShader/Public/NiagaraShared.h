@@ -576,10 +576,9 @@ public:
 #endif // WITH_EDITOR
 
 	/** Builds a list of the shaders in a shader map. */
-	NIAGARASHADER_API  void GetShaderList(TMap<FShaderId, TShaderRef<FShader>>& OutShaders) const;
-
-	/** Builds a list of the shader pipelines in a shader map. */
-	//ENGINE_API void GetShaderPipelineList(TArray<FShaderPipeline*>& OutShaderPipelines) const;
+	NIAGARASHADER_API void GetShaderList(TMap<FShaderId, TShaderRef<FShader>>& OutShaders) const;
+	NIAGARASHADER_API virtual void GetShaderList(TMap<FHashedName, TShaderRef<FShader>>& OutShaders) const override;
+	NIAGARASHADER_API virtual void GetShaderPipelineList(TArray<FShaderPipelineRef>& OutShaderPipelines) const override;
 
 	/** Registers a niagara shader map in the global map so it can be used by Niagara scripts. */
 	void Register(EShaderPlatform InShaderPlatform);
@@ -600,17 +599,19 @@ public:
 #endif // WITH_EDITOR
 
 	/** Serializes the shader map. */
-	NIAGARASHADER_API bool Serialize(FArchive& Ar, bool bInlineShaderResources = true, bool bLoadedByCookedMaterial = false);
+	UE_DEPRECATED(5.5, "Use overload taking a FShaderSerializeContext")
+	NIAGARASHADER_API bool Serialize(FArchive& Ar, bool bInlineShaderResources = true, bool bLoadingCooked = false)
+	{
+		FShaderSerializeContext Ctx(Ar);
+		Ctx.bLoadingCooked = bLoadingCooked;
+		return Serialize(Ctx);
+	}
+
+	NIAGARASHADER_API bool Serialize(FShaderSerializeContext& Ctx);
 
 #if WITH_EDITOR
 	/** Saves this shader map to the derived data cache. */
 	void SaveToDerivedDataCache(const FNiagaraShaderScript* Script);
-
-	/** Backs up any FShaders in this shader map to memory through serialization and clears FShader references. */
-	TArray<uint8>* BackupShadersToMemory();
-
-	/** Recreates FShaders from the passed in memory, handling shader key changes. */
-	void RestoreShadersFromMemory(const TArray<uint8>& ShaderData);
 #endif // WITH_EDITOR
 
 	// Accessors.
@@ -649,17 +650,6 @@ private:
 	* No ref counting needed as these are removed on destruction of the shader map.
 	*/
 	static TMap<FNiagaraShaderMapId, FNiagaraShaderMap*> GIdToNiagaraShaderMap[SP_NumPlatforms];
-
-#if ALLOW_SHADERMAP_DEBUG_DATA
-	/**
-	* All script shader maps in memory.
-	* No ref counting needed as these are removed on destruction of the shader map.
-	*/
-	static TArray<FNiagaraShaderMap*> AllNiagaraShaderMaps;
-
-	/** Guards access to AllNiagaraShaderMaps, which can be written to from an async loading thread. */
-	static FCriticalSection AllNiagaraShaderMapsGuard;
-#endif
 
 #if WITH_EDITOR
 	/** Tracks resources and their shader maps that need to be compiled but whose compilation is being deferred. */
@@ -815,8 +805,6 @@ public:
 		checkSlow(IsInGameThread() || IsInAsyncLoadingThread());
 		return GameThreadShaderMap;
 	}
-
-	NIAGARASHADER_API void DiscardShaderMap();
 
 	/** Note: SetRenderingThreadShaderMap must also be called with the same value, but from the rendering thread. */
 	void SetGameThreadShaderMap(FNiagaraShaderMap* InShaderMap)

@@ -34,11 +34,11 @@ public:
 	virtual FLinearColor GetNodeColor() const override { return FLinearColor::Black; }
 private:
 
-	static const FString IfName;
-	static const FString ConditionName;
-	static const FString TrueName;
-	static const FString FalseName;
-	static const FString ResultName;
+	static const inline TCHAR* IfName = TEXT("If");
+	static const inline TCHAR* ConditionName = TEXT("Condition");
+	static const inline TCHAR* TrueName = TEXT("True");
+	static const inline TCHAR* FalseName = TEXT("False");
+	static const inline TCHAR* ResultName = TEXT("Result");
 
 	friend class URigVMController;
 	friend class URigVMCompiler;

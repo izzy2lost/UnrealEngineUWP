@@ -10,13 +10,13 @@ namespace EpicGames.Tracing.UnrealInsights
 		public const uint MagicTrc = 1414677317; // TRCE
 		public const uint MagicTrc2 = 1414677298; // TRC2
 
-		uint MagicFourCc;
-		ushort MetadataSize;
-		ushort MetadataField0;
-		ushort ControlPort;
+		uint _magicFourCc;
+		ushort _metadataSize;
+		ushort _metadataField0;
+		ushort _controlPort;
 
-		byte TransportVersion;
-		byte ProtocolVersion;
+		byte _transportVersion;
+		byte _protocolVersion;
 
 		private StreamHeader()
 		{
@@ -24,39 +24,58 @@ namespace EpicGames.Tracing.UnrealInsights
 
 		public static StreamHeader Default()
 		{
-			StreamHeader Handshake = new StreamHeader();
-			Handshake.MagicFourCc = MagicTrc;
-			Handshake.TransportVersion = 3;
-			Handshake.ProtocolVersion = 5;
-			return Handshake;
+			StreamHeader handshake = new StreamHeader();
+			handshake._magicFourCc = MagicTrc;
+			handshake._transportVersion = 3;
+			handshake._protocolVersion = 5;
+			return handshake;
 		}
 
-		public void Serialize(BinaryWriter Writer)
+		public void Serialize(BinaryWriter writer)
 		{
-			Writer.Write(MagicTrc);
-			Writer.Write(TransportVersion);
-			Writer.Write(ProtocolVersion);
-		}
-
-		public static StreamHeader Deserialize(BinaryReader Reader)
-		{
-			StreamHeader Header = new StreamHeader();
-			Header.MagicFourCc = Reader.ReadUInt32();
-			if (Header.MagicFourCc != MagicTrc && Header.MagicFourCc != MagicTrc2)
-				throw new ArgumentException("Only support magic number TRCE and TRC2");
-
-			if (Header.MagicFourCc == MagicTrc2)
+			if (_magicFourCc != MagicTrc && _magicFourCc != MagicTrc2)
 			{
-				Header.MetadataSize = Reader.ReadUInt16();
-				if (Header.MetadataSize != 4)
-					throw new ArgumentException("Only support metadata size of 4 bytes (got " + Header.MetadataSize + ")");
-				Header.MetadataField0 = Reader.ReadUInt16();
-				Header.ControlPort = Reader.ReadUInt16();
+				throw new ArgumentException("Only support magic number TRCE and TRC2");
+			}
+			writer.Write(_magicFourCc);
+			if (_magicFourCc == MagicTrc2)
+			{
+				if (_metadataSize != 4)
+				{
+					throw new ArgumentException("Only support metadata size of 4 bytes (got " + _metadataSize + ")");
+				}
+				writer.Write(_metadataSize);
+				writer.Write(_metadataField0);
+				writer.Write(_controlPort);
+			}
+			writer.Write(_transportVersion);
+			writer.Write(_protocolVersion);
+		}
+
+		public static StreamHeader Deserialize(BinaryReader reader)
+		{
+			StreamHeader header = new StreamHeader();
+			header._magicFourCc = reader.ReadUInt32();
+			if (header._magicFourCc != MagicTrc && header._magicFourCc != MagicTrc2)
+			{
+				throw new ArgumentException("Only support magic number TRCE and TRC2");
 			}
 
-			Header.TransportVersion = Reader.ReadByte();
-			Header.ProtocolVersion = Reader.ReadByte();
-			return Header;
+			if (header._magicFourCc == MagicTrc2)
+			{
+				header._metadataSize = reader.ReadUInt16();
+				if (header._metadataSize != 4)
+				{
+					throw new ArgumentException("Only support metadata size of 4 bytes (got " + header._metadataSize + ")");
+				}
+
+				header._metadataField0 = reader.ReadUInt16();
+				header._controlPort = reader.ReadUInt16();
+			}
+
+			header._transportVersion = reader.ReadByte();
+			header._protocolVersion = reader.ReadByte();
+			return header;
 		}
 	}
 }

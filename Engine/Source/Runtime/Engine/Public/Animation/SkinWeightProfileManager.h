@@ -2,30 +2,29 @@
 
 #pragma once
 
-#include "Stats/Stats.h"
-#include "UObject/WeakObjectPtrTemplates.h"
 #include "Components/SkinnedMeshComponent.h"
-#include "Engine/SkeletalMesh.h"
-#include "RHIGPUReadback.h"
-#include "Tickable.h"
-#include "Templates/Function.h"
 #include "Engine/EngineBaseTypes.h"
-#include "UObject/GCObject.h"
-#include "UObject/ObjectMacros.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
+#include "SkinWeightProfile.h"
+#include "Stats/Stats.h"
+#include "Templates/Function.h"
+#include "Tickable.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
 #include "SkinWeightProfileManager.generated.h"
 
 class FSkinWeightProfileManager;
 class UWorld;
 
-typedef TFunction<void(TWeakObjectPtr<USkeletalMesh> WeakMesh, FName ProfileName)> FRequestFinished;
+typedef TFunction<void(TWeakObjectPtr<USkeletalMesh> WeakMesh, FSkinWeightProfileStack ProfileStack)> FRequestFinished;
 
 /** Describes a single skin weight profile request */
 struct FSetProfileRequest
 {
-	/** Name of the skin weight profile to be loaded */
-	FName ProfileName;
+	/** Name of the skin weight profile stack to be loaded. Must be normalized, see FSkinWeightProfileStack::Normalized */
+	FSkinWeightProfileStack ProfileStack;
 	/** LOD Indices to load the profile for */
 	TArray<int32> LODIndices;
 	/** Called when the profile request has finished and data is ready (called from GT only) */
@@ -38,12 +37,12 @@ struct FSetProfileRequest
 
 	friend bool operator==(const FSetProfileRequest& A, const FSetProfileRequest& B)
 	{
-		return A.ProfileName == B.ProfileName && A.WeakSkeletalMesh == B.WeakSkeletalMesh && A.IdentifyingObject == B.IdentifyingObject;
+		return A.ProfileStack == B.ProfileStack && A.WeakSkeletalMesh == B.WeakSkeletalMesh && A.IdentifyingObject == B.IdentifyingObject;
 	}
 
 	friend uint32 GetTypeHash(FSetProfileRequest A)
 	{
-		return HashCombine(GetTypeHash(A.ProfileName), GetTypeHash(A.WeakSkeletalMesh));
+		return HashCombine(GetTypeHash(A.ProfileStack), GetTypeHash(A.WeakSkeletalMesh));
 	}
 };
 
@@ -121,12 +120,11 @@ protected:
 public: 
 	static void OnStartup();
 	static void OnShutdown();
-	static FSkinWeightProfileManager* Get(UWorld* World);
+	static ENGINE_API FSkinWeightProfileManager* Get(UWorld* World);
 
 	FSkinWeightProfileManager(UWorld* InWorld);
-	virtual ~FSkinWeightProfileManager() {}
 
-	void RequestSkinWeightProfile(FName InProfileName, USkinnedAsset* SkinnedAsset, UObject* Requester, FRequestFinished& Callback, int32 LODIndex = INDEX_NONE);
+	void ENGINE_API RequestSkinWeightProfileStack(FSkinWeightProfileStack InProfileStack, USkinnedAsset* SkinnedAsset, UObject* Requester, FRequestFinished& Callback, int32 LODIndex = INDEX_NONE);
 	void CancelSkinWeightProfileRequest(UObject* Requester);
 	
 	void DoTick(float DeltaTime, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);

@@ -21,7 +21,7 @@ namespace UE::Net::Private
 struct FDeltaCompressionBaselineInvalidationTrackerInitParams
 {
 	const FDeltaCompressionBaselineManager* BaselineManager = nullptr;
-	uint32 MaxObjectCount = 0;
+	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 };
 
 class FDeltaCompressionBaselineInvalidationTracker
@@ -44,6 +44,7 @@ public:
 
 	void Init(FDeltaCompressionBaselineInvalidationTrackerInitParams& InitParams);
 
+	// It is up to calling code to also do this for eventual subobjects.
 	void InvalidateBaselines(FInternalNetRefIndex ObjectIndex, uint32 ConnId);
 
 	// Returns an array of objects with enabled conditions such that DC baselines need to be invalidated.
@@ -51,6 +52,9 @@ public:
 
 	void PreSendUpdate();
 	void PostSendUpdate();
+
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex);
 
 private:
 	enum : unsigned

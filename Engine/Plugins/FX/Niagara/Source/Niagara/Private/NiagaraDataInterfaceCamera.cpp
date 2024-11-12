@@ -69,6 +69,12 @@ bool UNiagaraDataInterfaceCamera::InitPerInstanceData(void* PerInstanceData, FNi
 	return true;
 }
 
+void UNiagaraDataInterfaceCamera::DestroyPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance)
+{
+	FCameraDataInterface_InstanceData* PIData = static_cast<FCameraDataInterface_InstanceData*>(PerInstanceData);
+	PIData->~FCameraDataInterface_InstanceData();
+}
+
 bool UNiagaraDataInterfaceCamera::PerInstanceTick(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance, float DeltaSeconds)
 {
 	FCameraDataInterface_InstanceData* PIData = (FCameraDataInterface_InstanceData*)PerInstanceData;

@@ -547,7 +547,7 @@ namespace Chaos
 
 		void FPBDIslandGroupManager::Solve(const FReal Dt)
 		{
-	#if CSV_PROFILER
+	#if CSV_PROFILER_STATS
 			GroupStats.Reset();
 			GroupStats.AddDefaulted(IslandGroups.Num());
 	#endif
@@ -568,7 +568,7 @@ namespace Chaos
 				break;
 			}
 
-	#if CSV_PROFILER
+	#if CSV_PROFILER_STATS
 			FIslandGroupStats FlattenedStats = FIslandGroupStats::Flatten(GroupStats);
 			FlattenedStats.ReportStats();
 	#endif

@@ -148,6 +148,8 @@ extern double TickLoopShaderProcessAsyncResultsTimeSec;
 extern double TickLoopProcessDeferredCommandsTimeSec;
 extern double TickLoopTickCommandletStatsTimeSec;
 extern double TickLoopFlushRenderingCommandsTimeSec;
+extern double ShaderFlushTimeSec;
+extern double ValidationTimeSec;
 extern bool IsCookAll;
 extern bool IsCookOnTheFly;
 extern bool IsIterativeCook;

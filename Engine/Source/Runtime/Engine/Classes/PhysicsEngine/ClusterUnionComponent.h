@@ -231,7 +231,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Cluster Union")
 	ENGINE_API TArray<AActor*> GetActors();
 
-	UFUNCTION(BlueprintCallable, Category = "Cluster Union")
+	UE_DEPRECATED(5.5, "SetIsAnchored is deprecated, Use SetSimulatePhysics instead")
+	UFUNCTION(BlueprintCallable, Category = "Cluster Union", meta = (DeprecatedFunction, DeprecationMessage = "SetIsAnchored is deprecated, Use SetSimulatePhysics instead"))
 	ENGINE_API virtual void SetIsAnchored(bool bIsAnchored);
 
 	ENGINE_API bool IsAnchored() const;
@@ -424,6 +425,9 @@ private:
 	// Cached local bounds from the physics particle.
 	mutable bool bHasCachedLocalBounds;
 	mutable FBoxSphereBounds CachedLocalBounds;
+
+	// If Physics Prediction is enabled
+	bool bPhysicsPredictionEnabled;
 
 protected:
 	// Handles changes to ReplicatedRigidState. Note that this function does not handle replication of X/R since we make use

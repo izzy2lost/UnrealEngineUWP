@@ -5,11 +5,13 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
+#include "AssetViewUtils.h"
 #include "Editor.h"
 #include "Editor/Transactor.h"
 #include "EditorScriptingHelpers.h"
 #include "FileHelpers.h"
 #include "HAL/FileManager.h"
+#include "Misc/EngineBuildSettings.h"
 #include "Misc/PackageName.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Modules/ModuleManager.h"
@@ -30,318 +32,368 @@ using TError = TValueOrError<UE::EditorAssetUtils::ErrorTag, T>;
 
 namespace UE::EditorAssetUtils
 {
-	bool EnsureAssetsLoaded()
+static bool EnsureAssetsLoaded()
+{
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	if (IAssetRegistry& AssetRegistry = AssetRegistryModule.Get(); AssetRegistry.IsLoadingAssets())
 	{
-		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-		if (IAssetRegistry& AssetRegistry = AssetRegistryModule.Get(); AssetRegistry.IsLoadingAssets())
+		if (AssetRegistry.IsSearchAsync() && AssetRegistry.IsSearchAllAssets())
 		{
-			if (AssetRegistry.IsSearchAsync() && AssetRegistry.IsSearchAllAssets())
-			{
-				AssetRegistry.WaitForCompletion();
-			}
-			else
-			{
-				AssetRegistry.SearchAllAssets(true /* bSynchronousSearch */);
-			}
+			AssetRegistry.WaitForCompletion();
 		}
-		return true;
+		else
+		{
+			AssetRegistry.SearchAllAssets(true /* bSynchronousSearch */);
+		}
+	}
+	return true;
+}
+
+static TValueOrError<FAssetData, FString> FindAssetDataFromAnyPath(const FString& AnyAssetPath)
+{
+	FString FailureReason;
+	FString ObjectPath = EditorScriptingHelpers::ConvertAnyPathToSubObjectPath(AnyAssetPath, FailureReason);
+	if (ObjectPath.IsEmpty())
+	{
+		return MakeError(FailureReason);
 	}
 
-	TValueOrError<FAssetData, FString> FindAssetDataFromAnyPath(const FString& AnyAssetPath)
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(ObjectPath));
+	if (!AssetData.IsValid())
 	{
-		FString FailureReason;
-		FString ObjectPath = EditorScriptingHelpers::ConvertAnyPathToSubObjectPath(AnyAssetPath, FailureReason);
+		ObjectPath = EditorScriptingHelpers::ConvertAnyPathToObjectPath(AnyAssetPath, FailureReason);
 		if (ObjectPath.IsEmpty())
 		{
 			return MakeError(FailureReason);
 		}
 
-		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-		FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(ObjectPath));
+		AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(ObjectPath));
 		if (!AssetData.IsValid())
 		{
-			ObjectPath = EditorScriptingHelpers::ConvertAnyPathToObjectPath(AnyAssetPath, FailureReason);
-			if (ObjectPath.IsEmpty())
-			{
-				return MakeError(FailureReason);
-			}
-
-			AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(ObjectPath));
-			if (!AssetData.IsValid())
-			{
-				return MakeError(FString::Printf(TEXT("The AssetData '%s' could not be found in the Asset Registry."), *ObjectPath));
-			}
+			return MakeError(FString::Printf(TEXT("The AssetData '%s' could not be found in the Asset Registry."), *ObjectPath));
 		}
-		
-		return MakeValue(AssetData);
-	}
-
-	TValueOrError<UObject*, FString> LoadAssetFromData(const FAssetData& AssetData)
-	{
-		if (!AssetData.IsValid())
-		{
-			return MakeError("Asset Data is not valid.");
-		}
-
-		UObject* FoundObject = AssetData.GetAsset();
-		if (!IsValid(FoundObject))
-		{
-			return MakeError(FString::Printf(TEXT("The asset '%s' exists but was not able to be loaded."), *AssetData.GetObjectPathString()));
-		}
-		else if (!FoundObject->IsAsset())
-		{
-			return MakeError(FString::Printf(TEXT("'%s' is not a valid asset."), *AssetData.GetObjectPathString()));
-		}
-		return MakeValue(FoundObject);
 	}
 	
-	TValueOrError<UObject*, FString> LoadAssetFromPath(const FString& AssetPath)
+	return MakeValue(AssetData);
+}
+
+static TValueOrError<UObject*, FString> LoadAssetFromData(const FAssetData& AssetData)
+{
+	if (!AssetData.IsValid())
 	{
-		TValueOrError<FAssetData, FString> AssetDataResult = FindAssetDataFromAnyPath(AssetPath);
-		if (AssetDataResult.HasError())
-		{
-			return MakeError(AssetDataResult.StealError());
-		}
-		return LoadAssetFromData(AssetDataResult.GetValue());
+		return MakeError("Asset Data is not valid.");
 	}
 
-	TError<FString> IsARegisteredAsset(UObject* Object, bool bAllowSkipBrowsableTestForExternalObject = false)
+	UObject* FoundObject = AssetData.GetAsset();
+	if (!IsValid(FoundObject))
 	{
-		if (!IsValid(Object))
-		{
-			return MakeError(TEXT("The Asset is not valid."));
-		}
+		return MakeError(FString::Printf(TEXT("The asset '%s' exists but was not able to be loaded."), *AssetData.GetObjectPathString()));
+	}
+	else if (!FoundObject->IsAsset())
+	{
+		return MakeError(FString::Printf(TEXT("'%s' is not a valid asset."), *AssetData.GetObjectPathString()));
+	}
+	return MakeValue(FoundObject);
+}
 
-		const bool bCanSkipIsBrowsable = bAllowSkipBrowsableTestForExternalObject && Object->IsPackageExternal();
-		if (!bCanSkipIsBrowsable && !ObjectTools::IsObjectBrowsable(Object))
-		{
-			return MakeError(FString::Printf(TEXT("The object '%s' is not an asset."), *Object->GetName()));
-		}
+static TValueOrError<UObject*, FString> LoadAssetFromPath(const FString& AssetPath)
+{
+	TValueOrError<FAssetData, FString> AssetDataResult = FindAssetDataFromAnyPath(AssetPath);
+	if (AssetDataResult.HasError())
+	{
+		return MakeError(AssetDataResult.StealError());
+	}
+	return LoadAssetFromData(AssetDataResult.GetValue());
+}
 
-		UPackage* Package = Object->GetPackage();
-		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		// This should likely get GetAssetsByPackagename but the impact of changing it should be checked
-		FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(Package->GetName());
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		if (!AssetData.IsValid())
-		{
-			return MakeError(FString::Printf(TEXT("The AssetData '%s' could not be found in the Asset Registry."), *Package->GetName()));
-		}
-
-		return MakeValue();
+static TError<FString> IsARegisteredAsset(UObject* Object, bool bAllowSkipBrowsableTestForExternalObject = false)
+{
+	if (!IsValid(Object))
+	{
+		return MakeError(TEXT("The Asset is not valid."));
 	}
 
-	TError<FString> EnumerateAssetsInDirectory(const FString& AnyPathDirectoryPath, bool bRecursive, TArray<FAssetData>& OutResult, FString& OutDirectoryPath)
+	const bool bCanSkipIsBrowsable = bAllowSkipBrowsableTestForExternalObject && Object->IsPackageExternal();
+	if (!bCanSkipIsBrowsable && !ObjectTools::IsObjectBrowsable(Object))
 	{
-		OutResult.Reset();
-		OutDirectoryPath.Reset();
-
-		FString FailureReason;
-		OutDirectoryPath = EditorScriptingHelpers::ConvertAnyPathToLongPackagePath(AnyPathDirectoryPath, FailureReason);
-		if (OutDirectoryPath.IsEmpty())
-		{
-			return MakeError(FailureReason);
-		}
-
-		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-		if (!AssetRegistryModule.Get().GetAssetsByPath(*OutDirectoryPath, OutResult, bRecursive))
-		{
-			return MakeError(FString::Printf(TEXT("Could not get assets from path '%s'"), *OutDirectoryPath));
-		}
-		
-		return MakeValue();
+		return MakeError(FString::Printf(TEXT("The object '%s' is not an asset."), *Object->GetName()));
 	}
 
-	enum class EPackageEnumerationFilter
+	FSoftObjectPath ObjectPath = FSoftObjectPath(Object);
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(ObjectPath);
+	if (!AssetData.IsValid())
 	{
-		NoFilter,
-		OnlyDirty
-	};
+		return MakeError(FString::Printf(TEXT("The AssetData '%s' could not be found in the Asset Registry."), *Object->GetPathName()));
+	}
+
+	return MakeValue();
+}
+
+static TError<FString> EnumerateAssetsInDirectory(const FString& AnyPathDirectoryPath, bool bRecursive, TArray<FAssetData>& OutResult, FString& OutDirectoryPath)
+{
+	OutResult.Reset();
+	OutDirectoryPath.Reset();
+
+	FString FailureReason;
+	OutDirectoryPath = EditorScriptingHelpers::ConvertAnyPathToLongPackagePath(AnyPathDirectoryPath, FailureReason);
+	if (OutDirectoryPath.IsEmpty())
+	{
+		return MakeError(FailureReason);
+	}
+
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	if (!AssetRegistryModule.Get().GetAssetsByPath(*OutDirectoryPath, OutResult, bRecursive))
+	{
+		return MakeError(FString::Printf(TEXT("Could not get assets from path '%s'"), *OutDirectoryPath));
+	}
 	
-	TError<FString> EnumeratePackagesInDirectory(const FString& AnyDirectoryPath, EPackageEnumerationFilter EnumerationFilter, bool bRecursive, TArray<UPackage*>& OutResult)
-	{
-		FString ValidDirectoryPath;
-		TArray<FAssetData> Assets;
-		if (TError<FString> Result = EnumerateAssetsInDirectory(AnyDirectoryPath, bRecursive, Assets, ValidDirectoryPath); Result.HasError())
-		{
-			return Result;
-		}
+	return MakeValue();
+}
 
-		if (EnumerationFilter == EPackageEnumerationFilter::OnlyDirty)
+enum class EPackageEnumerationFilter
+{
+	NoFilter,
+	OnlyDirty
+};
+
+static TError<FString> EnumeratePackagesInDirectory(const FString& AnyDirectoryPath, EPackageEnumerationFilter EnumerationFilter, bool bRecursive, TArray<UPackage*>& OutResult)
+{
+	FString ValidDirectoryPath;
+	TArray<FAssetData> Assets;
+	if (TError<FString> Result = EnumerateAssetsInDirectory(AnyDirectoryPath, bRecursive, Assets, ValidDirectoryPath); Result.HasError())
+	{
+		return Result;
+	}
+
+	if (EnumerationFilter == EPackageEnumerationFilter::OnlyDirty)
+	{
+		for (const FAssetData& AssetData : Assets)
 		{
-			for (const FAssetData& AssetData : Assets)
+			// Can't be dirty if not loaded
+			if (AssetData.IsAssetLoaded())
 			{
-				// Can't be dirty if not loaded
-				if (AssetData.IsAssetLoaded())
-				{
-					if (UPackage* Package = AssetData.GetPackage(); Package && Package->IsDirty())
-					{
-						Package->FullyLoad();
-						OutResult.AddUnique(Package);
-					}
-				}
-			}
-		}
-		else
-		{
-			// load all assets
-			for (const FAssetData& AssetData : Assets)
-			{
-				if (UPackage* Package = AssetData.GetPackage())
+				if (UPackage* Package = AssetData.GetPackage(); Package && Package->IsDirty())
 				{
 					Package->FullyLoad();
 					OutResult.AddUnique(Package);
 				}
 			}
 		}
-		return MakeValue();
 	}
-	
-	bool DeleteEmptyDirectoryFromDisk(const FString& LongPackagePath)
+	else
 	{
-		struct FEmptyDirectoryVisitor : public IPlatformFile::FDirectoryVisitor
+		// load all assets
+		for (const FAssetData& AssetData : Assets)
 		{
-			bool bIsEmpty = true;
-
-			virtual bool Visit(const TCHAR*, bool bIsDirectory) override
+			if (UPackage* Package = AssetData.GetPackage())
 			{
-				if (!bIsDirectory)
-				{
-					bIsEmpty = false;
-					return false; // abort searching
-				}
-				return true; // continue searching
-			}
-		};
-		
-		if (FString PathToDeleteOnDisk = UPackageTools::PackageNameToFilename(LongPackagePath); !PathToDeleteOnDisk.IsEmpty())
-		{
-			// Look for files on disk in case the directory contains things not tracked by the asset registry
-			FEmptyDirectoryVisitor EmptyDirectoryVisitor;
-			IFileManager::Get().IterateDirectoryRecursively(*PathToDeleteOnDisk, EmptyDirectoryVisitor);
-
-			if (EmptyDirectoryVisitor.bIsEmpty)
-			{
-				return IFileManager::Get().DeleteDirectory(*PathToDeleteOnDisk, false, true);
+				Package->FullyLoad();
+				OutResult.AddUnique(Package);
 			}
 		}
-		return false;
 	}
+	return MakeValue();
+}
 
-	struct FDirectoryRenamePaths
+static bool DeleteEmptyDirectoryFromDisk(const FString& LongPackagePath)
+{
+	struct FEmptyDirectoryVisitor : public IPlatformFile::FDirectoryVisitor
 	{
-		FString SourceDirectoryPath;
-		FString SourceFilePath;
-		FString DestinationDirectoryPath;
-		FString DestinationFilePath;
+		bool bIsEmpty = true;
+
+		virtual bool Visit(const TCHAR*, bool bIsDirectory) override
+		{
+			if (!bIsDirectory)
+			{
+				bIsEmpty = false;
+				return false; // abort searching
+			}
+			return true; // continue searching
+		}
 	};
 	
-	TValueOrError<FDirectoryRenamePaths, FString> GetDirectoryRenamePaths(const FString& SourceDirectoryPath, const FString& DestinationDirectoryPath)
+	if (FString PathToDeleteOnDisk = UPackageTools::PackageNameToFilename(LongPackagePath); !PathToDeleteOnDisk.IsEmpty())
 	{
-		FDirectoryRenamePaths Paths;
+		// Look for files on disk in case the directory contains things not tracked by the asset registry
+		FEmptyDirectoryVisitor EmptyDirectoryVisitor;
+		IFileManager::Get().IterateDirectoryRecursively(*PathToDeleteOnDisk, EmptyDirectoryVisitor);
+
+		if (EmptyDirectoryVisitor.bIsEmpty)
+		{
+			return IFileManager::Get().DeleteDirectory(*PathToDeleteOnDisk, false, true);
+		}
+	}
+	return false;
+}
+
+struct FDirectoryRenamePaths
+{
+	FString SourceDirectoryPath;
+	FString SourceFilePath;
+	FString DestinationDirectoryPath;
+	FString DestinationFilePath;
+};
+
+static TValueOrError<FDirectoryRenamePaths, FString> GetDirectoryRenamePaths(const FString& SourceDirectoryPath, const FString& DestinationDirectoryPath)
+{
+	FDirectoryRenamePaths Paths;
+	FString FailureReason;
+	Paths.SourceDirectoryPath = EditorScriptingHelpers::ConvertAnyPathToLongPackagePath(SourceDirectoryPath, FailureReason);
+	if (Paths.SourceDirectoryPath.IsEmpty())
+	{
+		return MakeError(FString::Printf(TEXT("Failed to convert the source path. %s"), *FailureReason));
+	}
+
+	Paths.SourceFilePath = FPaths::ConvertRelativePathToFull(UPackageTools::PackageNameToFilename(Paths.SourceDirectoryPath));
+	if (Paths.SourceFilePath.IsEmpty())
+	{
+		return MakeError(FString::Printf(TEXT("Failed to convert the source path '%s' to a full path."), *Paths.SourceDirectoryPath));
+	}
+
+	Paths.DestinationDirectoryPath = EditorScriptingHelpers::ConvertAnyPathToLongPackagePath(DestinationDirectoryPath, FailureReason);
+	if (Paths.DestinationDirectoryPath.IsEmpty())
+	{
+		return MakeError(FString::Printf(TEXT("Failed to convert the destination path. %s"), *FailureReason));
+	}
+
+	Paths.DestinationFilePath = FPaths::ConvertRelativePathToFull(UPackageTools::PackageNameToFilename(Paths.DestinationDirectoryPath));
+	if (Paths.DestinationFilePath.IsEmpty())
+	{
+		return MakeError(FString::Printf(TEXT("Failed to convert the destination path '%s' to a full path."), *Paths.DestinationDirectoryPath));
+	}
+	
+	return MakeValue(Paths);
+}
+
+static TError<FString> SetupDirectoryRename(const FDirectoryRenamePaths& Paths)
+{
+	// If the source directory doesn't exist on disk then it can't be operated on
+	if (!IFileManager::Get().DirectoryExists(*Paths.SourceFilePath))
+	{
+		return MakeError(FString::Printf(TEXT("The source directory '%s' does not exist on disk."), *Paths.SourceFilePath));
+	}
+
+	// Create the destination directory if it doesn't already exist
+	if (!IFileManager::Get().DirectoryExists(*Paths.DestinationFilePath))
+	{
+		const bool bTree = true;
+		if (!IFileManager::Get().MakeDirectory(*Paths.DestinationFilePath, bTree))
+		{
+			return MakeError(FString::Printf(TEXT("The destination directory '%s' could not be created."), *Paths.DestinationFilePath));
+		}
+	}
+
+	return MakeValue();
+}
+
+struct FDirectoryRenameAssetPaths
+{
+	TArray<FAssetData> SourceDirectoryAssetDatas;
+	TArray<FString> DestinationDirectoryAssetPaths;
+};
+
+static TValueOrError<FDirectoryRenameAssetPaths, FString> GetDirectoryRenameAssetPaths(const FDirectoryRenamePaths& Paths)
+{
+	FDirectoryRenameAssetPaths AssetPaths;
+	
+	// Load all assets the directory contains
+	// Because we want to rename a directory, we can't rename any files that can't be deleted
+	FString OutPath;
+	if (TError<FString> Result = EnumerateAssetsInDirectory(Paths.SourceDirectoryPath, true, AssetPaths.SourceDirectoryAssetDatas, OutPath); Result.HasError())
+	{
+		return MakeError(Result.StealError());
+	}
+	
+	for (const FAssetData& AssetData : AssetPaths.SourceDirectoryAssetDatas)
+	{
+		FString PackageName = AssetData.PackageName.ToString();
+		FString LongPackagePath = FPackageName::GetLongPackagePath(PackageName);
+
+		// Remove source from the object name
+		LongPackagePath.MidInline(Paths.SourceDirectoryPath.Len(), MAX_int32, EAllowShrinking::No);
+
+		// Create AssetPath /Game/MyFolder/MyAsset.MyAsset
+		FString NewAssetPackageName;
+		if (LongPackagePath.IsEmpty())
+		{
+			NewAssetPackageName = FString::Printf(TEXT("%s/%s.%s"), *Paths.DestinationDirectoryPath, *AssetData.AssetName.ToString(), *AssetData.AssetName.ToString());
+		}
+		else
+		{
+			NewAssetPackageName = FString::Printf(TEXT("%s%s/%s.%s"), *Paths.DestinationDirectoryPath, *LongPackagePath, *AssetData.AssetName.ToString(), *AssetData.AssetName.ToString());
+		}
+
 		FString FailureReason;
-		Paths.SourceDirectoryPath = EditorScriptingHelpers::ConvertAnyPathToLongPackagePath(SourceDirectoryPath, FailureReason);
-		if (Paths.SourceDirectoryPath.IsEmpty())
+		if (!EditorScriptingHelpers::IsAValidPathForCreateNewAsset(NewAssetPackageName, FailureReason))
 		{
-			return MakeError(FString::Printf(TEXT("Failed to convert the source path. %s"), *FailureReason));
-		}
-
-		Paths.SourceFilePath = FPaths::ConvertRelativePathToFull(UPackageTools::PackageNameToFilename(Paths.SourceDirectoryPath));
-		if (Paths.SourceFilePath.IsEmpty())
-		{
-			return MakeError(FString::Printf(TEXT("Failed to convert the source path '%s' to a full path."), *Paths.SourceDirectoryPath));
-		}
-
-		Paths.DestinationDirectoryPath = EditorScriptingHelpers::ConvertAnyPathToLongPackagePath(DestinationDirectoryPath, FailureReason);
-		if (Paths.DestinationDirectoryPath.IsEmpty())
-		{
-			return MakeError(FString::Printf(TEXT("Failed to convert the destination path. %s"), *FailureReason));
-		}
-
-		Paths.DestinationFilePath = FPaths::ConvertRelativePathToFull(UPackageTools::PackageNameToFilename(Paths.DestinationDirectoryPath));
-		if (Paths.DestinationFilePath.IsEmpty())
-		{
-			return MakeError(FString::Printf(TEXT("Failed to convert the destination path '%s' to a full path."), *Paths.DestinationDirectoryPath));
+			return MakeError(FString::Printf(TEXT("Failed to validate the destination for asset '%s'. %s"), *AssetData.AssetName.ToString(), *FailureReason));
 		}
 		
-		return MakeValue(Paths);
+		if (FPackageName::DoesPackageExist(NewAssetPackageName))
+		{
+			return MakeError(FString::Printf(TEXT("Failed to validate the destination for asset '%s'. There's already an asset at the destination."), *NewAssetPackageName));
+		}
+
+		// Keep AssetPath /Game/MyFolder
+		AssetPaths.DestinationDirectoryAssetPaths.Add(NewAssetPackageName);
+	}
+	return MakeValue(AssetPaths);
+}
+
+template<typename TLessThan>
+static void SortAssets(
+	TArray<FAssetData>& Assets,
+	TLessThan&& Predicate,
+	EEditorAssetSortOrder SortOrder
+)
+{
+	switch (SortOrder)
+	{
+	case EEditorAssetSortOrder::Ascending: Assets.Sort(Predicate); break;
+	case EEditorAssetSortOrder::Descending:
+		Assets.Sort([&Predicate](const FAssetData& Left, const FAssetData& Right)
+		{
+			return Predicate(Right, Left);
+		});
+		break;
+	default: checkNoEntry(); break;
+	}
+}
+
+template<typename TType>
+static bool Sort(
+	TArray<FAssetData>& Assets,
+	FName MetaDataTag,
+	TFunctionRef<bool(const FString& TagType, TType& Converted)> Converter,
+	EEditorAssetSortOrder SortOrder
+	)
+{
+	TMap<FSoftObjectPath, TType> MetaData;
+	MetaData.Reserve(Assets.Num());
+
+	for (const FAssetData& AssetData : Assets)
+	{
+		const FAssetTagValueRef Value = AssetData.TagsAndValues.FindTag(MetaDataTag);
+		TType AssetTagValue;
+		if (Value.IsSet() && Converter(Value.GetValue(), AssetTagValue))
+		{
+			MetaData.Add(AssetData.GetSoftObjectPath(), AssetTagValue);
+		}
+		else
+		{
+			UE_LOG(LogEditorAssetSubsystem, Warning, TEXT("Not all assets have the tag '%s'"), *MetaDataTag.ToString());
+			return false;
+		}
 	}
 
-	TError<FString> SetupDirectoryRename(const FDirectoryRenamePaths& Paths)
+	SortAssets(Assets, [&MetaData](const FAssetData& Left, const FAssetData& Right)
 	{
-		// If the source directory doesn't exist on disk then it can't be operated on
-		if (!IFileManager::Get().DirectoryExists(*Paths.SourceFilePath))
-		{
-			return MakeError(FString::Printf(TEXT("The source directory '%s' does not exist on disk."), *Paths.SourceFilePath));
-		}
-
-		// Create the destination directory if it doesn't already exist
-		if (!IFileManager::Get().DirectoryExists(*Paths.DestinationFilePath))
-		{
-			const bool bTree = true;
-			if (!IFileManager::Get().MakeDirectory(*Paths.DestinationFilePath, bTree))
-			{
-				return MakeError(FString::Printf(TEXT("The destination directory '%s' could not be created."), *Paths.DestinationFilePath));
-			}
-		}
-
-		return MakeValue();
-	}
-	
-	struct FDirectoryRenameAssetPaths
-	{
-		TArray<FAssetData> SourceDirectoryAssetDatas;
-		TArray<FString> DestinationDirectoryAssetPaths;
-	};
-	
-	TValueOrError<FDirectoryRenameAssetPaths, FString> GetDirectoryRenameAssetPaths(const FDirectoryRenamePaths& Paths)
-	{
-		FDirectoryRenameAssetPaths AssetPaths;
-		
-		// Load all assets the directory contains
-		// Because we want to rename a directory, we can't rename any files that can't be deleted
-		FString OutPath;
-		if (TError<FString> Result = EnumerateAssetsInDirectory(Paths.SourceDirectoryPath, true, AssetPaths.SourceDirectoryAssetDatas, OutPath); Result.HasError())
-		{
-			return MakeError(Result.StealError());
-		}
-		
-		for (const FAssetData& AssetData : AssetPaths.SourceDirectoryAssetDatas)
-		{
-			FString PackageName = AssetData.PackageName.ToString();
-			FString LongPackagePath = FPackageName::GetLongPackagePath(PackageName);
-
-			// Remove source from the object name
-			LongPackagePath.MidInline(Paths.SourceDirectoryPath.Len(), MAX_int32, EAllowShrinking::No);
-
-			// Create AssetPath /Game/MyFolder/MyAsset.MyAsset
-			FString NewAssetPackageName;
-			if (LongPackagePath.IsEmpty())
-			{
-				NewAssetPackageName = FString::Printf(TEXT("%s/%s.%s"), *Paths.DestinationDirectoryPath, *AssetData.AssetName.ToString(), *AssetData.AssetName.ToString());
-			}
-			else
-			{
-				NewAssetPackageName = FString::Printf(TEXT("%s%s/%s.%s"), *Paths.DestinationDirectoryPath, *LongPackagePath, *AssetData.AssetName.ToString(), *AssetData.AssetName.ToString());
-			}
-
-			FString FailureReason;
-			if (!EditorScriptingHelpers::IsAValidPathForCreateNewAsset(NewAssetPackageName, FailureReason))
-			{
-				return MakeError(FString::Printf(TEXT("Failed to validate the destination for asset '%s'. %s"), *AssetData.AssetName.ToString(), *FailureReason));
-			}
-			
-			if (FPackageName::DoesPackageExist(NewAssetPackageName))
-			{
-				return MakeError(FString::Printf(TEXT("Failed to validate the destination for asset '%s'. There's already an asset at the destination."), *NewAssetPackageName));
-			}
-
-			// Keep AssetPath /Game/MyFolder
-			AssetPaths.DestinationDirectoryAssetPaths.Add(NewAssetPackageName);
-		}
-		return MakeValue(AssetPaths);
-	}
+		return MetaData[Left.GetSoftObjectPath()] <= MetaData[Right.GetSoftObjectPath()]; 
+	}, SortOrder);
+	return true;
+}
 }
 
 UEditorAssetSubsystem::UEditorAssetSubsystem()
@@ -1093,6 +1145,27 @@ bool UEditorAssetSubsystem::RenameDirectory(const FString& SourceDirectoryPath, 
 	return true;
 }
 
+bool UEditorAssetSubsystem::SetDirtyFlag(UObject* Object, const bool bDirtyState)
+{
+	if (!IsValid(Object) || !Object->IsAsset())
+	{
+		return false;
+	}
+	UPackage* Pkg = Object->GetOutermost();
+	if (!Pkg || Pkg == GetTransientPackage() || Pkg->ContainsMap())
+	{
+		return false;
+	}
+	bool bOldDirtyValue = Pkg->IsDirty();
+	if (bOldDirtyValue != bDirtyState)
+	{
+		//If we need to change the state, return true if the state has change to the one specified
+		Pkg->SetDirtyFlag(bDirtyState);
+		return bDirtyState == Pkg->IsDirty();
+	}
+	return true;
+}
+
 // Checkout operations
  
  namespace UE::EditorAssetUtils
@@ -1271,6 +1344,21 @@ bool UEditorAssetSubsystem::SaveAsset(const FString& AssetsToSave, bool bOnlyIfI
 
 	// Save without a prompt
 	return UEditorLoadingAndSavingUtils::SavePackages(Packages, bOnlyIfIsDirty);
+}
+
+int32 UEditorAssetSubsystem::GetAssetFilenameLengthForCooking(const FString& AssetPath)
+{
+	const FString PackagePath = FPackageName::ObjectPathToPackageName(AssetPath);
+	return AssetViewUtils::GetPackageLengthForCooking(PackagePath, FEngineBuildSettings::IsInternalBuild());
+}
+
+int32 UEditorAssetSubsystem::GetLoadedAssetFilenameLengthForCooking(const UObject* Asset)
+{
+	if (Asset)
+	{
+		return AssetViewUtils::GetPackageLengthForCooking(Asset->GetPackage()->GetName(), FEngineBuildSettings::IsInternalBuild());
+	}
+	return 0;
 }
 
 bool UEditorAssetSubsystem::SaveDirectory(const FString& DirectoryPath, bool bOnlyIfIsDirty, bool bRecursive)
@@ -1620,7 +1708,8 @@ void UEditorAssetSubsystem::RemoveOnExtractAssetFromFile(FOnExtractAssetFromFile
 	OnExtractAssetFromFileDynamicArray.Remove(Delegate);
 }
 
-void UEditorAssetSubsystem::CallOnExtractAssetFromFileDynamicArray(const TArray<FString>& Files,
+void UEditorAssetSubsystem::CallOnExtractAssetFromFileDynamicArray(
+	const TArray<FString>& Files,
 	TArray<FAssetData>& OutAssetDataArray)
 {
 	TArray<FAssetData> LocalArray;
@@ -1629,5 +1718,64 @@ void UEditorAssetSubsystem::CallOnExtractAssetFromFileDynamicArray(const TArray<
 		Delegate.ExecuteIfBound(Files, LocalArray);
 		OutAssetDataArray += LocalArray;
 		LocalArray.Reset();
+	}
+}
+
+TArray<FAssetData> UEditorAssetSubsystem::GetAllAssetsByMetaDataTags(
+	const TSet<FName>& RequiredTags,
+	const TSet<UClass*>& AllowedClasses
+	)
+{
+	TGuardValue<bool> UnattendedScriptGuard(GIsRunningUnattendedScript, true);
+
+	TArray<FAssetData> Result;
+	if (!EditorScriptingHelpers::CheckIfInEditorAndPIE() || !UE::EditorAssetUtils::EnsureAssetsLoaded())
+	{
+		return Result;
+	}
+	
+	FARFilter Filter;
+	Filter.TagsAndValues.Reserve(RequiredTags.Num());
+	for (FName RequiredTag : RequiredTags)
+	{
+		Filter.TagsAndValues.Add(RequiredTag);
+	}
+	Filter.ClassPaths.Reserve(RequiredTags.Num());
+	for (UClass* AllowedClass : AllowedClasses)
+	{
+		Filter.ClassPaths.Add(FTopLevelAssetPath(AllowedClass));
+	}
+
+	IAssetRegistry::Get()->GetAssets(Filter, Result);
+	return Result;
+}
+
+bool UEditorAssetSubsystem::SortByMetaData(
+	TArray<FAssetData>& Assets,
+	FName MetaDataTag,
+	EEditorAssetMetaDataSortType MetaDataType,
+	EEditorAssetSortOrder SortOrder
+	)
+{
+	using namespace UE::EditorAssetUtils;
+	switch (MetaDataType)
+	{
+	case EEditorAssetMetaDataSortType::String:
+		return Sort<FString>(Assets, MetaDataTag, [](const FString& String, FString& Result){ Result = String; return true; }, SortOrder);
+	case EEditorAssetMetaDataSortType::Numeric:
+		return Sort<double>(Assets, MetaDataTag, [](const FString& String, double& Result)
+		{
+			if (String.IsNumeric())
+			{
+				Result = FCString::Atod(*String);
+				return true;
+			}
+			return false;
+		}, SortOrder);
+	case EEditorAssetMetaDataSortType::DateTime:
+		return Sort<FDateTime>(Assets, MetaDataTag, [](const FString& String, FDateTime& Result){ return FDateTime::Parse(String, Result); }, SortOrder);
+	default:
+		checkNoEntry();
+		return false;
 	}
 }

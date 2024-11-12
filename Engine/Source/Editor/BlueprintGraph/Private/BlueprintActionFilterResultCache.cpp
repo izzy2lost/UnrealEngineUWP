@@ -263,7 +263,7 @@ void FActionFilterCache::PopCache()
 		RemovedElement.Pin()->UnCacheSelf();
 	}
 
-	CacheLeafs.RemoveAt(MinIndex, 1, EAllowShrinking::No);
+	CacheLeafs.RemoveAt(MinIndex, EAllowShrinking::No);
 }
 
 TSharedPtr<FActionFilterCacheNode> FActionFilterCache::SharedCache = MakeShared<FActionFilterCacheNode>();

@@ -45,9 +45,9 @@ void FLandscapeEditorDetailCustomization_MiscTools::CustomizeDetails(IDetailLayo
 		];
 	}
 
-	//if (IsToolActive("Mask"))
+	IDetailCategoryBuilder& SelectMaskCategory = DetailBuilder.EditCategory("Select Mask");
 	{
-		ToolsCategory.AddCustomRow(LOCTEXT("Mask.ClearSelection", "Clear Region Selection"))
+		SelectMaskCategory.AddCustomRow(LOCTEXT("Mask.ClearSelection", "Clear Region Selection"))
 		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_MiscTools::GetClearRegionSelectionVisibility)))
 		[
 			SNew(SButton)
@@ -82,12 +82,10 @@ void FLandscapeEditorDetailCustomization_MiscTools::CustomizeDetails(IDetailLayo
 					.Value(this, &FLandscapeEditorDetailCustomization_MiscTools::GetFlattenValue)
 					.OnValueChanged_Static(&FLandscapeEditorDetailCustomization_Base::OnValueChanged<float>, FlattenValueProperty)
 					.OnValueCommitted_Static(&FLandscapeEditorDetailCustomization_Base::OnValueCommitted<float>, FlattenValueProperty)
-					.MinValue(-32768.0f)
-					.MaxValue(32768.0f)
-					.SliderExponentNeutralValue(0.0f)
+					.SliderExponentNeutralValue(this, &FLandscapeEditorDetailCustomization_MiscTools::GetFlattenTargetValueMid)
 					.SliderExponent(5.0f)
-					.MinSliderValue(-32768.0f)
-					.MaxSliderValue(32768.0f)
+					.MinSliderValue(this, &FLandscapeEditorDetailCustomization_MiscTools::GetFlattenTargetValueMin)
+					.MaxSliderValue(this, &FLandscapeEditorDetailCustomization_MiscTools::GetFlattenTargetValueMax)
 					.MinDesiredValueWidth(75.0f)
 					.ToolTipText(LOCTEXT("FlattenToolTips", "Target height to flatten towards (in Unreal Units)"))
 				]
@@ -101,6 +99,28 @@ void FLandscapeEditorDetailCustomization_MiscTools::CustomizeDetails(IDetailLayo
 					.OnBegin(this, &FLandscapeEditorDetailCustomization_MiscTools::OnBeginFlattenToolEyeDrop)
 					.OnComplete(this, &FLandscapeEditorDetailCustomization_MiscTools::OnCompletedFlattenToolEyeDrop)
 				]		
+			];
+
+		TSharedRef<IPropertyHandle> TerraceIntervalProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ULandscapeEditorObject, TerraceInterval));
+		IDetailPropertyRow& TerraceIntervalRow = ToolsCategory.AddProperty(TerraceIntervalProperty);
+		TerraceIntervalRow.CustomWidget()
+			.NameContent()
+			[
+				TerraceIntervalProperty->CreatePropertyNameWidget()
+			]
+			.ValueContent()
+			[
+				SNew(SNumericEntryBox<float>)
+					.AllowSpin(true)
+					.Font(DetailBuilder.GetDetailFont())
+					.Value_Static(&FLandscapeEditorDetailCustomization_Base::GetOptionalPropertyValue<float>, TerraceIntervalProperty)
+					.OnValueChanged_Static(&FLandscapeEditorDetailCustomization_Base::OnValueChanged<float>, TerraceIntervalProperty)
+					.OnValueCommitted_Static(&FLandscapeEditorDetailCustomization_Base::OnValueCommitted<float>, TerraceIntervalProperty)
+					.SliderExponent(5.0f)
+					.MinValue(1.0f)
+					.MinSliderValue(1.0f)
+					.MaxSliderValue(this, &FLandscapeEditorDetailCustomization_MiscTools::GetFlattenTerraceIntervalValueMax)
+					.ToolTipText(LOCTEXT("TerraceIntervalToolTips", "Height of the terrace intervals in unreal units"))
 			];
 	}
 
@@ -515,15 +535,80 @@ TOptional<float> FLandscapeEditorDetailCustomization_MiscTools::GetFlattenValue(
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 	if (LandscapeEdMode != nullptr && IsToolActive(FName("Flatten")))
 	{
-		if (LandscapeEdMode->UISettings->bFlattenEyeDropperModeActivated)
-		{
-			return LandscapeEdMode->UISettings->FlattenEyeDropperModeDesiredTarget;
-		}
-
-		return LandscapeEdMode->UISettings->FlattenTarget;
+		return LandscapeEdMode->UISettings->GetFlattenTarget(/* bInReturnPreviewValueIfActive = */true);
 	}
 
 	return 0.0f;
+}
+
+TOptional<float> FLandscapeEditorDetailCustomization_MiscTools::GetFlattenTargetValueMin() const
+{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if ((LandscapeEdMode != nullptr) && IsToolActive(FName("Flatten")))
+	{
+		if (ULandscapeInfo* LandscapeInfo = LandscapeEdMode->CurrentToolTarget.LandscapeInfo.Get())
+		{
+			if (ALandscapeProxy* LandscapeProxy = LandscapeInfo->GetLandscapeProxy())
+			{
+				return LandscapeProxy->ActorToWorld().TransformPosition(FVector(0.0, 0.0, LandscapeDataAccess::GetLocalHeight(0))).Z;
+			}
+		}		
+	}
+
+	return TOptional<float>();
+}
+
+float FLandscapeEditorDetailCustomization_MiscTools::GetFlattenTargetValueMid() const
+{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if ((LandscapeEdMode != nullptr) && IsToolActive(FName("Flatten")))
+	{
+		if (ULandscapeInfo* LandscapeInfo = LandscapeEdMode->CurrentToolTarget.LandscapeInfo.Get())
+		{
+			if (ALandscapeProxy* LandscapeProxy = LandscapeInfo->GetLandscapeProxy())
+			{
+				return LandscapeProxy->ActorToWorld().TransformPosition(FVector(0.0, 0.0, LandscapeDataAccess::GetLocalHeight(LandscapeDataAccess::MidValue))).Z;
+			}
+		}
+	}
+
+	return 0.0f;
+}
+
+TOptional<float> FLandscapeEditorDetailCustomization_MiscTools::GetFlattenTargetValueMax() const
+{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if ((LandscapeEdMode != nullptr) && IsToolActive(FName("Flatten")))
+	{
+		if (ULandscapeInfo* LandscapeInfo = LandscapeEdMode->CurrentToolTarget.LandscapeInfo.Get())
+		{
+			if (ALandscapeProxy* LandscapeProxy = LandscapeInfo->GetLandscapeProxy())
+			{
+				return LandscapeProxy->ActorToWorld().TransformPosition(FVector(0.0, 0.0, LandscapeDataAccess::GetLocalHeight(LandscapeDataAccess::MaxValue))).Z;
+			}
+		}
+	}
+
+	return TOptional<float>();
+}
+
+TOptional<float> FLandscapeEditorDetailCustomization_MiscTools::GetFlattenTerraceIntervalValueMax() const
+{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if ((LandscapeEdMode != nullptr) && IsToolActive(FName("Flatten")))
+	{
+		if (ULandscapeInfo* LandscapeInfo = LandscapeEdMode->CurrentToolTarget.LandscapeInfo.Get())
+		{
+			if (ALandscapeProxy* LandscapeProxy = LandscapeInfo->GetLandscapeProxy())
+			{
+				float WorldMax = LandscapeProxy->ActorToWorld().TransformPosition(FVector(0.0, 0.0, LandscapeDataAccess::GetLocalHeight(LandscapeDataAccess::MaxValue))).Z;
+				float WorldMin = LandscapeProxy->ActorToWorld().TransformPosition(FVector(0.0, 0.0, LandscapeDataAccess::GetLocalHeight(0))).Z;
+				return FMath::Max(WorldMax - WorldMin, 1.0f);
+			}
+		}
+	}
+
+	return TOptional<float>();
 }
 
 EVisibility FLandscapeEditorDetailCustomization_MiscTools::GetMiscLandscapeErrorVisibility() const
@@ -556,6 +641,8 @@ void FLandscapeEditorDetailCustomization_MiscTools::OnBeginFlattenToolEyeDrop()
 	if (LandscapeEdMode != nullptr && IsToolActive(FName("Flatten")))
 	{
 		LandscapeEdMode->UISettings->bFlattenEyeDropperModeActivated = true;
+		// Use the current target value when activating the eye drop for consistency. This will be reset when the mouse moves in the viewport anyway : 
+		LandscapeEdMode->UISettings->FlattenEyeDropperModeDesiredTarget = LandscapeEdMode->UISettings->FlattenTarget;
 		LandscapeEdMode->CurrentTool->SetCanToolBeActivated(false);
 	}
 }
@@ -565,13 +652,13 @@ void FLandscapeEditorDetailCustomization_MiscTools::OnCompletedFlattenToolEyeDro
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 	if (LandscapeEdMode != nullptr && IsToolActive(FName("Flatten")))
 	{
-		LandscapeEdMode->UISettings->bFlattenEyeDropperModeActivated = false;
-		LandscapeEdMode->CurrentTool->SetCanToolBeActivated(true);
-
-		if (!Canceled)
+		// Consider clicks outside the viewport as a cancellation : this avoids validating the preview value when clicking outside the viewport
+		if (!Canceled && LandscapeEdMode->UISettings->bFlattenEyeDropperModeActivated && LandscapeEdMode->UISettings->bFlattenEyeDropperModeMousingOverViewport)
 		{
 			LandscapeEdMode->UISettings->FlattenTarget = LandscapeEdMode->UISettings->FlattenEyeDropperModeDesiredTarget;
 		}
+		LandscapeEdMode->UISettings->bFlattenEyeDropperModeActivated = false;
+		LandscapeEdMode->CurrentTool->SetCanToolBeActivated(true);
 	}
 }
 

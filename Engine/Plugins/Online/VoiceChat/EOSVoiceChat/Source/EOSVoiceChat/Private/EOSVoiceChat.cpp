@@ -28,19 +28,6 @@
 
 DEFINE_LOG_CATEGORY(LogEOSVoiceChat);
 
-const TCHAR* LexToString(EOS_ERTCAudioInputStatus Status)
-{
-	switch (Status)
-	{
-	case EOS_ERTCAudioInputStatus::EOS_RTCAIS_Idle: return TEXT("EOS_RTCAIS_Idle");
-	case EOS_ERTCAudioInputStatus::EOS_RTCAIS_Recording: return TEXT("EOS_RTCAIS_Recording");
-	case EOS_ERTCAudioInputStatus::EOS_RTCAIS_RecordingSilent: return TEXT("EOS_RTCAIS_RecordingSilent");
-	case EOS_ERTCAudioInputStatus::EOS_RTCAIS_RecordingDisconnected: return TEXT("EOS_RTCAIS_RecordingDisconnected");
-	case EOS_ERTCAudioInputStatus::EOS_RTCAIS_Failed: return TEXT("EOS_RTCEOS_RTCAIS_Failed_AudioInputFailed");
-	default: return TEXT("Unknown");
-	}
-}
-
 FEOSVoiceChatDelegates::FOnAudioInputDeviceStatusChanged FEOSVoiceChatDelegates::OnAudioInputDeviceStatusChanged;
 FEOSVoiceChatDelegates::FOnVoiceChatPlayerAddedMetadataDelegate FEOSVoiceChatDelegates::OnVoiceChatPlayerAddedMetadata;
 FEOSVoiceChatDelegates::FOnAudioStatusChanged FEOSVoiceChatDelegates::OnAudioStatusChanged;

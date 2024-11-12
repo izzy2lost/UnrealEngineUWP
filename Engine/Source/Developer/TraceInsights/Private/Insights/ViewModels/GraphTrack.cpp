@@ -7,9 +7,11 @@
 #include "Styling/AppStyle.h"
 #include "Widgets/Layout/SBox.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/ViewModels/DrawHelpers.h"
 #include "Insights/ViewModels/GraphSeries.h"
@@ -134,7 +136,7 @@ void FGraphTrack::UpdateStats()
 
 void FGraphTrack::PreDraw(const ITimingTrackDrawContext& Context) const
 {
-	FDrawContext& DrawContext = Context.GetDrawContext();
+	UE::Insights::FDrawContext& DrawContext = Context.GetDrawContext();
 	const FTimingTrackViewport& Viewport = Context.GetViewport();
 
 	FDrawHelpers::DrawBackground(DrawContext, WhiteBrush, Viewport, GetPosY(), GetHeight());
@@ -144,7 +146,7 @@ void FGraphTrack::PreDraw(const ITimingTrackDrawContext& Context) const
 
 void FGraphTrack::Draw(const ITimingTrackDrawContext& Context) const
 {
-	FDrawContext& DrawContext = Context.GetDrawContext();
+	UE::Insights::FDrawContext& DrawContext = Context.GetDrawContext();
 	const FTimingTrackViewport& Viewport = Context.GetViewport();
 
 	// Set clipping area.
@@ -201,7 +203,7 @@ void FGraphTrack::Draw(const ITimingTrackDrawContext& Context) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FGraphTrack::DrawSeries(const FGraphSeries& Series, FDrawContext& DrawContext, const FTimingTrackViewport& Viewport) const
+void FGraphTrack::DrawSeries(const FGraphSeries& Series, UE::Insights::FDrawContext& DrawContext, const FTimingTrackViewport& Viewport) const
 {
 	const float Scale = DrawContext.Geometry.GetAccumulatedLayoutTransform().GetScale();
 	const float PixelUnit = 1.0f / Scale;
@@ -539,7 +541,7 @@ void FGraphTrack::DrawEvent(const ITimingTrackDrawContext& Context, const ITimin
 	const TSharedPtr<const FGraphSeries> Series = GraphEvent.GetSeries();
 
 	const FTimingTrackViewport& Viewport = Context.GetViewport();
-	FDrawContext& DrawContext = Context.GetDrawContext();
+	UE::Insights::FDrawContext& DrawContext = Context.GetDrawContext();
 
 	const float EventX1 = Viewport.TimeToSlateUnitsRounded(GraphEvent.GetStartTime());
 	const float EventX2 = Viewport.TimeToSlateUnitsRounded(Viewport.RestrictEndTime(GraphEvent.GetEndTime()));
@@ -613,7 +615,7 @@ void FGraphTrack::DrawVerticalAxisGrid(const ITimingTrackDrawContext& Context) c
 void FGraphTrack::DrawHeader(const ITimingTrackDrawContext& Context) const
 {
 	const FTimingViewDrawHelper& Helper = *static_cast<const FTimingViewDrawHelper*>(&Context.GetHelper());
-	FDrawContext& DrawContext = Context.GetDrawContext();
+	UE::Insights::FDrawContext& DrawContext = Context.GetDrawContext();
 	Helper.DrawTrackHeader(*this, DrawContext.LayerId, DrawContext.LayerId + 1);
 	DrawContext.LayerId += 2;
 }
@@ -629,11 +631,13 @@ void FGraphTrack::InitTooltip(FTooltipDrawState& InOutTooltip, const ITimingEven
 
 		InOutTooltip.ResetContent();
 		InOutTooltip.AddTitle(Series->GetName().ToString(), Series->GetColor());
-		const double Precision = FMath::Max(1.0 / TimeScaleX, TimeUtils::Nanosecond);
-		InOutTooltip.AddNameValueTextLine(TEXT("Time:"), TimeUtils::FormatTime(TooltipEvent.GetStartTime(), Precision));
+
+		using namespace UE::Insights;
+		const double Precision = FMath::Max(1.0 / TimeScaleX, FTimeValue::Nanosecond);
+		InOutTooltip.AddNameValueTextLine(TEXT("Time:"), FormatTime(TooltipEvent.GetStartTime(), Precision));
 		if (Series->HasEventDuration())
 		{
-			InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), TimeUtils::FormatTimeAuto(TooltipEvent.GetDuration()));
+			InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), FormatTimeAuto(TooltipEvent.GetDuration()));
 		}
 		InOutTooltip.AddNameValueTextLine(TEXT("Value:"), Series->FormatValue(TooltipEvent.GetValue()));
 		InOutTooltip.UpdateLayout();
@@ -892,21 +896,21 @@ void FRandomGraphTrack::AddDefaultSeries()
 {
 	TSharedRef<FGraphSeries> Series0 = MakeShared<FGraphSeries>();
 	Series0->SetName(TEXT("Random Blue"));
-	Series0->SetDescription(TEXT("Random series; for debuging purposes"));
+	Series0->SetDescription(TEXT("Random series; for debugging purposes"));
 	Series0->SetColor(FLinearColor(0.1f, 0.5f, 1.0f, 1.0f), FLinearColor(0.4f, 0.8f, 1.0f, 1.0f));
 	Series0->SetVisibility(true);
 	AllSeries.Add(Series0);
 
 	TSharedRef<FGraphSeries> Series1 = MakeShared<FGraphSeries>();
 	Series1->SetName(TEXT("Random Yellow"));
-	Series1->SetDescription(TEXT("Random series; for debuging purposes"));
+	Series1->SetDescription(TEXT("Random series; for debugging purposes"));
 	Series1->SetColor(FLinearColor(0.9f, 0.9f, 0.1f, 1.0f), FLinearColor(1.0f, 1.0f, 0.4f, 1.0f));
 	Series1->SetVisibility(false);
 	AllSeries.Add(Series1);
 
 	TSharedRef<FGraphSeries> Series2 = MakeShared<FGraphSeries>();
 	Series2->SetName(TEXT("Random Red"));
-	Series2->SetDescription(TEXT("Random series; for debuging purposes"));
+	Series2->SetDescription(TEXT("Random series; for debugging purposes"));
 	Series2->SetColor(FLinearColor(1.0f, 0.1f, 0.2f, 1.0f), FLinearColor(1.0f, 0.4f, 0.5f, 1.0f));
 	Series2->SetVisibility(true);
 	AllSeries.Add(Series2);

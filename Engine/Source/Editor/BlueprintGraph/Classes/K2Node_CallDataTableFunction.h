@@ -21,4 +21,8 @@ class UK2Node_CallDataTableFunction : public UK2Node_CallFunction
 	virtual void PinDefaultValueChanged(UEdGraphPin* Pin) override;
 	virtual void NotifyPinConnectionListChanged(UEdGraphPin* Pin) override;
 	//~ End EdGraphNode Interface
+
+	//~ Begin UK2Node_CallFunction interface
+	virtual bool CanToggleNodePurity() const override { return false; }
+	//~ End UK2Node_CallFunction interface
 };

@@ -52,7 +52,9 @@ namespace UnrealGameSync
 		readonly DirectoryReference _cacheFolder;
 		readonly List<KeyValuePair<FileReference, DateTime>> _localConfigFiles;
 		readonly IAsyncDisposer _asyncDisposeTasks;
+#pragma warning disable CA2213 // Dispose of _hordeClient
 		readonly IHordeClient? _hordeClient;
+#pragma warning restore CA2213
 
 		string[] prevCodeRules = Array.Empty<string>();
 
@@ -462,7 +464,7 @@ namespace UnrealGameSync
 						notifyTask = Task.Delay(TimeSpan.FromSeconds(5.0), cancellationSource.Token).ContinueWith(_ => _synchronizationContext.Post(_ => OnUpdateMetadata?.Invoke(), null), cancellationSource.Token, new TaskContinuationOptions(), TaskScheduler.Default);
 					}
 				}
-				cancellationSource.Cancel();
+				await cancellationSource.CancelAsync();
 				await notifyTask.ContinueWith(_ => { }, TaskScheduler.Default); // Ignore exceptions
 			}
 

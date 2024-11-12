@@ -46,6 +46,12 @@ TSharedRef<SWidget>	SRigVMGraphPinCurveFloat::GetDefaultValueWidget()
 	return Widget;
 }
 
+void SRigVMGraphPinCurveFloat::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	UpdateAndGetCurve();
+	SGraphPin::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+}
+
 TArray<FRichCurveEditInfoConst> SRigVMGraphPinCurveFloat::GetCurves() const
 {
 	TArray<FRichCurveEditInfoConst> Curves;
@@ -117,6 +123,11 @@ bool SRigVMGraphPinCurveFloat::IsValidCurve(FRichCurveEditInfo CurveInfo)
 				{
 					return true;
 				}
+			}
+			else
+			{
+				// for any other node, the curve is valid
+				return true;
 			}
 		}
 	}

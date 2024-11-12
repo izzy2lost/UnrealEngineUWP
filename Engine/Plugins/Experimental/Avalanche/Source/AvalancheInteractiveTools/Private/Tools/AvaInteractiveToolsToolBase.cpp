@@ -2,17 +2,18 @@
 
 #include "Tools/AvaInteractiveToolsToolBase.h"
 #include "AvaInteractiveToolsSettings.h"
-#include "AvaViewportUtils.h"
 #include "AvalancheInteractiveToolsModule.h"
+#include "AvaViewportUtils.h"
 #include "BaseBehaviors/SingleClickBehavior.h"
 #include "BaseBehaviors/SingleKeyCaptureBehavior.h"
 #include "ContextObjectStore.h"
-#include "EdMode/AvaInteractiveToolsEdMode.h"
 #include "Editor/EditorEngine.h"
 #include "EditorViewportClient.h"
+#include "EdMode/AvaInteractiveToolsEdMode.h"
 #include "Engine/World.h"
 #include "EngineAnalytics.h"
 #include "Framework/Application/SlateApplication.h"
+#include "GameFramework/InputSettings.h"
 #include "IAvaInteractiveToolsModeDetailsObject.h"
 #include "IAvaInteractiveToolsModeDetailsObjectProvider.h"
 #include "InteractiveToolManager.h"
@@ -22,6 +23,7 @@
 #include "Planners/AvaInteractiveToolsToolViewportPointPlanner.h"
 #include "ToolContextInterfaces.h"
 #include "Toolkits/BaseToolkit.h"
+#include "ToolMenus.h"
 #include "UnrealClient.h"
 #include "ViewportClient/IAvaViewportClient.h"
 
@@ -85,6 +87,8 @@ void UAvaInteractiveToolsToolBase::Setup()
 {
 	Super::Setup();
 
+	using namespace UE::AvaInteractiveTools::Private;
+
 	UInteractiveToolManager* ToolManager = GetToolManager();
 	bool bReactivated = false;
 	UAvaInteractiveToolsEdMode* AvaInteractiveToolsEdMode = nullptr;
@@ -95,13 +99,23 @@ void UAvaInteractiveToolsToolBase::Setup()
 
 		if (AvaInteractiveToolsEdMode)
 		{
-			bReactivated = AvaInteractiveToolsEdMode->GetLastActiveTool() == ToolManager->GetActiveToolName(EToolSide::Left);
+			// I found double-clicking inconsistent at the default speed. 
+			static const double ReactivateDelayTime = GetDefault<UInputSettings>()->DoubleClickTime + 0.1;
+
+			const bool bIsDoubleClick = (FApp::GetCurrentTime() - AvaInteractiveToolsEdMode->GetLastToolActivateTime()) <= ReactivateDelayTime;
+			const bool bIsSameTool = AvaInteractiveToolsEdMode->GetLastActiveTool() == ToolManager->GetActiveToolName(EToolSide::Left);
+
+			if (bIsDoubleClick && bIsSameTool && SupportsDefaultAction())
+			{
+				bReactivated = true;
+			}
 		}
 	}
 
 	if (!CanActivate(bReactivated))
 	{
 		ToolManager->PostActiveToolShutdownRequest(this, EToolShutdownType::Cancel);
+		return;
 	}
 
 	if (AvaInteractiveToolsEdMode)
@@ -110,6 +124,11 @@ void UAvaInteractiveToolsToolBase::Setup()
 	}
 
 	Activate(bReactivated);
+
+	if (AvaInteractiveToolsEdMode)
+	{
+		AvaInteractiveToolsEdMode->OnToolActivateEnd();
+	}
 }
 
 void UAvaInteractiveToolsToolBase::Shutdown(EToolShutdownType ShutdownType)
@@ -200,9 +219,15 @@ AActor* UAvaInteractiveToolsToolBase::SpawnActor(TSubclassOf<AActor> InActorClas
 	{
 		if (FViewport* Viewport = ContextAPI->GetFocusedViewport())
 		{
-			if (TSharedPtr<IAvaViewportClient> AvaViewportClient = FAvaViewportUtils::GetAvaViewportClient(Viewport))
+			if (FEditorViewportClient* ViewportClient = FAvaViewportUtils::GetAsEditorViewportClient(Viewport))
 			{
-				const FVector2f ViewportSize = AvaViewportClient->GetViewportSize();
+				if (TSharedPtr<IAvaViewportClient> AvaViewportClient = FAvaViewportUtils::GetAsAvaViewportClient(ViewportClient))
+				{
+					const FVector2f ViewportSize = AvaViewportClient->GetViewportSize();
+					return SpawnActor(InActorClass, EAvaViewportStatus::Focused, ViewportSize * 0.5, bInPreview, InActorLabelOverride);
+				}
+
+				const FVector2f ViewportSize = Viewport->GetSizeXY();
 				return SpawnActor(InActorClass, EAvaViewportStatus::Focused, ViewportSize * 0.5, bInPreview, InActorLabelOverride);
 			}
 		}
@@ -578,12 +603,13 @@ void UAvaInteractiveToolsToolBase::OnComplete()
 	if (FEngineAnalytics::IsAvailable())
 	{
 		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Reserve(2);
 		Attributes.Emplace(TEXT("ToolClass"), GetClass()->GetName());
 		if (SpawnedActor)
 		{
-			Attributes.Emplace(TEXT("ActorClass"), SpawnedActor->GetClass()->GetName());	
+			Attributes.Emplace(TEXT("ActorClass"), GetNameSafe(SpawnedActor->GetClass()));
 		}
-		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.CompleteTool"), Attributes);
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MotionDesign.PlaceActor"), Attributes);
 	}
 }
 

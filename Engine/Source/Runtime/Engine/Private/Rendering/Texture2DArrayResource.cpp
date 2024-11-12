@@ -93,13 +93,17 @@ uint64 FTexture2DArrayResource::GetPlatformMipsSize(uint32 NumMips) const
 	if (PlatformData && NumMips > 0)
 	{
 		const FIntPoint MipExtents = CalcMipMapExtent(SizeX, SizeY, PixelFormat, State.LODCountToFirstLODIdx(NumMips));
-		uint32 TextureAlign = 0;
-		return RHICalcTexture2DArrayPlatformSize(MipExtents.X, MipExtents.Y, SizeZ, PixelFormat, NumMips, 1, CreationFlags, FRHIResourceCreateInfo(PlatformData->GetExtData()), TextureAlign);
+
+		const FRHITextureDesc Desc =
+			FRHITextureCreateDesc::Create2DArray(TEXT("Temp"), MipExtents, SizeZ, PixelFormat)
+			.SetNumMips(NumMips)
+			.SetFlags(CreationFlags)
+			.SetExtData(PlatformData->GetExtData());
+
+		return RHICalcTexturePlatformSize(Desc).Size;
 	}
-	else
-	{
-		return 0;
-	}
+
+	return 0;
 }
 
 void FTexture2DArrayResource::InitRHI(FRHICommandListBase& RHICmdList)

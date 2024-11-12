@@ -34,7 +34,11 @@ struct FMovieSceneIntegerChannel : public FMovieSceneChannel
 	GENERATED_BODY()
 
 	FMovieSceneIntegerChannel()
-		: PreInfinityExtrap(RCCE_Constant), PostInfinityExtrap(RCCE_Constant), DefaultValue(0), bHasDefaultValue(false)
+		: PreInfinityExtrap(RCCE_Constant)
+		, PostInfinityExtrap(RCCE_Constant)
+		, bInterpolateLinearKeys(false)
+		, DefaultValue(0)
+		, bHasDefaultValue(false)
 	{}
 
 	/**
@@ -49,7 +53,7 @@ struct FMovieSceneIntegerChannel : public FMovieSceneChannel
 	 */
 	FORCEINLINE TMovieSceneChannelData<int32> GetData()
 	{
-		return TMovieSceneChannelData<int32>(&Times, &Values, &KeyHandles);
+		return TMovieSceneChannelData<int32>(&Times, &Values, this, &KeyHandles);
 	}
 
 	/**
@@ -94,6 +98,15 @@ struct FMovieSceneIntegerChannel : public FMovieSceneChannel
 	 * @return true if the channel was evaluated successfully, false otherwise
 	 */
 	MOVIESCENE_API bool Evaluate(FFrameTime InTime, int32& OutValue) const;
+
+	/**
+	 * Evaluate the interpolated value when bInterpolateLinearKeys is true
+	 *
+	 * @param InTime     The time to evaluate at
+	 * @param OutValue   A value to receive the result
+	 * @return true if the channel was evaluated successfully, false otherwise
+	 */
+	MOVIESCENE_API bool EvaluateInterp(FFrameTime InTime, double& OutValue) const;
 
 	/**
 	 * Set the channel's times and values to the requested values
@@ -178,7 +191,9 @@ public:
 	{
 		bHasDefaultValue = false;
 	}
+
 public:
+
 	/** Pre-infinity extrapolation state, integer channel supports them all but linear since that requires a tangent*/
 	UPROPERTY()
 	TEnumAsByte<ERichCurveExtrapolation> PreInfinityExtrap;
@@ -186,6 +201,11 @@ public:
 	/** Post-infinity extrapolation state, integer channel supports them all but linear since that requires a tangent*/
 	UPROPERTY()
 	TEnumAsByte<ERichCurveExtrapolation> PostInfinityExtrap;
+
+	/** Whether to evaluate linear keys as interpolated or not*/
+	UPROPERTY()
+	bool bInterpolateLinearKeys;
+
 private:
 
 	UPROPERTY(meta=(KeyTimes))

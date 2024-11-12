@@ -58,8 +58,6 @@ class BLUEPRINTGRAPH_API UK2Node_ConstructObjectFromClass : public UK2Node
 	/** See if this is a spawn variable pin, or a 'default' pin */
 	virtual bool IsSpawnVarPin(UEdGraphPin* Pin) const;
 
-	/** Get the then output pin */
-	UEdGraphPin* GetThenPin() const;
 	/** Get the blueprint input pin */	
 	UEdGraphPin* GetClassPin(const TArray<UEdGraphPin*>* InPinsToSearch=NULL) const;
 	/** Get the world context input pin, can return NULL */

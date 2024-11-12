@@ -14,7 +14,7 @@ public:
 	virtual bool Initialize(IPlatformFile* Inner, const TCHAR* CmdLine) override { LowerLevel = Inner; return true; }
 	virtual IPlatformFile* GetLowerLevel() { return LowerLevel; }
 	virtual void SetLowerLevel(IPlatformFile* NewLowerLevel) { LowerLevel = NewLowerLevel; }
-	virtual const TCHAR* GetName() const { return TEXT("LLTPlatformFileStub"); }
+	virtual const TCHAR* GetName() const { return TEXT("PlatformFileStub"); }
 	virtual bool FileExists(const TCHAR* Filename) override { return false; }
 	virtual int64 FileSize(const TCHAR* Filename) override { return -1LL; }
 	virtual bool DeleteFile(const TCHAR* Filename) override { return false; }
@@ -48,4 +48,4 @@ public:
 };
 
 
-IMPLEMENT_MODULE(FPlatformFileModuleStub, PlatformFileStub);
+IMPLEMENT_MODULE(FPlatformFileModuleStub, LowLevelTestsRunner);

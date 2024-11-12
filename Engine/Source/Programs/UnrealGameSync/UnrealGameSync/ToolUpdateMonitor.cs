@@ -95,6 +95,8 @@ namespace UnrealGameSync
 
 		public Action? OnChange;
 
+		public Tuple<bool, string> LastStatus { get; private set; } = Tuple.Create(false, "Starting...");
+
 		public ToolUpdateMonitor(IPerforceSettings perforceSettings, DirectoryReference dataDir, UserSettings settings, IServiceProvider serviceProvider)
 		{
 			_cancellationSource = new CancellationTokenSource();
@@ -135,6 +137,7 @@ namespace UnrealGameSync
 
 		public void Dispose()
 		{
+			LastStatus = Tuple.Create(false, "Stopped");
 			OnChange = null;
 
 			if (_workerTask != null)
@@ -198,7 +201,8 @@ namespace UnrealGameSync
 				}
 				catch (Exception ex)
 				{
-					_logger.LogError(ex, "Exception while checking for tool updates");
+					LastStatus = Tuple.Create(false, $"Exception while checking for tool updates: {ex.Message}");
+					_logger.LogError(ex, "Exception while checking for tool updates: {Message}", ex.Message);
 				}
 
 				Task delayTask = Task.Delay(TimeSpan.FromMinutes(60.0), cancellationToken);
@@ -211,6 +215,7 @@ namespace UnrealGameSync
 			IPerforceConnection? perforce = null;
 			try
 			{
+				Stopwatch timer = Stopwatch.StartNew();
 				// Update all the available tools
 				List<ToolInfo> tools = new List<ToolInfo>();
 				if (!String.IsNullOrEmpty(DeploymentSettings.Instance.ToolsDepotPath))
@@ -222,24 +227,36 @@ namespace UnrealGameSync
 					}
 					catch (Exception ex) when (ex is not OperationCanceledException)
 					{
+						LastStatus = Tuple.Create(false, $"Error while polling Perforce for available tools: {ex.Message}");
 						_logger.LogWarning(ex, "Error while polling Perforce for available tools: {Message}", ex.Message);
+						return;
 					}
 				}
-				using (HordeHttpClient? hordeHttpClient = _serviceProvider.GetService<HordeHttpClient>())
+				IHordeClient? hordeClient = _serviceProvider.GetService<IHordeClient>();
+				if (hordeClient != null)
 				{
-					if (hordeHttpClient != null)
+					using HordeHttpClient hordeHttpClient = hordeClient.CreateHttpClient();
+					try
 					{
-						try
-						{
-							await ReadHordeToolsAsync(hordeHttpClient, tools, cancellationToken);
-						}
-						catch (Exception ex) when (ex is not OperationCanceledException)
-						{
-							_logger.LogWarning(ex, "Error while polling Horde for available tools: {Message}", ex.Message);
-						}
+						await ReadHordeToolsAsync(hordeHttpClient, tools, cancellationToken);
+					}
+					catch (Exception ex) when (ex is not OperationCanceledException)
+					{
+						LastStatus = Tuple.Create(false, $"Error while polling Horde for available tools: {ex.Message}");
+						_logger.LogWarning(ex, "Error while polling Horde for available tools: {Message}", ex.Message);
+						return;
 					}
 				}
+
+				bool hasChanged = false;
+				int previousToolsCount = _tools.Count;
+
 				_tools = tools;
+
+				if (previousToolsCount != _tools.Count)
+				{
+					hasChanged = true;
+				}
 
 				// When upgrading from older UGS versions, read the legacy sync CL from plain-text config files
 				if (_readLegacyConfig)
@@ -253,7 +270,6 @@ namespace UnrealGameSync
 				FindEnabledTools(Settings.EnabledTools, tools, enabledToolIds);
 
 				// Install or update any new tools
-				bool hasChanged = false;
 				foreach (ToolInfo toolInfo in _tools)
 				{
 					if (enabledToolIds.Contains(toolInfo.Id))
@@ -283,6 +299,8 @@ namespace UnrealGameSync
 				{
 					_synchronizationContext.Post(_ => OnChange?.Invoke(), null);
 				}
+
+				LastStatus = Tuple.Create(true, $"Last update took {timer.ElapsedMilliseconds}ms (completed at {DateTime.Now.ToShortTimeString()})");
 			}
 			finally
 			{
@@ -311,24 +329,23 @@ namespace UnrealGameSync
 			{
 				Dictionary<string, ToolInfo> newPerforceTools = new Dictionary<string, ToolInfo>(StringComparer.Ordinal);
 
-				List<FStatRecord> fileRecords = await perforce.FStatAsync($"{DeploymentSettings.Instance.ToolsDepotPath}/...", cancellationToken).ToListAsync(cancellationToken);
-				fileRecords.RemoveAll(x => x.Action == FileAction.Delete || x.Action == FileAction.MoveDelete);
+				List<FilesRecord> fileRecords = await perforce.FilesAsync(FilesOptions.ExcludeDeleted, $"{DeploymentSettings.Instance.ToolsDepotPath}/...", cancellationToken);
 
-				foreach (FStatRecord fileRecord in fileRecords)
+				foreach (FilesRecord fileRecord in fileRecords)
 				{
 					if (fileRecord.DepotFile != null && fileRecord.DepotFile.EndsWith(".ini", StringComparison.OrdinalIgnoreCase))
 					{
 						string zipFile = fileRecord.DepotFile.Substring(0, fileRecord.DepotFile.Length - 4) + ".zip";
-						FStatRecord? zipRecord = fileRecords.FirstOrDefault(x => String.Equals(x.DepotFile, zipFile, StringComparison.OrdinalIgnoreCase));
+						FilesRecord? zipRecord = fileRecords.FirstOrDefault(x => String.Equals(x.DepotFile, zipFile, StringComparison.OrdinalIgnoreCase));
 
 						if (zipRecord != null)
 						{
-							string toolRevision = $"{zipFile}@{Math.Max(fileRecord.HeadChange, zipRecord.HeadChange)}";
+							string toolRevision = $"{zipFile}@{Math.Max(fileRecord.Change, zipRecord.Change)}";
 
 							ToolInfo? toolInfo;
 							if (!_perforceTools.TryGetValue(toolRevision, out toolInfo))
 							{
-								toolInfo = await ReadToolDefinitionAsync(perforce, $"{fileRecord.DepotFile}@{fileRecord.HeadChange}", toolRevision, cancellationToken);
+								toolInfo = await ReadToolDefinitionAsync(perforce, $"{fileRecord.DepotFile}@{fileRecord.Change}", toolRevision, cancellationToken);
 							}
 							if (toolInfo != null)
 							{
@@ -530,9 +547,11 @@ namespace UnrealGameSync
 				}
 				else
 				{
-					using HordeHttpClient? hordeHttpClient = _serviceProvider.GetService<HordeHttpClient>();
-					if (hordeHttpClient != null)
+					IHordeClient? hordeClient = _serviceProvider.GetService<IHordeClient>();
+					if (hordeClient != null)
 					{
+						using HordeHttpClient hordeHttpClient = hordeClient.CreateHttpClient();
+
 						string[] fields = tool.Revision.Split(',');
 						if (fields.Length != 3)
 						{

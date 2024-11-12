@@ -14,6 +14,7 @@
 
 class FArchive;
 class FName;
+struct FDateTime;
 struct FGuid;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -104,6 +105,8 @@ CORE_API FArchive& operator<<(FArchive& Ar, FCbObject& Object);
 
 CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FUtf8StringBuilderBase& OutValue);
 CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FWideStringBuilderBase& OutValue);
+CORE_API bool LoadFromCompactBinary(FCbFieldView Field, UE::FUtf8SharedString& OutString);
+CORE_API bool LoadFromCompactBinary(FCbFieldView Field, UE::FWideSharedString& OutString);
 CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FString& OutValue);
 CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FName& OutValue);
 
@@ -181,6 +184,9 @@ inline bool LoadFromCompactBinary(FCbFieldView Field, FIoHash& OutValue, const F
 
 CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FGuid& OutValue);
 CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FGuid& OutValue, const FGuid& Default);
+
+CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FDateTime& OutValue);
+CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FDateTime& OutValue, FDateTime Default);
 
 inline bool LoadFromCompactBinary(FCbFieldView Field, FCbObjectId& OutValue, const FCbObjectId& Default = FCbObjectId())
 {

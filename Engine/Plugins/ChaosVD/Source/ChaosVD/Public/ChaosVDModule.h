@@ -6,17 +6,22 @@
 #include "Modules/ModuleManager.h"
 #include "Misc/Guid.h"
 
+class SWidget;
 class FChaosVDTraceManager;
 class FChaosVDEngine;
+class SChaosVDMainTab;
 class SDockTab;
 class FSpawnTabArgs;
 struct FGuid;
 
 /** Main module class for the Chaos Visual Debugger editor */
+/** Main module class for the Chaos Visual Debugger editor */
 DECLARE_LOG_CATEGORY_EXTERN(LogChaosVDEditor, Log, Log);
 class FChaosVDModule : public IModuleInterface
 {
 public:
+
+	using ToolkitHostType = SChaosVDMainTab;
 
 	static FChaosVDModule& Get();
 
@@ -30,9 +35,9 @@ public:
 	/** Spawns a new instance of CVD */
 	void SpawnCVDTab();
 
-private:
+	static bool IsStandaloneChaosVisualDebugger();
 
-	void RegisterClassesCustomDetails() const;
+private:
 
 	TSharedRef<SDockTab> SpawnMainTab(const FSpawnTabArgs& Args);
 
@@ -53,6 +58,8 @@ private:
 	TArray<FName> CreatedExtraTabSpawnersIDs;
 
 	TSharedPtr<FChaosVDTraceManager> ChaosVDTraceManager;
+
+	static FString ChaosVisualDebuggerProgramName;
 
 	bool bIsShuttingDown = false;
 };

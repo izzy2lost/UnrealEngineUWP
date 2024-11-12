@@ -2,15 +2,10 @@
 
 #pragma once
 
-
 #include "DataprepOperation.h"
-
 #include "AssetRegistry/AssetData.h"
-
-#include "Engine/MeshMerging.h"
 #include "IDetailCustomization.h"
-
-//
+#include "MeshMerge/MeshMergingSettings.h"
 #include "DataprepEditingOperations.generated.h"
 
 class SWidget;
@@ -213,3 +208,8 @@ private:
 	/** Cached AssetData of object selected */
 	mutable FAssetData CachedAssetData;
 };
+
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Engine/MeshMerging.h"
+#endif

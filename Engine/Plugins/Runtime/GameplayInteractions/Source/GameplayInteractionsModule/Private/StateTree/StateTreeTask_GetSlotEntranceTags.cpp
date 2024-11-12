@@ -8,7 +8,9 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeTask_GetSlotEntranceTags)
 
-FStateTreeTask_GetSlotEntranceLocation::FStateTreeTask_GetSlotEntranceLocation()
+#define LOCTEXT_NAMESPACE "GameplayInteractions"
+
+FStateTreeTask_GetSlotEntranceTags::FStateTreeTask_GetSlotEntranceTags()
 {
 	// No tick needed.
 	bShouldCallTick = false;
@@ -17,13 +19,13 @@ FStateTreeTask_GetSlotEntranceLocation::FStateTreeTask_GetSlotEntranceLocation()
 	bShouldCopyBoundPropertiesOnExitState = false;
 }
 
-bool FStateTreeTask_GetSlotEntranceLocation::Link(FStateTreeLinker& Linker)
+bool FStateTreeTask_GetSlotEntranceTags::Link(FStateTreeLinker& Linker)
 {
 	Linker.LinkExternalData(SmartObjectSubsystemHandle);
 	return true;
 }
 
-bool FStateTreeTask_GetSlotEntranceLocation::UpdateResult(const FStateTreeExecutionContext& Context) const
+bool FStateTreeTask_GetSlotEntranceTags::UpdateResult(const FStateTreeExecutionContext& Context) const
 {
 	const USmartObjectSubsystem& SmartObjectSubsystem = Context.GetExternalData(SmartObjectSubsystemHandle);
 	FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
@@ -54,7 +56,7 @@ bool FStateTreeTask_GetSlotEntranceLocation::UpdateResult(const FStateTreeExecut
 	return false;
 }
 
-EStateTreeRunStatus FStateTreeTask_GetSlotEntranceLocation::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
+EStateTreeRunStatus FStateTreeTask_GetSlotEntranceTags::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
 	if (!UpdateResult(Context))
 	{
@@ -63,3 +65,27 @@ EStateTreeRunStatus FStateTreeTask_GetSlotEntranceLocation::EnterState(FStateTre
 	
 	return EStateTreeRunStatus::Running;
 }
+
+#if WITH_EDITOR
+FText FStateTreeTask_GetSlotEntranceTags::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FInstanceDataType* InstanceData = InstanceDataView.GetPtr<FInstanceDataType>();
+	check(InstanceData);
+
+	// Slot
+	FText SlotEntranceValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, SlotEntranceHandle)), Formatting);
+	if (SlotEntranceValue.IsEmpty())
+	{
+		SlotEntranceValue = LOCTEXT("None", "None");
+	}
+
+	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
+		? LOCTEXT("GetSlotEntranceTagsRich", "<b>Get Entrance Tags</> <s>for slot</> {Slot}")
+		: LOCTEXT("GetSlotEntranceTags", "Get Entrance Tags for slot {Slot}");
+
+	return FText::FormatNamed(Format,
+		TEXT("Slot"), SlotEntranceValue);
+}
+#endif
+
+#undef LOCTEXT_NAMESPACE

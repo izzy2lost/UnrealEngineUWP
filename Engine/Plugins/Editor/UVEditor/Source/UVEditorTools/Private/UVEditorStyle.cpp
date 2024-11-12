@@ -33,10 +33,14 @@ FUVEditorStyle::FUVEditorStyle()
 	Set("UVEditor.BeginAlignTool",              new IMAGE_BRUSH_SVG("AlignLeft", ToolbarIconSize));
 	Set("UVEditor.BeginDistributeTool",         new IMAGE_BRUSH_SVG("DistributeHorizontally", ToolbarIconSize));
 	Set("UVEditor.BeginTexelDensityTool",       new IMAGE_BRUSH_SVG("TexelDensity", ToolbarIconSize));
-
+	Set("UVEditor.BeginBrushSelectTool",        new IMAGE_BRUSH("MeshSelect_40x", ToolbarIconSize));
+	Set("UVEditor.BeginBrushSelectTool.Small",  new IMAGE_BRUSH("MeshSelect_40x", ToolbarIconSize));
+	Set("UVEditor.BeginUVSnapshotTool",		    new IMAGE_BRUSH_SVG("UVSnapshot", ToolbarIconSize));
+	
 	// Select tool actions
 	Set("UVEditor.SewAction", new IMAGE_BRUSH_SVG("UVSew", ToolbarIconSize));
 	Set("UVEditor.SplitAction", new IMAGE_BRUSH_SVG("UVCut", ToolbarIconSize));
+	Set("UVEditor.MakeIslandAction", new IMAGE_BRUSH_SVG("SelectionIslands", ToolbarIconSize));
 	Set("UVEditor.IslandConformalUnwrapAction", new IMAGE_BRUSH_SVG("UVUnwrap", ToolbarIconSize));
 
 	// Top toolbar icons

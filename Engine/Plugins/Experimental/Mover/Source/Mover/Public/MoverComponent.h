@@ -6,18 +6,22 @@
 #include "CoreMinimal.h"
 #endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Components/ActorComponent.h"
+#include "MotionWarpingAdapter.h"
 #include "MovementMode.h"
 #include "MoverTypes.h"
 #include "LayeredMove.h"
 #include "MoveLibrary/BasedMovementUtils.h"
+#include "MoveLibrary/ConstrainedMoveUtils.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Engine/HitResult.h"
 #endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "MovementModifier.h"
 #include "Backends/MoverBackendLiaison.h"
 #include "UObject/WeakInterfacePtr.h"
 #include "MoverComponent.generated.h"
 
 struct FMoverTimeStep;
+struct FInstantMovementEffect;
 class UMovementModeStateMachine;
 class UMovementMixer;
 
@@ -26,7 +30,6 @@ namespace MoverComponentConstants
 	extern const FVector DefaultGravityAccel;		// Fallback gravity if not determined by the component or world (cm/s^2)
 	extern const FVector DefaultUpDir;				// Fallback up direction if not determined by the component or world (normalized)
 }
-
 
 // Fired just before a simulation tick, regardless of being a re-simulated frame or not.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMover_OnPreSimTick, const FMoverTimeStep&, TimeStep, const FMoverInputCmdContext&, InputCmd);
@@ -42,6 +45,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMover_OnPostSimRollback, const FMo
 
 // Fired after changing movement modes. First param is the name of the previous movement mode. Second is the name of the new movement mode. 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMover_OnMovementModeChanged, const FName&, PreviousMovementModeName, const FName&, NewMovementModeName);
+
+// Fired after proposed movement has been generated (i.e. after movement modes and layered moves have generated movement and mixed together).
+DECLARE_DYNAMIC_DELEGATE_ThreeParams(FMover_ProcessGeneratedMovement, const FMoverTickStartData&, StartState, const FMoverTimeStep&, TimeStep, FProposedMove&, OutProposedMove);
 
 /**
  * 
@@ -84,6 +90,19 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = Mover)
 	FMover_OnMovementModeChanged OnMovementModeChanged;
 
+	/**
+	 * Broadcast after proposed movement has been generated. After movement modes and layered moves have generated movement and mixed together.
+	 * This allows for final modifications to proposed movement before it's executed.
+	 */
+	FMover_ProcessGeneratedMovement ProcessGeneratedMovement;
+	
+	// Binds event for processing movement after it has been generated. Allows for final modifications to proposed movement before it's executed.
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	void BindProcessGeneratedMovement(FMover_ProcessGeneratedMovement ProcessGeneratedMovementEvent);
+	// Clears current bound event for processing movement after it has been generated.
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	void UnbindProcessGeneratedMovement();
+	
 	// Callbacks
 	UFUNCTION()
 	virtual void OnBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* Other, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) { }
@@ -92,19 +111,25 @@ public:
 	// NP Driver
 	// --------------------------------------------------------------------------------
 
-	// Get latest local input prior to simulation step. Called by Network Prediction system on owner's instance (autonomous or authority).
+	// Get latest local input prior to simulation step. Called by backend system on owner's instance (autonomous or authority).
 	void ProduceInput(const int32 DeltaTimeMS, FMoverInputCmdContext* Cmd);
 
-	// Restore a previous frame prior to resimulating. Called by Network Prediction system.
+	// Restore a previous frame prior to resimulating. Called by backend system.
 	void RestoreFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState);
 
-	// Take output for simulation. Called by Network Prediction system.
+	// Take output for simulation. Called by backend system.
 	void FinalizeFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState);
 
-	// Seed initial values based on component's state. Called by Network Prediction system.
+	// Take smoothed simulation state. Called by backend system, if supported.
+	void FinalizeSmoothingFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState);
+
+	// This is an opportunity to run code on the code on the simproxy in interpolated mode - currently used to help activate and deactivate modifiers on the simproxy in interpolated mode
+	void TickInterpolatedSimProxy(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd, UMoverComponent* MoverComp, const FMoverSyncState& CachedSyncState, const FMoverSyncState& SyncState, const FMoverAuxStateContext& AuxState);
+	
+	// Seed initial values based on component's state. Called by backend system.
 	void InitializeSimulationState(FMoverSyncState* OutSync, FMoverAuxStateContext* OutAux);
 
-	// Primary movement simulation update. Given an starting state and timestep, produce a new state. Called by Network Prediction system.
+	// Primary movement simulation update. Given an starting state and timestep, produce a new state. Called by backend system.
 	void SimulationTick(const FMoverTimeStep& InTimeStep, const FMoverTickStartData& SimInput, OUT FMoverTickEndData& SimOutput);
 
 	// Specifies which supporting back end class should drive this Mover actor
@@ -145,8 +170,37 @@ public:
 	// Queue a layered move to start during the next simulation frame
 	void QueueLayeredMove(TSharedPtr<FLayeredMoveBase> Move);
 	
-	// Queue a movement mode change to occur during the next simulation frame. If bShouldReenter is true, then a mode change will occur even if already in that mode.
+	/**
+ 	 * Queue a Movement Modifier to start during the next simulation frame. This will clone whatever move you pass in, so you'll need to fully set it up before queuing.
+ 	 * @param MovementModifier The modifier to queue, which must be a LayeredMoveBase sub-type.
+ 	 * @return Returns a Modifier handle that can be used to query or cancel the movement modifier
+ 	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, Category = Mover, meta = (CustomStructureParam = "MoveAsRawData", AllowAbstract = "false", DisplayName = "Queue Movement Modifier"))
+	FMovementModifierHandle K2_QueueMovementModifier(UPARAM(DisplayName="Movement Modifier") const int32& MoveAsRawData);
+	DECLARE_FUNCTION(execK2_QueueMovementModifier);
+
+	// Queue a Movement Modifier to start during the next simulation frame.
+	FMovementModifierHandle QueueMovementModifier(TSharedPtr<FMovementModifierBase> Modifier);
+	
+	/**
+	 * Cancel any active or queued Modifiers with the handle passed in.
+	 */
 	UFUNCTION(BlueprintCallable, Category = Mover)
+	void CancelModifierFromHandle(FMovementModifierHandle ModifierHandle);
+	
+	/**
+	 * Queue a Instant Movement Effect to start at the end of this frame or start of the next subtick - whichever happens first. This will clone whatever move you pass in, so you'll need to fully set it up before queuing.
+	 * @param InstantMovementEffect			The effect to queue, which must be a FInstantMovementEffect sub-type. 
+	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, Category = Mover, meta = (CustomStructureParam = "EffectAsRawData", AllowAbstract = "false", DisplayName = "Queue Instant Movement Effect"))
+	void K2_QueueInstantMovementEffect(UPARAM(DisplayName="Instant Movement Effect") const int32& EffectAsRawData);
+	DECLARE_FUNCTION(execK2_QueueInstantMovementEffect);
+
+	// Queue a Instant Movement Effect to take place at the end of this frame or start of the next subtick - whichever happens first
+	void QueueInstantMovementEffect(TSharedPtr<FInstantMovementEffect> Move);
+	
+	// Queue a movement mode change to occur during the next simulation frame. If bShouldReenter is true, then a mode change will occur even if already in that mode.
+	UFUNCTION(BlueprintCallable, Category = Mover, DisplayName="Queue Next Movement Mode")
 	void QueueNextMode(FName DesiredModeName, bool bShouldReenter=false);
 
 	// Add a movement mode to available movement modes. Returns true if the movement mode was added successfully. Returns the mode that was made.
@@ -174,10 +228,46 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = Mover)
 	FVector GetUpDirection() const;
 
+	// Access the planar constraint that may be limiting movement direction
+	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = Mover)
+	const FPlanarConstraint& GetPlanarConstraint() const;
+
+	// Sets planar constraint that can limit movement direction
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	void SetPlanarConstraint(const FPlanarConstraint& InConstraint);
+	
+	// If enabled, the movement of the primary visual component will be smoothed via an offset from the root moving component. This is useful in fixed-tick simulations with variable rendering rates.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mover")
+	EMoverSmoothingMode SmoothingMode = EMoverSmoothingMode::VisualComponentOffset;
+
+public:
+
+	/**
+	 *  Converts a local root motion transform to worldspace. 
+	 * @param AlternateActorToWorld   allows specification of a different actor root transform, for cases when root motion isn't directly being applied to this actor (async simulations)
+	 * @param OptionalWarpingContext   allows specification of a warping context, for use with root motion that is asynchronous from the actor (async simulations)
+	 */
+	virtual FTransform ConvertLocalRootMotionToWorld(const FTransform& LocalRootMotionTransform, float DeltaSeconds, const FTransform* AlternateActorToWorld=nullptr, const FMotionWarpingUpdateContext* OptionalWarpingContext=nullptr) const;
+
+	/** delegates used when converting local root motion to worldspace, allowing external systems to influence it (such as motion warping) */
+	FOnWarpLocalspaceRootMotionWithContext ProcessLocalRootMotionDelegate;
+	FOnWarpWorldspaceRootMotionWithContext ProcessWorldRootMotionDelegate;
+
 public:	// Queries
 
 	// Get the transform of the root component that our Mover simulation is moving
 	FTransform GetUpdatedComponentTransform() const;
+
+	// Access the root component of the actor that our Mover simulation is moving
+	USceneComponent* GetUpdatedComponent() const;
+
+	// Typed accessor to root moving component
+	template<class T>
+	T* GetUpdatedComponent() const
+	{
+		static_assert(TPointerIsConvertibleFromTo<T, const USceneComponent>::Value, "'T' template parameter to GetUpdatedComponent must be derived from USceneComponent");
+		return Cast<T>(GetUpdatedComponent());
+	}
 
 	// Access the primary visual component of the actor
 	USceneComponent* GetPrimaryVisualComponent() const;
@@ -188,6 +278,10 @@ public:	// Queries
 	{
 		return Cast<T>(GetPrimaryVisualComponent());
 	}
+
+	// Sets this Mover actor's primary visual component. Must be a descendant of the updated component that acts as our movement root. 
+	UFUNCTION(BlueprintCallable, Category=Mover)
+	void SetPrimaryVisualComponent(USceneComponent* SceneComponent);
 
 	// Get the current velocity (units per second, worldspace)
 	UFUNCTION(BlueprintPure, Category = Mover)
@@ -202,12 +296,21 @@ public:	// Queries
 	FRotator GetTargetOrientation() const;
 
 	/** Get a sampling of where the actor is projected to be in the future, based on a current state. Note that this is projecting ideal movement without doing full simulation and collision. */
+	UE_DEPRECATED(5.5, "Use GetPredictedTrajectory instead.")
 	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = Mover)
-	TArray<FTrajectorySampleInfo> GetFutureTrajectory(float FutureSeconds, float SamplesPerSecond) const;
+	TArray<FTrajectorySampleInfo> GetFutureTrajectory(float FutureSeconds, float SamplesPerSecond);
+
+	/** Get a sampling of where the actor is projected to be in the future, based on a current state. Note that this is projecting ideal movement without doing full simulation and collision. */
+	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = Mover)
+	TArray<FTrajectorySampleInfo> GetPredictedTrajectory(FMoverPredictTrajectoryParams PredictionParams);	
 
 	// Get the current movement mode name
 	UFUNCTION(BlueprintPure, Category = Mover)
 	FName GetMovementModeName() const;
+
+	// Get the current movement mode 
+	UFUNCTION(BlueprintPure, Category = Mover)
+	const UBaseMovementMode* GetMovementMode() const;
 
 	// Get the current movement base. Null if there isn't one.
 	UFUNCTION(BlueprintPure, Category = Mover)
@@ -232,6 +335,10 @@ public:	// Queries
 	// Access the most recently-used inputs. Check @HasValidCachedInputCmd first.
 	UFUNCTION(BlueprintPure, Category = Mover)
 	const FMoverInputCmdContext& GetLastInputCmd() const;
+
+	// Get the most recent TimeStep
+	UFUNCTION(BlueprintPure, Category = Mover)
+	const FMoverTimeStep& GetLastTimeStep() const;
 
 	// Access the most recent floor check hit result.
 	UFUNCTION(BlueprintPure, Category = Mover)
@@ -292,6 +399,50 @@ public:	// Queries
 
 		return nullptr;
 	}
+
+	
+	/**
+	 * Retrieves Movement modifier by writing to a target instance if it is the matching type. Note: Writing to the struct returned will not modify the active struct.
+	 * @param ModifierHandle		Handle of the modifier we're trying to cancel
+	 * @param bFoundModifier		Flag indicating whether modifier was found and data was actually written to target struct instance
+	 * @param TargetAsRawBytes		The data struct instance to write to, which must be a FMovementModifierBase sub-type
+	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, Category = Mover, meta = (CustomStructureParam = "TargetAsRawBytes", AllowAbstract = "false", DisplayName = "Find Movement Modifier"))
+	void K2_FindMovementModifier(FMovementModifierHandle ModifierHandle, bool& bFoundModifier, UPARAM(DisplayName = "Out Movement Modifier") int32& TargetAsRawBytes) const;
+	DECLARE_FUNCTION(execK2_FindMovementModifier);
+
+	// Checks if the modifier handle passed in is active or queued on this mover component
+	UFUNCTION(BlueprintPure, Category = Mover)
+	bool IsModifierActiveOrQueued(const FMovementModifierHandle& ModifierHandle) const;
+	
+	// Find movement modifier by it's handle. Returns nullptr if the modifier couldn't be found
+	const FMovementModifierBase* FindMovementModifier(const FMovementModifierHandle& ModifierHandle) const;
+
+	// Find movement modifier by type (returns the first modifier it finds). Returns nullptr if the modifier couldn't be found
+	const FMovementModifierBase* FindMovementModifierByType(const UScriptStruct* DataStructType) const;
+	
+	/** Find a movement modifier of a specific type in this components movement modifiers. If not found, null will be returned. */
+	template <typename T>
+	const T* FindMovementModifierByType() const
+	{
+		if (const FMovementModifierBase* FoundData = FindMovementModifierByType(T::StaticStruct()))
+		{
+			return static_cast<const T*>(FoundData);
+		}
+
+		return nullptr;
+	}
+	
+	/**
+ 	 * Check Mover systems for a gameplay tag.
+ 	 *
+ 	 * @param TagToFind			Tag to check on the Mover systems
+ 	 * @param bExactMatch		If true, the tag has to be exactly present, if false then TagToFind will include it's parent tags while matching
+ 	 * 
+ 	 * @return True if the TagToFind was found
+ 	 */
+	UFUNCTION(BlueprintPure, Category = Mover, meta = (Keywords = "HasTag"))
+	bool HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch) const;
 	
 protected:
 
@@ -310,8 +461,12 @@ public:
 protected:
 	// Basic "Update Component/Ticking"
 	void SetUpdatedComponent(USceneComponent* NewUpdatedComponent);
+	void FindDefaultUpdatedComponent();
 	void UpdateTickRegistration();
 
+	/** Called when a rollback occurs, before the simulation state has been restored */
+	void OnSimulationPreRollback(const FMoverSyncState* InvalidSyncState, const FMoverSyncState* SyncState, const FMoverAuxStateContext* InvalidAuxState, const FMoverAuxStateContext* AuxState);
+	
 	/** Called when a rollback occurs, after the simulation state has been restored */
 	void OnSimulationRollback(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState);
 
@@ -354,6 +509,9 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> PrimaryVisualComponent;
 
+	/** Cached original offset from the visual component, used for cases where we want to move the visual component away from the root component (for smoothing, corrections, etc.) */
+	FTransform BaseVisualComponentTransform = FTransform::Identity;
+
 	bool bHasValidLastProducedInput = false;
 	FMoverInputCmdContext CachedLastProducedInputCmd;
 
@@ -377,13 +535,17 @@ private:
 	UPROPERTY(EditDefaultsOnly, EditFixedSize, Instanced, Category = Mover, meta = (NoResetToDefault, MustImplement = "/Script/Mover.MovementSettingsInterface"))
 	TArray<TObjectPtr<UObject>> SharedSettings;
 
-	// Whether or not gravity is overridden on this actor. Otherwise, fall back on world settings. See @SetGravityOverride
+	/** Whether or not gravity is overridden on this actor. Otherwise, fall back on world settings. See @SetGravityOverride */
 	UPROPERTY(EditDefaultsOnly, Category="Mover|Gravity")
 	bool bHasGravityOverride = false;
 	
-	// cm/s^2, only meaningful if @bHasGravityOverride is enabled. Set @SetGravityOverride
+	/** cm/s^2, only meaningful if @bHasGravityOverride is enabled.Set @SetGravityOverride */
 	UPROPERTY(EditDefaultsOnly, Category="Mover|Gravity", meta=(ForceUnits = "cm/s^2"))
 	FVector GravityAccelOverride;
+
+	/** Settings that can lock movement to a particular plane */
+	UPROPERTY(EditDefaultsOnly, Category = "Mover|Constraints")
+	FPlanarConstraint PlanarConstraint;
 
 	/** If enabled, this actor will be moved to follow a base actor that it's standing on. Typically disabled for physics-based movement, which handles based movement internally. */
 	UPROPERTY(EditDefaultsOnly, Category = "Mover")
@@ -404,7 +566,6 @@ private:
 	/** Used to store cached data & computations between decoupled systems, that can be referenced by name */
 	UPROPERTY(Transient)
 	TObjectPtr<UMoverBlackboard> SimBlackboard;
-
 
 	friend class UBaseMovementMode;
 	friend class UMoverNetworkPhysicsLiaisonComponent;

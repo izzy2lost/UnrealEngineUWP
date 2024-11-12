@@ -53,7 +53,7 @@ public:
 	APPLICATIONCORE_API virtual void DestroyApplication() override;
 
 	// FSelfRegisteringExec
-	APPLICATIONCORE_API virtual bool Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar) override;
+	APPLICATIONCORE_API virtual bool Exec_Dev(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar) override;
 
 	APPLICATIONCORE_API TSharedPtr<FNullWindow> FindWindowByPtr(FGenericWindow* WindowToFind);
 

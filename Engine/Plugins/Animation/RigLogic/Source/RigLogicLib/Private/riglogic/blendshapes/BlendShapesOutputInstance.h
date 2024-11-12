@@ -24,6 +24,7 @@ class BlendShapesOutputInstance {
     public:
         virtual ~BlendShapesOutputInstance();
         virtual ArrayView<float> getOutputBuffer() = 0;
+        virtual void resetOutputBuffer() = 0;
 
 };
 

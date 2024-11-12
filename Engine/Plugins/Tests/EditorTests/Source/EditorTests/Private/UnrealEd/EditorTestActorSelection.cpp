@@ -59,7 +59,7 @@ bool FAssetActorTest::RunTest(const FString& Parameters)
 	// Setup
 	AddCommand(new FCloseAllAssetEditorsCommand());
 	AddCommand(new FFunctionLatentCommand([EditorTestName] {
-		TRACE_BOOKMARK(*(EditorTestName + TEXT(" ProfileBegin")));
+		TRACE_BOOKMARK(TEXT("%s ProfileBegin"), *EditorTestName);
 
 		return true;
 		}));
@@ -97,7 +97,7 @@ bool FAssetActorTest::RunTest(const FString& Parameters)
 		FMemory::Free(TestWorld);
 		FMemory::Free(TestAsset);
 
-		TRACE_BOOKMARK(*(EditorTestName + TEXT(" ProfileEnd")));
+		TRACE_BOOKMARK(TEXT("%s ProfileEnd"), *EditorTestName);
 
 		return true;
 		}));

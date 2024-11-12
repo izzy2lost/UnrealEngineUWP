@@ -116,37 +116,11 @@ public:
 		, EdgeSpringStiffnessIndex(PropertyCollection)
 	{}
 
-	UE_DEPRECATED(5.3, "Use weight map constructor instead.")
-	FPBDEdgeSpringConstraints(
-		const FSolverParticles& Particles,
-		int32 ParticleOffset,
-		int32 ParticleCount,
-		const TArray<TVec3<int32>>& InConstraints,
-		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
-		const FCollectionPropertyConstFacade& PropertyCollection,
-		bool bTrimKinematicConstraints = false)
-		: FPBDSpringConstraints(
-			Particles,
-			ParticleOffset,
-			ParticleCount,
-			InConstraints,
-			StiffnessMultipliers,
-			FSolverVec2(GetWeightedFloatEdgeSpringStiffness(PropertyCollection, 1.f)),
-			bTrimKinematicConstraints)
-		, EdgeSpringStiffnessIndex(PropertyCollection)
-	{}
-
 	virtual ~FPBDEdgeSpringConstraints() override = default;
 
 	CHAOS_API void SetProperties(
 		const FCollectionPropertyConstFacade& PropertyCollection,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps);
-
-	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal) instead.")
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
-	{
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>());
-	}
 
 private:
 	using FPBDSpringConstraints::ParticleCount;
@@ -196,37 +170,11 @@ public:
 		, BendingSpringStiffnessIndex(PropertyCollection)
 	{}
 
-	UE_DEPRECATED(5.3, "Use weight map constructor instead.")
-	FPBDBendingSpringConstraints(
-		const FSolverParticles& Particles,
-		int32 ParticleOffset,
-		int32 ParticleCount,
-		const TArray<TVec2<int32>>& InConstraints,
-		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
-		const FCollectionPropertyConstFacade& PropertyCollection,
-		bool bTrimKinematicConstraints = false)
-		: FPBDSpringConstraints(
-			Particles,
-			ParticleOffset,
-			ParticleCount,
-			InConstraints,
-			StiffnessMultipliers,
-			FSolverVec2(GetWeightedFloatBendingSpringStiffness(PropertyCollection, 1.f)),
-			bTrimKinematicConstraints)
-		, BendingSpringStiffnessIndex(PropertyCollection)
-	{}
-
 	virtual ~FPBDBendingSpringConstraints() override = default;
 
 	CHAOS_API void SetProperties(
 		const FCollectionPropertyConstFacade& PropertyCollection,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps);
-
-	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal) instead.")
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
-	{
-		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>());
-	}
 
 private:
 	using FPBDSpringConstraints::ParticleCount;

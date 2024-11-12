@@ -139,7 +139,8 @@ class TScriptInterface : public FScriptInterface
 {
 public:
 	using InterfaceType = InInterfaceType;
-	
+	using UObjectType = typename TCopyQualifiersFromTo<InterfaceType, UObject>::Type;
+
 	/**
 	 * Default constructor
 	 */
@@ -154,13 +155,13 @@ public:
 	 * Construction from an object type that may natively implement InterfaceType
 	 */
 	template <
-		typename U,
-		decltype(ImplicitConv<UObject*>(std::declval<U>()))* = nullptr
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U, UObjectType*>)
 	>
 	FORCEINLINE TScriptInterface(U&& Source)
 	{
 		// Always set the object
-		UObject* SourceObject = ImplicitConv<UObject*>(Source);
+		UObjectType* SourceObject = ImplicitConv<UObjectType*>(Source);
 		SetObject(SourceObject);
 
 		if constexpr (std::is_base_of<InInterfaceType, std::remove_pointer_t<std::remove_reference_t<U>>>::value)
@@ -181,8 +182,8 @@ public:
 	 * Construction from another script interface of a compatible interface type
 	 */
 	template <
-		typename OtherInterfaceType,
-		decltype(ImplicitConv<InInterfaceType*>(std::declval<OtherInterfaceType*>()))* = nullptr
+		typename OtherInterfaceType
+		UE_REQUIRES(std::is_convertible_v<OtherInterfaceType*, InInterfaceType*>)
 	>
 	FORCEINLINE TScriptInterface(const TScriptInterface<OtherInterfaceType>& Other)
 	{
@@ -234,8 +235,8 @@ public:
 	 * Assignment from an object type that may natively implement InterfaceType
 	 */
 	template <
-		typename U,
-		decltype(ImplicitConv<UObject*>(std::declval<U>()))* = nullptr
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U, UObjectType*>)
 	>
 	TScriptInterface& operator=(U&& Source)
 	{
@@ -247,8 +248,8 @@ public:
 	 * Assignment from another script interface of a compatible interface type
 	 */
 	template <
-		typename OtherInterfaceType,
-		decltype(ImplicitConv<InInterfaceType*>(std::declval<OtherInterfaceType>()))* = nullptr
+		typename OtherInterfaceType
+		UE_REQUIRES(std::is_convertible_v<OtherInterfaceType*, InInterfaceType*>)
 	>
 	TScriptInterface& operator=(const TScriptInterface<OtherInterfaceType>& Other)
 	{
@@ -269,12 +270,18 @@ public:
 	/**
 	 * Comparison operator, taking a pointer to InterfaceType
 	 */
-	template <typename OtherInterface, typename = decltype(ImplicitConv<InInterfaceType*>((OtherInterface*)nullptr))>
+	template <
+		typename OtherInterface
+		UE_REQUIRES(std::is_convertible_v<OtherInterface*, InInterfaceType*>)
+	>
 	FORCEINLINE bool operator==( const OtherInterface* Other ) const
 	{
 		return GetInterface() == Other;
 	}
-	template <typename OtherInterface, typename = decltype(ImplicitConv<InInterfaceType*>((OtherInterface*)nullptr))>
+	template <
+		typename OtherInterface
+		UE_REQUIRES(std::is_convertible_v<OtherInterface*, InInterfaceType*>)
+	>
 	FORCEINLINE bool operator!=( const OtherInterface* Other ) const
 	{
 		return GetInterface() != Other;
@@ -336,6 +343,30 @@ public:
 	FORCEINLINE void SetInterface(InInterfaceType* InInterfacePointer)
 	{
 		FScriptInterface::SetInterface((void*)InInterfacePointer);
+	}
+
+	/**
+	 * Returns the ObjectPointer contained by this TScriptInterface
+	 */
+	FORCEINLINE UObjectType* GetObject() const
+	{
+		return FScriptInterface::GetObject();
+	}
+
+	/**
+	 * Returns the ObjectPointer contained by this TScriptInterface
+	 */
+	FORCEINLINE TObjectPtr<UObjectType>& GetObjectRef()
+	{
+		return *(TObjectPtr<UObjectType>*)&FScriptInterface::GetObjectRef();
+	}
+
+	/**
+	 * Sets the value of the ObjectPointer for this TScriptInterface
+	 */
+	FORCEINLINE void SetObject( UObjectType* InObjectPointer )
+	{
+		FScriptInterface::SetObject(const_cast<UObject*>(InObjectPointer));
 	}
 
 	/**

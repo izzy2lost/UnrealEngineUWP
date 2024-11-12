@@ -15,6 +15,7 @@
 #include "Traits/IsCharEncodingCompatibleWith.h"
 #include "Misc/AssertionMacros.h"
 #include "RHICommandList.h"
+#include "RenderGraphTextureSubresource.h"
 
 PRAGMA_DISABLE_BUFFER_OVERRUN_WARNING
 
@@ -25,6 +26,8 @@ class FRDGBuffer;
 class FRDGBufferSRV;
 class FRDGBufferUAV;
 class FRDGUniformBuffer;
+enum class EShaderBindingLayoutFlags : uint8;
+class FShaderBindingLayoutContainer;
 template <typename TUniformStruct> class TRDGUniformBuffer;
 
 /** Alignements tools because alignas() does not work on type in clang. */
@@ -134,8 +137,17 @@ class TUniformBufferRef : public FUniformBufferRHIRef
 
 public:
 	/** Initializes the reference to null. */
-	TUniformBufferRef()
-	{}
+	TUniformBufferRef() = default;
+
+	/** Construct an instance from an existing RHI uniform buffer pointer. Validates at runtime that the type of the uniform buffer matches the template struct type. */
+	explicit TUniformBufferRef(FRHIUniformBuffer* InRHIRef)
+		: FUniformBufferRHIRef(InRHIRef)
+	{
+		checkf(!InRHIRef || TUniformBufferMetadataHelper<TBufferStruct>::GetStructMetadata()->GetLayoutPtr() == InRHIRef->GetLayoutPtr(),
+			TEXT("Attempted to create a uniform buffer of type '%s' from uniform buffer pointer of type '%s'"),
+			*TUniformBufferMetadataHelper<TBufferStruct>::GetStructMetadata()->GetLayout().Name,
+			*InRHIRef->GetLayout().Name);
+	}
 
 	/** Creates a uniform buffer with the given value, and returns a structured reference to it. */
 	static TUniformBufferRef<TBufferStruct> CreateUniformBufferImmediate(const TBufferStruct& Value, EUniformBufferUsage Usage, EUniformBufferValidation Validation = EUniformBufferValidation::ValidateResources)
@@ -162,11 +174,6 @@ public:
 	}
 
 private:
-
-	/** A private constructor used to coerce an arbitrary RHI uniform buffer reference to a structured reference. */
-	TUniformBufferRef(FRHIUniformBuffer* InRHIRef)
-	: FUniformBufferRHIRef(InRHIRef)
-	{}
 
 	template<typename TBufferStruct2>
 	friend class TUniformBuffer;
@@ -422,13 +429,20 @@ class alignas(SHADER_PARAMETER_POINTER_ALIGNMENT) FRDGTextureAccess
 {
 public:
 	FRDGTextureAccess() = default;
-	FRDGTextureAccess(FRDGTexture* InTexture, ERHIAccess InAccess)
+
+	FRDGTextureAccess(FRDGTexture* InTexture, FRDGTextureSubresourceRange InSubresourceRange, ERHIAccess InAccess)
 		: Texture(InTexture)
+		, SubresourceRange(InSubresourceRange)
 		, Access(InAccess)
 	{}
 
+	RENDERCORE_API FRDGTextureAccess(FRDGTexture* InTexture, ERHIAccess InAccess);
+	RENDERCORE_API FRDGTextureAccess(FRDGTextureSRV* InTextureSRV, ERHIAccess InAccess);
+	RENDERCORE_API FRDGTextureAccess(FRDGTextureUAV* InTextureUAV, ERHIAccess InAccess);
+
 	FORCEINLINE FRDGTexture* GetTexture() const { return Texture; }
-	FORCEINLINE ERHIAccess   GetAccess() const  { return Access; }
+	FORCEINLINE FRDGTextureSubresourceRange GetSubresourceRange() const { return SubresourceRange; }
+	FORCEINLINE ERHIAccess GetAccess() const  { return Access; }
 
 	FORCEINLINE operator bool() const
 	{
@@ -458,7 +472,8 @@ public:
 
 private:
 	TAlignedShaderParameterPtr<FRDGTexture*> Texture = nullptr;
-	ERHIAccess   Access  = ERHIAccess::Unknown;
+	FRDGTextureSubresourceRange SubresourceRange;
+	ERHIAccess Access = ERHIAccess::Unknown;
 };
 
 template <ERHIAccess InAccess>
@@ -468,12 +483,22 @@ class alignas(SHADER_PARAMETER_POINTER_ALIGNMENT) TRDGTextureAccess
 public:
 	static_assert(IsValidAccess(InAccess), "Texture access is invalid.");
 
-	TRDGTextureAccess()
-		: FRDGTextureAccess(nullptr, InAccess)
+	TRDGTextureAccess() = default;
+
+	TRDGTextureAccess(FRDGTexture* InTexture, FRDGTextureSubresourceRange InSubresourceRange)
+		: FRDGTextureAccess(InTexture, InSubresourceRange, InAccess)
 	{}
 
 	TRDGTextureAccess(FRDGTexture* InTexture)
 		: FRDGTextureAccess(InTexture, InAccess)
+	{}
+
+	TRDGTextureAccess(FRDGTextureSRV* InTextureSRV)
+		: FRDGTextureAccess(InTextureSRV, InAccess)
+	{}
+
+	TRDGTextureAccess(FRDGTextureUAV* InTextureUAV)
+		: FRDGTextureAccess(InTextureUAV, InAccess)
 	{}
 };
 
@@ -615,6 +640,22 @@ struct FDepthStencilBinding
 		ERenderTargetLoadAction InStencilLoadAction,
 		FExclusiveDepthStencil InDepthStencilAccess)
 		: Texture(InTexture)
+		, ResolveTexture(nullptr)
+		, DepthLoadAction(InDepthLoadAction)
+		, StencilLoadAction(InStencilLoadAction)
+		, DepthStencilAccess(InDepthStencilAccess)
+	{
+		check(Validate());
+	}
+
+	FORCEINLINE FDepthStencilBinding(
+		FRDGTexture* InTexture,
+		FRDGTexture* InResolveTexture,
+		ERenderTargetLoadAction InDepthLoadAction,
+		ERenderTargetLoadAction InStencilLoadAction,
+		FExclusiveDepthStencil InDepthStencilAccess)
+		: Texture(InTexture)
+		, ResolveTexture(InResolveTexture)
 		, DepthLoadAction(InDepthLoadAction)
 		, StencilLoadAction(InStencilLoadAction)
 		, DepthStencilAccess(InDepthStencilAccess)
@@ -627,6 +668,20 @@ struct FDepthStencilBinding
 		ERenderTargetLoadAction InDepthLoadAction,
 		FExclusiveDepthStencil InDepthStencilAccess)
 		: Texture(InTexture)
+		, ResolveTexture(nullptr)
+		, DepthLoadAction(InDepthLoadAction)
+		, DepthStencilAccess(InDepthStencilAccess)
+	{
+		check(Validate());
+	}
+
+	FORCEINLINE FDepthStencilBinding(
+		FRDGTexture* InTexture,
+		FRDGTexture* InResolveTexture,
+		ERenderTargetLoadAction InDepthLoadAction,
+		FExclusiveDepthStencil InDepthStencilAccess)
+		: Texture(InTexture)
+		, ResolveTexture(InResolveTexture)
 		, DepthLoadAction(InDepthLoadAction)
 		, DepthStencilAccess(InDepthStencilAccess)
 	{
@@ -636,6 +691,10 @@ struct FDepthStencilBinding
 	FORCEINLINE FRDGTexture* GetTexture() const
 	{
 		return Texture;
+	}
+	FORCEINLINE FRDGTexture* GetResolveTexture() const
+	{
+		return ResolveTexture;
 	}
 	FORCEINLINE ERenderTargetLoadAction GetDepthLoadAction() const
 	{
@@ -655,6 +714,7 @@ struct FDepthStencilBinding
 	{
 		return
 			Texture == Other.Texture &&
+			ResolveTexture == Other.ResolveTexture &&
 			Other.DepthLoadAction != ERenderTargetLoadAction::EClear &&
 			Other.StencilLoadAction != ERenderTargetLoadAction::EClear &&
 			DepthStencilAccess == Other.DepthStencilAccess;
@@ -663,6 +723,12 @@ struct FDepthStencilBinding
 	void SetTexture(FRDGTexture* InTexture)
 	{
 		Texture = InTexture;
+		check(Validate());
+	}
+
+	void SetResolveTexture(FRDGTexture* InTexture)
+	{
+		ResolveTexture = InTexture;
 		check(Validate());
 	}
 
@@ -690,6 +756,7 @@ private:
 	 * force the user to call FDepthStencilBinding() constructors. No defaults allowed.
 	 */
 	TAlignedShaderParameterPtr<FRDGTexture*> Texture = nullptr;
+	TAlignedShaderParameterPtr<FRDGTexture*> ResolveTexture = nullptr;
 	ERenderTargetLoadAction		DepthLoadAction		= ERenderTargetLoadAction::ENoAction;
 	ERenderTargetLoadAction		StencilLoadAction	= ERenderTargetLoadAction::ENoAction;
 	FExclusiveDepthStencil		DepthStencilAccess	= FExclusiveDepthStencil::DepthNop_StencilNop;
@@ -804,7 +871,7 @@ struct alignas(SHADER_PARAMETER_STRUCT_ALIGNMENT) FRenderTargetBindingSlots
 	};
 };
 
-static_assert(sizeof(FRenderTargetBindingSlots) == 240, "FRenderTargetBindingSlots needs to be same size on all platforms.");
+static_assert(sizeof(FRenderTargetBindingSlots) == 256, "FRenderTargetBindingSlots needs to be same size on all platforms.");
 
 /** Static array of shader resource shader that is initialized to nullptr. */
 template<typename TElement, uint32 NumElements>
@@ -1130,7 +1197,7 @@ struct TShaderParameterTypeInfo<FMatrix44f>
 	static const FShaderParametersMetadata* GetStructMetadata() { return nullptr; }
 };
 
-template <typename ResourceAccessType>
+template <typename BufferAccessType>
 struct TRDGResourceAccessTypeInfo
 {
 	static constexpr int32 NumRows = 1;
@@ -1139,12 +1206,29 @@ struct TRDGResourceAccessTypeInfo
 	static constexpr int32 Alignment = SHADER_PARAMETER_POINTER_ALIGNMENT;
 	static constexpr bool bIsStoredInConstantBuffer = false;
 
-	using TAlignedType = ResourceAccessType;
+	using TAlignedType = BufferAccessType;
 
 	static const FShaderParametersMetadata* GetStructMetadata() { return nullptr; }
 
 	static_assert(sizeof(TAlignedType) == SHADER_PARAMETER_POINTER_ALIGNMENT * 2, "Uniform buffer layout must not be platform dependent.");
 };
+
+template <typename TextureAccessType>
+struct TRDGTextureAccessTypeInfo
+{
+	static constexpr int32 NumRows = 1;
+	static constexpr int32 NumColumns = 1;
+	static constexpr int32 NumElements = 0;
+	static constexpr int32 Alignment = SHADER_PARAMETER_POINTER_ALIGNMENT;
+	static constexpr bool bIsStoredInConstantBuffer = false;
+
+	using TAlignedType = TextureAccessType;
+
+	static const FShaderParametersMetadata* GetStructMetadata() { return nullptr; }
+
+	static_assert(sizeof(TAlignedType) == SHADER_PARAMETER_POINTER_ALIGNMENT * 3, "Uniform buffer layout must not be platform dependent.");
+};
+
 
 template<typename T, size_t InNumElements>
 struct TShaderParameterTypeInfo<T[InNumElements]>
@@ -1385,6 +1469,9 @@ extern RENDERCORE_API FShaderParametersMetadata* FindUniformBufferStructByLayout
 
 extern RENDERCORE_API FShaderParametersMetadata* FindUniformBufferStructByShaderVariableName(const FHashedName& Name);
 
+/** Build the shader binding layout desc from array of used Uniform buffers which will be bound as static uniform buffers to the rhi */
+extern RENDERCORE_API void BuildShaderBindingLayout(TConstArrayView<FShaderParametersMetadata*> UniformBuffers, EShaderBindingLayoutFlags BaseShaderBindingLayoutFlags, FShaderBindingLayoutContainer& OutShaderBindingLayoutContainer);
+
 /** Begins & ends a shader parameter structure.
  *
  * Example:
@@ -1452,7 +1539,7 @@ private:
 	TFunctionRef<const FShaderParametersMetadata* ()> LazyShaderParametersMetadataAccessor;
 };
 
-#define IMPLEMENT_UNIFORM_BUFFER_STRUCT(StructTypeName,ShaderVariableName) \
+#define IMPLEMENT_UNIFORM_BUFFER_STRUCT_EX(StructTypeName,ShaderVariableName,UsageFlags) \
 	const FShaderParametersMetadata* GetForwardDeclaredShaderParametersStructMetadata(const StructTypeName* DummyPtr) { return StructTypeName::FTypeInfo::GetStructMetadata(); } \
 	const FShaderParametersMetadata* StructTypeName::GetStructMetadata() \
 	{ \
@@ -1467,10 +1554,16 @@ private:
 			StructTypeName::FTypeInfo::FileName, \
 			StructTypeName::FTypeInfo::FileLine, \
 			sizeof(StructTypeName), \
-			StructTypeName::zzGetMembers()); \
+			StructTypeName::zzGetMembers(), \
+			false, \
+			nullptr, \
+			UsageFlags); \
 		return &StaticStructMetadata; \
 	} \
 	FShaderParametersMetadataRegistration StructTypeName##MetadataRegistration { TFunctionRef<const ::FShaderParametersMetadata* ()>{StructTypeName::GetStructMetadata} };
+
+#define IMPLEMENT_UNIFORM_BUFFER_STRUCT(StructTypeName,ShaderVariableName) \
+	IMPLEMENT_UNIFORM_BUFFER_STRUCT_EX(StructTypeName,ShaderVariableName,FShaderParametersMetadata::EUsageFlags::None)
 
 #define IMPLEMENT_UNIFORM_BUFFER_ALIAS_STRUCT(StructTypeName, UniformBufferAlias) \
 	static const FShaderParametersMetadata UniformBufferAlias( \
@@ -1525,7 +1618,7 @@ private:
 			StructTypeName::zzGetMembers(), \
 			false, \
 			nullptr, \
-			(uint32)UsageFlags); \
+			UsageFlags); \
 		return &StaticStructMetadata; \
 	} \
 	FShaderParametersMetadataRegistration StructTypeName##MetadataRegistration { TFunctionRef<const ::FShaderParametersMetadata* ()>{StructTypeName::GetStructMetadata} };
@@ -1672,6 +1765,18 @@ private:
 
 #define SHADER_PARAMETER_RDG_TEXTURE_SRV_ARRAY(ShaderType,MemberName, ArrayDecl) \
 	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_SRV, TShaderResourceParameterTypeInfo<FRDGTextureSRV* ArrayDecl>, FRDGTextureSRV*,MemberName,ArrayDecl,,EShaderPrecisionModifier::Float,TEXT(#ShaderType),false)
+
+/** Adds a non-pixel shader resource view for a render graph tracked texture.
+ *
+ * Example:
+ *	SHADER_PARAMETER_RDG_TEXTURE_NON_PIXEL_SRV(Texture2D, MySRV)
+ *	SHADER_PARAMETER_RDG_TEXTURE_NON_PIXEL_SRV_ARRAY(Texture2D, MyArrayOfSRVs, [4])
+ */
+#define SHADER_PARAMETER_RDG_TEXTURE_NON_PIXEL_SRV(ShaderType,MemberName) \
+	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_NON_PIXEL_SRV, TShaderResourceParameterTypeInfo<FRDGTextureSRV*>, FRDGTextureSRV*,MemberName,, = nullptr,EShaderPrecisionModifier::Float,TEXT(#ShaderType),false)
+
+#define SHADER_PARAMETER_RDG_TEXTURE_NON_PIXEL_SRV_ARRAY(ShaderType,MemberName, ArrayDecl) \
+	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_NON_PIXEL_SRV, TShaderResourceParameterTypeInfo<FRDGTextureSRV* ArrayDecl>, FRDGTextureSRV*,MemberName,ArrayDecl,,EShaderPrecisionModifier::Float,TEXT(#ShaderType),false)
 
 /** Adds a unordered access view for a render graph tracked texture.
  *
@@ -1825,10 +1930,10 @@ private:
 
 /** Informs the RDG pass to transition the texture into the requested state. */
 #define RDG_TEXTURE_ACCESS(MemberName, Access) \
-	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_ACCESS, TRDGResourceAccessTypeInfo<TRDGTextureAccess<Access>>, TRDGTextureAccess<Access>,MemberName,,,EShaderPrecisionModifier::Float,TEXT(""),false)
+	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_ACCESS, TRDGTextureAccessTypeInfo<TRDGTextureAccess<Access>>, TRDGTextureAccess<Access>,MemberName,,,EShaderPrecisionModifier::Float,TEXT(""),false)
 
 #define RDG_TEXTURE_ACCESS_DYNAMIC(MemberName) \
-	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_ACCESS, TRDGResourceAccessTypeInfo<FRDGTextureAccess>, FRDGTextureAccess,MemberName,,,EShaderPrecisionModifier::Float,TEXT(""),false)
+	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_ACCESS, TRDGTextureAccessTypeInfo<FRDGTextureAccess>, FRDGTextureAccess,MemberName,,,EShaderPrecisionModifier::Float,TEXT(""),false)
 
 #define RDG_TEXTURE_ACCESS_ARRAY(MemberName) \
 	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_ACCESS_ARRAY, TRDGResourceAccessTypeInfo<FRDGTextureAccessArray>, FRDGTextureAccessArray,MemberName,,,EShaderPrecisionModifier::Float,TEXT(""),false)

@@ -4,8 +4,12 @@
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
 
+#include "Chaos/PBDRigidClustering.h"
+
+#include "Chaos/Character/CharacterGroundConstraintContainer.h"
 #include "Chaos/Framework/PhysicsSolverBase.h"
 #include "Chaos/ImplicitObject.h"
+#include "Chaos/ISpatialAccelerationCollection.h"
 #include "Chaos/ParticleHandle.h"
 #include "Chaos/PBDCollisionConstraints.h"
 #include "Chaos/PBDJointConstraints.h"
@@ -14,7 +18,9 @@
 #include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
 #include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
 #include "Compression/OodleDataCompressionUtil.h"
+#include "DataWrappers/ChaosVDCharacterGroundConstraintDataWrappers.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
+#include "DataWrappers/ChaosVDDebugShapeDataWrapper.h"
 #include "DataWrappers/ChaosVDImplicitObjectDataWrapper.h"
 #include "DataWrappers/ChaosVDJointDataWrappers.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
@@ -39,6 +45,7 @@ UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDSolverSimulationSpace)
 UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDDummyEvent)
 UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDNonSolverLocation)
 UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDNonSolverTransform)
+UE_TRACE_EVENT_DEFINE(ChaosVDLogger, ChaosVDNetworkTickOffset)
 
 namespace Chaos::VisualDebugger::Cvars
 {
@@ -220,7 +227,41 @@ void FChaosVisualDebuggerTrace::TraceParticleDestroyed(const Chaos::FGeometryPar
 		<< ChaosVDParticleDestroyed.ParticleID(ParticleHandle->UniqueIdx().Idx);
 }
 
-void FChaosVisualDebuggerTrace::TraceParticlesSoA(const Chaos::FPBDRigidsSOAs& ParticlesSoA)
+void FChaosVisualDebuggerTrace::TraceParticleClusterChildData(const Chaos::TParticleView<Chaos::TPBDRigidParticles<Chaos::FReal, 3>>& ParticlesView, Chaos::FRigidClustering* ClusteringData, const FChaosVDContext& CVDContextData)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	if (!ClusteringData)
+	{
+		return;
+	}
+
+	if (!CVDDC_ClusterParticlesChildData->IsChannelEnabled())
+	{
+		return;
+	}
+
+	ParticlesView.ParallelFor([CopyContext = CVDContextData, ClusteringData](auto& Particle, int32 Index)
+	{
+		if (Chaos::FPBDRigidClusteredParticleHandle* ClusteredParticle = Particle.Handle()->CastToClustered())
+		{
+			CVD_SCOPE_CONTEXT(CopyContext);
+			if (const TArray<Chaos::FPBDRigidParticleHandle*>* ChildrenHandles = ClusteringData->GetChildrenMap().Find(ClusteredParticle))
+			{
+				const TArray<Chaos::FPBDRigidParticleHandle*>& ChildrenHandlesArray = *ChildrenHandles;
+				for (Chaos::FPBDRigidParticleHandle* ParticleHandle : ChildrenHandlesArray)
+				{
+					TraceParticle(ParticleHandle);
+				}
+			}
+		}
+	});
+}
+
+void FChaosVisualDebuggerTrace::TraceParticlesSoA(const Chaos::FPBDRigidsSOAs& ParticlesSoA, Chaos::FRigidClustering* ClusteringData)
 {
 	using namespace Chaos::VisualDebugger::Utils;
 	if (!IsTracing())
@@ -243,6 +284,9 @@ void FChaosVisualDebuggerTrace::TraceParticlesSoA(const Chaos::FPBDRigidsSOAs& P
 	}
 
 	TraceParticlesView(ParticlesSoA.GetDirtyParticlesView());
+
+	// If we are recording a delta frame, we need to also record the child particles of any cluster (if we have clustering data available)
+	TraceParticleClusterChildData(ParticlesSoA.GetDirtyParticlesView(), ClusteringData, *CVDContextData);
 }
 
 void FChaosVisualDebuggerTrace::SetupForFullCaptureIfNeeded(int32 SolverID, bool& bOutFullCaptureRequested)
@@ -257,6 +301,11 @@ void FChaosVisualDebuggerTrace::SetupForFullCaptureIfNeeded(int32 SolverID, bool
 		SolverIDsForDeltaRecording.Remove(SolverID);
 		RequestedFullCaptureSolverIDs.Remove(SolverID);
 	}
+}
+
+int32 FChaosVisualDebuggerTrace::GetSolverID(Chaos::FPhysicsSolverBase& Solver)
+{
+	return Solver.GetChaosVDContextData().Id;
 }
 
 bool FChaosVisualDebuggerTrace::ShouldPerformFullCapture(int32 SolverID)
@@ -353,6 +402,39 @@ void FChaosVisualDebuggerTrace::TraceJointsConstraints(Chaos::FPBDJointConstrain
 	});
 }
 
+void FChaosVisualDebuggerTrace::TraceCharacterGroundConstraints(Chaos::FCharacterGroundConstraintContainer& InConstraints)
+{
+	using namespace Chaos::VisualDebugger::Utils;
+
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
+
+	if (!IsContextEnabledAndValid(CVDContextData))
+	{
+		return;
+	}
+
+	const Chaos::FCharacterGroundConstraintContainer::FConstConstraints& ConstraintHandles = InConstraints.GetConstConstraints();
+
+	ParallelFor(ConstraintHandles.Num(), [&ConstraintHandles, CopyContext = *CVDContextData](int32 ConstraintIndex)
+	{
+		CVD_SCOPE_CONTEXT(CopyContext);
+
+		FChaosVDCharacterGroundConstraint WrappedConstraintData = FChaosVDDataWrapperUtils::BuildCharacterGroundConstraintDataWrapper(ConstraintHandles[ConstraintIndex]);
+
+		WrappedConstraintData.SolverID = CopyContext.Id;
+
+		FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+		Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, WrappedConstraintData);
+
+		TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDCharacterGroundConstraint::WrapperTypeName);
+	});
+}
+
 void FChaosVisualDebuggerTrace::TraceCollisionConstraint(const Chaos::FPBDCollisionConstraint* CollisionConstraint)
 {
 	using namespace Chaos::VisualDebugger::Utils;
@@ -419,11 +501,15 @@ void FChaosVisualDebuggerTrace::TraceConstraintsContainer(TConstArrayView<Chaos:
 			{
 				CVD_TRACE_STEP_MID_PHASES_FROM_COLLISION_CONSTRAINTS(CVDDC_EndOfEvolutionCollisionConstraints, *static_cast<Chaos::FPBDCollisionConstraints*>(ConstraintContainer));
 			}
+			else if (ConstraintContainer->GetConstraintHandleType().IsA(Chaos::FCharacterGroundConstraintHandle::StaticType()))
+			{
+				CVD_TRACE_CHARACTER_GROUND_CONSTRAINTS(CVDDC_CharacterGroundConstraints, *static_cast<Chaos::FCharacterGroundConstraintContainer*>(ConstraintContainer));
+			}
 		}
 	}
 }
 
-void FChaosVisualDebuggerTrace::TraceSolverFrameStart(const FChaosVDContext& ContextData, const FString& InDebugName)
+void FChaosVisualDebuggerTrace::TraceSolverFrameStart(const FChaosVDContext& ContextData, const FString& InDebugName, int32 FrameNumber)
 {
 	if (!IsTracing())
 	{
@@ -453,7 +539,8 @@ void FChaosVisualDebuggerTrace::TraceSolverFrameStart(const FChaosVDContext& Con
 		<< ChaosVDSolverFrameStart.Cycle(FPlatformTime::Cycles64())
 		<< ChaosVDSolverFrameStart.DebugName(*InDebugName, InDebugName.Len())
 		<< ChaosVDSolverFrameStart.IsKeyFrame(bOutIsFullCaptureRequested)
-		<< ChaosVDSolverFrameStart.IsReSimulated(bIsReSimulatedFrame);
+		<< ChaosVDSolverFrameStart.IsReSimulated(bIsReSimulatedFrame)
+		<< ChaosVDSolverFrameStart.CurrentFrameNumber(FrameNumber);
 }
 
 void FChaosVisualDebuggerTrace::TraceSolverFrameEnd(const FChaosVDContext& ContextData)
@@ -757,6 +844,164 @@ void FChaosVisualDebuggerTrace::TraceSceneQueryVisit(FChaosVDQueryVisitStep&& In
 	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDQueryVisitStep::WrapperTypeName);
 }
 
+void FChaosVisualDebuggerTrace::TraceSceneAccelerationStructures(const Chaos::ISpatialAccelerationCollection<Chaos::FAccelerationStructureHandle, Chaos::FReal, 3>* InAccelerationCollection)
+{
+	using namespace Chaos::VisualDebugger::Utils;
+
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	if (!InAccelerationCollection)
+	{
+		return;
+	}
+	
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	if (!IsContextEnabledAndValid(CVDContextData))
+	{
+		return;
+	}
+
+	TArray<FChaosVDAABBTreeDataWrapper> AABBTreeDataWrappers;
+	FChaosVDDataWrapperUtils::BuildDataWrapperFromAABBStructure(InAccelerationCollection, CVDContextData->Id, AABBTreeDataWrappers);
+
+	for (FChaosVDAABBTreeDataWrapper& DataWrapper : AABBTreeDataWrappers)
+	{
+		FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+		Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, DataWrapper);
+
+		TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDAABBTreeDataWrapper::WrapperTypeName);
+	}
+}
+
+void FChaosVisualDebuggerTrace::TraceNetworkTickOffset(int32 TickOffset, int32 SolverID)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+	
+	UE_TRACE_LOG(ChaosVDLogger, ChaosVDNetworkTickOffset, ChaosVDChannel)
+		<< ChaosVDNetworkTickOffset.Offset(TickOffset)
+		<< ChaosVDNetworkTickOffset.SolverID(SolverID);
+}
+
+void FChaosVisualDebuggerTrace::TraceDebugDrawBox(const FBox& InBox, FName Tag, FColor Color, int32 SolverID)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	FChaosVDDebugDrawBoxDataWrapper DataWrapper;
+	DataWrapper.SolverID = SolverID;
+	DataWrapper.Tag = Tag;
+	DataWrapper.Color = Color;
+	DataWrapper.Box = InBox;
+
+	DataWrapper.MarkAsValid();
+
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, DataWrapper);
+
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDDebugDrawBoxDataWrapper::WrapperTypeName);
+}
+
+void FChaosVisualDebuggerTrace::TraceDebugDrawLine(const FVector& InStartLocation, const FVector& InEndLocation, FName Tag, FColor Color, int32 SolverID)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	FChaosVDDebugDrawLineDataWrapper DataWrapper;
+	DataWrapper.SolverID = SolverID;
+	DataWrapper.Tag = Tag;
+	DataWrapper.Color = Color;
+	DataWrapper.StartLocation = InStartLocation;
+	DataWrapper.EndLocation = InEndLocation;
+
+	DataWrapper.MarkAsValid();
+
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, DataWrapper);
+
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDDebugDrawLineDataWrapper::WrapperTypeName);
+}
+
+void FChaosVisualDebuggerTrace::TraceDebugDrawVector(const FVector& InStartLocation, const FVector& InVector, FName Tag, FColor Color, int32 SolverID)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	FChaosVDDebugDrawLineDataWrapper DataWrapper;
+	DataWrapper.SolverID = SolverID;
+	DataWrapper.Tag = Tag;
+	DataWrapper.Color = Color;
+	DataWrapper.StartLocation = InStartLocation;
+	DataWrapper.EndLocation = InStartLocation + InVector;
+	DataWrapper.bIsArrow = true;
+
+	DataWrapper.MarkAsValid();
+
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, DataWrapper);
+
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDDebugDrawLineDataWrapper::WrapperTypeName);
+}
+
+void FChaosVisualDebuggerTrace::TraceDebugDrawSphere(const FVector& Center, float Radius, FName Tag, FColor Color, int32 SolverID)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	FChaosVDDebugDrawSphereDataWrapper DataWrapper;
+	DataWrapper.SolverID = SolverID;
+	DataWrapper.Tag = Tag;
+	DataWrapper.Color = Color;
+	DataWrapper.Origin = Center;
+	DataWrapper.Radius = Radius;
+
+	DataWrapper.MarkAsValid();
+
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, DataWrapper);
+
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDDebugDrawSphereDataWrapper::WrapperTypeName);
+}
+
+void FChaosVisualDebuggerTrace::TraceDebugDrawImplicitObject(const Chaos::FImplicitObject* Implicit, const FTransform& InParentTransform, FName Tag, FColor Color, int32 SolverID)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	FChaosVDDebugDrawImplicitObjectDataWrapper DataWrapper;
+	DataWrapper.SolverID = SolverID;
+	DataWrapper.Tag = Tag;
+	DataWrapper.Color = Color;
+	DataWrapper.ParentTransform = InParentTransform;
+
+	const uint32 GeometryHash = GeometryTracerObject.GetGeometryHashForImplicit(Implicit);
+	TraceImplicitObject({ GeometryHash, const_cast<Chaos::FImplicitObject*>(Implicit) });
+
+	DataWrapper.ImplicitObjectHash = GeometryHash;
+
+	DataWrapper.MarkAsValid();
+
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, DataWrapper);
+
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDDebugDrawImplicitObjectDataWrapper::WrapperTypeName);
+}
+
 bool FChaosVisualDebuggerTrace::IsTracing()
 {
 	return bIsTracing;
@@ -804,6 +1049,11 @@ void FChaosVisualDebuggerTrace::UnregisterEventHandlers()
 	}
 
 	bIsTracing = false;
+}
+
+TSharedRef<FChaosVDSerializableNameTable>& FChaosVisualDebuggerTrace::GetNameTableInstance()
+{
+	return CVDNameTable;
 }
 
 void FChaosVisualDebuggerTrace::Reset()

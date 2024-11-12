@@ -91,6 +91,7 @@ const FString& FStringTableEntry::GetPlaceholderSourceString()
 FStringTable::FStringTable()
 	: OwnerAsset(nullptr)
 	, bIsLoaded(true)
+	, bIsInternal(false)
 {
 }
 
@@ -120,16 +121,26 @@ void FStringTable::IsLoaded(const bool bInIsLoaded)
 	bIsLoaded = bInIsLoaded;
 }
 
-FString FStringTable::GetNamespace() const
+bool FStringTable::IsInternal() const
 {
-	return TableNamespace.GetChars();
+	return bIsInternal;
 }
 
-void FStringTable::SetNamespace(const FString& InNamespace)
+void FStringTable::IsInternal(const bool bInIsInternal)
+{
+	bIsInternal = bInIsInternal;
+}
+
+FString FStringTable::GetNamespace() const
+{
+	return TableNamespace.ToString();
+}
+
+void FStringTable::SetNamespace(const FTextKey& InNamespace)
 {
 	FScopeLock KeyMappingLock(&KeyMappingCS);
 
-	if (FCString::Strcmp(TableNamespace.GetChars(), *InNamespace) != 0)
+	if (TableNamespace != InNamespace)
 	{
 		TableNamespace = InNamespace;
 
@@ -190,7 +201,7 @@ void FStringTable::EnumerateSourceStrings(const TFunctionRef<bool(const FString&
 {
 	EnumerateKeysAndSourceStrings([&InEnumerator](const FTextKey& InKey, const FString& InSourceString) -> bool
 	{
-		return InEnumerator(InKey.GetChars(), InSourceString);
+		return InEnumerator(InKey.ToString(), InSourceString);
 	});
 }
 
@@ -232,7 +243,7 @@ bool FStringTable::FindKey(const FStringTableEntryConstRef& InEntry, FString& Ou
 	FTextKey TmpKey;
 	if (FindKey(InEntry, TmpKey))
 	{
-		OutKey = TmpKey.GetChars();
+		TmpKey.ToString(OutKey);
 		return true;
 	}
 	return false;
@@ -350,7 +361,7 @@ void FStringTable::Serialize(FArchive& Ar)
 			TmpKeysToMetaData.Reserve(KeysToMetaData.Num());
 			for (const auto& KeyToMetaDataPair : KeysToMetaData)
 			{
-				TmpKeysToMetaData.Add(KeyToMetaDataPair.Key.GetChars(), KeyToMetaDataPair.Value);
+				TmpKeysToMetaData.Add(KeyToMetaDataPair.Key.ToString(), KeyToMetaDataPair.Value);
 			}
 
 			Ar << TmpKeysToMetaData;
@@ -422,7 +433,7 @@ bool FStringTable::ExportStrings(const FString& InFilename) const
 		// Write entries
 		for (const auto& KeyToEntryPair : KeysToEntries)
 		{
-			FString ExportedKey = KeyToEntryPair.Key.GetChars();
+			FString ExportedKey = KeyToEntryPair.Key.ToString();
 			ExportedKey.ReplaceCharWithEscapedCharInline();
 			ExportedKey.ReplaceInline(TEXT("\""), TEXT("\"\""));
 

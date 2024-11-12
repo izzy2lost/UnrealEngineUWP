@@ -51,9 +51,19 @@ class INTERCHANGEPIPELINES_API UInterchangeGenericCommonMeshesProperties : publi
 {
 	GENERATED_BODY()
 public:
+
+	static FString GetPipelineCategory(UClass* AssetClass)
+	{
+		return TEXT("Common Meshes");
+	}
+
 	//////	COMMON_MESHES_CATEGORY Properties //////
 
-	/** If set, imports all meshes in the source as either static meshes or skeletal meshes. */
+	/**
+	 * If set, imports all meshes in the source as either static meshes or skeletal meshes.
+	 * For skeletal meshes the conversion will happen only if there is no skinned meshes.
+	 * Mixing rigid skeletal mesh with skinned mesh is not good and will result in multiple skeletal meshes.
+	 */
  	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes")
  	EInterchangeForceMeshType ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_None;
 
@@ -71,6 +81,10 @@ public:
 	/** If enabled, meshes are baked with the scene instance hierarchy transform. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes")
 	bool bBakeMeshes = true;
+	
+	/** If enabled, the inverse node rotation pivot will be apply to the mesh vertices. The pivot from the DCC will then be the origin of the mesh.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes", meta = (editcondition = "!bBakeMeshes"))
+	bool bBakePivotMeshes = false;
 	
 	/** If checked, sections with matching materials are kept separate and will not get combined. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes")
@@ -116,17 +130,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes", meta = (SubCategory = "Build"))
 	bool bRemoveDegenerates = false;
 #if WITH_EDITOR
-	virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) override
+	virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const override
 	{
-		if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonMeshesProperties, ForceAllMeshAsType))
+		static const TSet<FName> NeedRefreshProperties =
 		{
-			return true;
-		}
-		if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonMeshesProperties, bAutoDetectMeshType))
-		{
-			return true;
-		}
-		if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonMeshesProperties, bBakeMeshes))
+			GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonMeshesProperties, ForceAllMeshAsType),
+			GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonMeshesProperties, bAutoDetectMeshType)
+		};
+
+		if (NeedRefreshProperties.Contains(PropertyChangedEvent.GetPropertyName()))
 		{
 			return true;
 		}
@@ -135,11 +147,17 @@ public:
 #endif //WITH_EDITOR
 };
 
-UCLASS(BlueprintType, hidedropdown, Experimental)
+UCLASS(BlueprintType, hidedropdown)
 class INTERCHANGEPIPELINES_API UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties : public UInterchangePipelineBase
 {
 	GENERATED_BODY()
 public:
+
+	static FString GetPipelineCategory(UClass* AssetClass)
+	{
+		return TEXT("Common Skeletal Meshes and Animations");
+	}
+
 	/** If enabled, only animations are imported from the source. You must also set a valid skeleton. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Skeletal Meshes and Animations")
 	bool bImportOnlyAnimations = false;
@@ -163,20 +181,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes")
 	bool bConvertStaticsWithMorphTargetsToSkeletals = false;
 #if WITH_EDITOR
-	virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) override
+	virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const override
 	{
-		if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties, bConvertStaticsWithMorphTargetsToSkeletals))
+		static const TSet<FName> NeedRefreshProperties =
+		{
+			GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties, bConvertStaticsWithMorphTargetsToSkeletals),
+			GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties, bImportMeshesInBoneHierarchy),
+			GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties, Skeleton),
+			GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties, bImportOnlyAnimations)
+		};
+
+		if (NeedRefreshProperties.Contains(PropertyChangedEvent.GetPropertyName()))
 		{
 			return true;
 		}
-		else if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties, bImportMeshesInBoneHierarchy))
-		{
-			return true;
-		}
-		else if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties, Skeleton))
-		{
-			return true;
-		}
+
 		return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
 	}
 #endif //WITH_EDITOR

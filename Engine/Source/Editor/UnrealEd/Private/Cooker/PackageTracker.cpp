@@ -82,7 +82,7 @@ void FPackageTracker::InitializeTracking()
 	NewPackages.Reserve(LoadedPackages.Num());
 	for (UPackage* Package : LoadedPackages)
 	{
-		NewPackages.Add(Package, FInstigator(EInstigator::StartupPackage));
+		NewPackages.Add(Package->GetFName(), FInstigator(EInstigator::StartupPackage));
 	}
 
 	GUObjectArray.AddUObjectDeleteListener(this);
@@ -91,7 +91,7 @@ void FPackageTracker::InitializeTracking()
 	bTrackingInitialized = true;
 }
 
-TMap<UPackage*, FInstigator> FPackageTracker::GetNewPackages()
+TMap<FName, FInstigator> FPackageTracker::GetNewPackages()
 {
 	if (!bTrackingInitialized)
 	{
@@ -100,7 +100,7 @@ TMap<UPackage*, FInstigator> FPackageTracker::GetNewPackages()
 	}
 
 	FWriteScopeLock ScopeLock(Lock);
-	TMap<UPackage*, FInstigator> Result = MoveTemp(NewPackages);
+	TMap<FName, FInstigator> Result = MoveTemp(NewPackages);
 	NewPackages.Reset();
 	return Result;
 }
@@ -118,7 +118,7 @@ void FPackageTracker::MarkLoadedPackagesAsNew()
 	NewPackages.Reserve(LoadedPackages.Num());
 	for (UPackage* Package : LoadedPackages)
 	{
-		NewPackages.FindOrAdd(Package, FInstigator(EInstigator::StartupPackage));
+		NewPackages.FindOrAdd(Package->GetFName(), FInstigator(EInstigator::StartupPackage));
 	}
 }
 
@@ -134,8 +134,10 @@ void FPackageTracker::NotifyUObjectCreated(const class UObjectBase* Object, int3
 #if ENABLE_COOK_STATS
 			++DetailedCookStats::NumDetectedLoads;
 #endif
+			FName PackageName = Package->GetFName();
 #if UE_WITH_PACKAGE_ACCESS_TRACKING
-			PackageAccessTracking_Private::FTrackedData* AccumulatedScopeData = PackageAccessTracking_Private::FPackageAccessRefScope::GetCurrentThreadAccumulatedData();
+			PackageAccessTracking_Private::FTrackedData* AccumulatedScopeData =
+				PackageAccessTracking_Private::FPackageAccessRefScope::GetCurrentThreadAccumulatedData();
 			FName ReferencerName(AccumulatedScopeData ? AccumulatedScopeData->PackageName : NAME_None);
 #else
 			FName ReferencerName(NAME_None);
@@ -156,17 +158,22 @@ void FPackageTracker::NotifyUObjectCreated(const class UObjectBase* Object, int3
 			FInstigator Instigator(InstigatorType, ReferencerName);
 			if (InstigatorType == EInstigator::Unsolicited && COTFS.bHiddenDependenciesDebug)
 			{
-				COTFS.OnDiscoveredPackageDebug(Package->GetFName(), Instigator);
+				COTFS.OnDiscoveredPackageDebug(PackageName, Instigator);
 			}
 
 			FWriteScopeLock ScopeLock(Lock);
-			if (ExpectedNeverLoadPackages.Contains(Package->GetFName()))
+			if (ExpectedNeverLoadPackages.Contains(PackageName))
 			{
-				UE_LOG(LogCook, Verbose, TEXT("SoftGC PoorPerformance: Reloaded package %s."), *WriteToString<256>(Package->GetFName()));
+				UE_LOG(LogCook, Verbose, TEXT("SoftGC PoorPerformance: Reloaded package %s."),
+					*WriteToString<256>(PackageName));
 			}
-			LoadedPackages.Add(Package);
-			NewPackages.Add(Package, MoveTemp(Instigator));
 
+			LoadedPackages.Add(Package);
+			// We store packages by name rather than by pointer, because they might have their name changed. When
+			// external actors are moved out of their external package, we rename the package to <PackageName>_Trash.
+			// We want to report a load dependency on the package as it was originally loaded; we don't want to report
+			// the renamed packagename if it gets renamed after load.
+			NewPackages.Add(PackageName, MoveTemp(Instigator));
 		}
 	}
 }
@@ -179,7 +186,6 @@ void FPackageTracker::NotifyUObjectDeleted(const class UObjectBase* Object, int3
 
 		FWriteScopeLock ScopeLock(Lock);
 		LoadedPackages.Remove(Package);
-		NewPackages.Remove(Package);
 	}
 }
 

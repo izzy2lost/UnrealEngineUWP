@@ -16,6 +16,7 @@ struct FNiagaraParameterStore;
 struct FNiagaraScriptHashCollector;
 class UNiagaraScriptSourceBase;
 struct FNiagaraVMExecutableDataId;
+struct FVersionedNiagaraScriptData;
 
 struct EditorExposedVectorConstant
 {
@@ -154,6 +155,7 @@ class UNiagaraScriptSourceBase : public UObject
 	/** Adds a module if it isn't already in the graph. If the module isn't found bOutFoundModule will be false. If it is found and it did need to be added, the function returns true. If it already exists, it returns false. */
 	virtual bool AddModuleIfMissing(FString ModulePath, ENiagaraScriptUsage Usage, bool& bOutFoundModule) { bOutFoundModule = false; return false; }
 
+	virtual void MigrateParameterDataToHierarchyRoot(FVersionedNiagaraScriptData& OwnerData) {}
 #if WITH_EDITOR
 	virtual void CleanUpOldAndInitializeNewRapidIterationParameters(const FVersionedNiagaraEmitter& Emitter, ENiagaraScriptUsage ScriptUsage, FGuid ScriptUsageId, FNiagaraParameterStore& RapidIterationParameters) const { checkf(false, TEXT("Not implemented")); }
 

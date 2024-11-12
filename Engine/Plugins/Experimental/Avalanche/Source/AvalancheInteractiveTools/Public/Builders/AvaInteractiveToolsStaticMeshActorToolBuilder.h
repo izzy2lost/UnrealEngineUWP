@@ -47,7 +47,7 @@ private:
 	int32 Priority;
 
 	UPROPERTY()
-	UStaticMesh* StaticMesh;
+	TObjectPtr<UStaticMesh> StaticMesh;
 
 	UAvaInteractiveToolsStaticMeshActorToolBuilder();
 };

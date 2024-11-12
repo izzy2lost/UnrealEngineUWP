@@ -73,7 +73,7 @@ namespace UE::Interchange::Private
 		return true;
 	}
 
-	bool FSkeletonHelper::IsCompatibleSkeleton(const USkeleton* Skeleton, const FString RootJoinUid, const UInterchangeBaseNodeContainer* BaseNodeContainer, bool bConvertStaticToSkeletalActive)
+	bool FSkeletonHelper::IsCompatibleSkeleton(const USkeleton* Skeleton, const FString RootJoinUid, const UInterchangeBaseNodeContainer* BaseNodeContainer, bool bConvertStaticToSkeletalActive, bool bCheckForIdenticalSkeleton)
 	{
 		if (!Skeleton)
 		{
@@ -112,6 +112,10 @@ namespace UE::Interchange::Private
 			}
 			else
 			{
+				if (bCheckForIdenticalSkeleton)
+				{
+					return false;
+				}
 				int32 CurrentBoneId = MeshBoneIndex;
 				// if not look for parents that matches
 				while (SkeletonBoneIndex == INDEX_NONE && CurrentBoneId != INDEX_NONE)
@@ -166,11 +170,50 @@ namespace UE::Interchange::Private
 		constexpr bool bAddSourceNodeName = true;
 		UInterchangeUserDefinedAttributesAPI::DuplicateAllUserDefinedAttribute(SceneNode, DestinationNode, bAddSourceNodeName);
 
-		//Iterate childrens
-		const TArray<FString> ChildrenIds = NodeContainer->GetNodeChildrenUids(JointUid);
+		// Iterate children
+		TArray<FString>* CachedChildren = NodeContainer->GetCachedNodeChildrenUids(JointUid);
+		check(CachedChildren); // Call ComputeChildrenCache() prior to calling this function
+
+		const TArray<FString>& ChildrenIds = *CachedChildren;
 		for (int32 ChildIndex = 0; ChildIndex < ChildrenIds.Num(); ++ChildIndex)
 		{
 			RecursiveAddSkeletonMetaDataValues(NodeContainer, DestinationNode, ChildrenIds[ChildIndex]);
+		}
+	}
+
+	void FSkeletonHelper::RecursiveBoneHasBindPose(const UInterchangeBaseNodeContainer* NodeContainer, const FString& JointNodeId, bool& bHasBoneWithoutBindPose)
+	{
+		if (bHasBoneWithoutBindPose)
+		{
+			return;
+		}
+
+		const UInterchangeSceneNode* JointNode = Cast<UInterchangeSceneNode>(NodeContainer->GetNode(JointNodeId));
+		if (!JointNode)
+		{
+			UE_LOG(LogInterchangeImport, Warning, TEXT("Invalid Skeleton Joint"));
+			return;
+		}
+
+		bool bHasBindPose;
+		if (!JointNode->GetCustomHasBindPose(bHasBindPose))
+		{
+			//if not set, then its presumed to have bind pose
+			bHasBindPose = true;
+		}
+
+		if (!bHasBindPose)
+		{
+			bHasBoneWithoutBindPose = true;
+		}
+
+		if (!bHasBoneWithoutBindPose)
+		{
+			const TArray<FString> ChildrenIds = NodeContainer->GetNodeChildrenUids(JointNodeId);
+			for (int32 ChildIndex = 0; ChildIndex < ChildrenIds.Num(); ++ChildIndex)
+			{
+				RecursiveBoneHasBindPose(NodeContainer, ChildrenIds[ChildIndex], bHasBoneWithoutBindPose);
+			}
 		}
 	}
 

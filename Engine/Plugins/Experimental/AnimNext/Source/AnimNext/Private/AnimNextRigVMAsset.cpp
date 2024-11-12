@@ -35,6 +35,7 @@ void UAnimNextRigVMAsset::PostLoad()
 	if(VM != nullptr)
 	{
 		VM->ClearExternalVariables(ExtendedExecuteContext);
+		VM->SetExternalVariableDefs(GetExternalVariablesImpl(false));
 		VM->Initialize(ExtendedExecuteContext);
 		InitializeVM(FRigUnit_AnimNextBeginExecution::EventName);
 	}
@@ -51,4 +52,43 @@ void UAnimNextRigVMAsset::GetAssetRegistryTags(FAssetRegistryTagsContext Context
 		EditorData->GetAssetRegistryTags(Context);
 	}
 #endif
+
+#if WITH_EDITOR
+	// Allow asset user data to output tags
+	for(const UAssetUserData* AssetUserDataItem : *GetAssetUserDataArray())
+	{
+		if (AssetUserDataItem)
+		{
+			AssetUserDataItem->GetAssetRegistryTags(Context);
+		}
+	}
+#endif // WITH_EDITOR
+}
+
+TArray<FRigVMExternalVariable> UAnimNextRigVMAsset::GetExternalVariablesImpl(bool bFallbackToBlueprint) const
+{
+	TArray<FRigVMExternalVariable> ExternalVariables;
+
+	if(const UPropertyBag* PropertyBag = VariableDefaults.GetPropertyBagStruct())
+	{
+		TConstArrayView<FPropertyBagPropertyDesc> VariableDescs = PropertyBag->GetPropertyDescs();
+		if(VariableDescs.Num() > 0)
+		{
+			ExternalVariables.Reserve(VariableDescs.Num());
+			for(const FPropertyBagPropertyDesc& Desc : VariableDescs)
+			{
+				const FProperty* Property = Desc.CachedProperty;
+				FRigVMExternalVariable ExternalVariable = FRigVMExternalVariable::Make(Property, const_cast<uint8*>(VariableDefaults.GetValue().GetMemory()));
+				if(!ExternalVariable.IsValid())
+				{
+					UE_LOG(LogRigVM, Warning, TEXT("%s: Property '%s' of type '%s' is not supported."), *GetClass()->GetName(), *Property->GetName(), *Property->GetCPPType());
+					continue;
+				}
+
+				ExternalVariables.Add(ExternalVariable);
+			}
+		}
+	}
+
+	return ExternalVariables;
 }

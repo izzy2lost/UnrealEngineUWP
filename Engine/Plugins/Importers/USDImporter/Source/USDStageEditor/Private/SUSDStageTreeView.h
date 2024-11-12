@@ -14,6 +14,10 @@ namespace UE
 {
 	class FUsdPrim;
 }
+namespace UsdUtils
+{
+	enum class ECollapsingPreference : uint8;
+}
 
 #if USE_USD_SDK
 
@@ -30,6 +34,7 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
+	virtual ~SUsdStageTreeView() override;
 
 	void Refresh(const UE::FUsdStageWeak& NewStage);
 	void RefreshPrim(const FString& PrimPath, bool bResync);
@@ -64,6 +69,7 @@ private:
 	void OnToggleAllPayloads(EPayloadsTrigger PayloadsTrigger);
 
 	void FillDuplicateSubmenu(FMenuBuilder& MenuBuilder);
+	void FillCollapsingSubmenu(FMenuBuilder& MenuBuilder);
 	void FillAddSchemaSubmenu(FMenuBuilder& MenuBuilder);
 	void FillRemoveSchemaSubmenu(FMenuBuilder& MenuBuilder);
 
@@ -74,6 +80,7 @@ private:
 	void OnDuplicatePrim(EUsdDuplicateType DuplicateType);
 	void OnDeletePrim();
 	void OnRenamePrim();
+	void OnSetCollapsingPreference(UsdUtils::ECollapsingPreference Preference);
 
 	void OnAddReference();
 	void OnClearReferences();
@@ -91,10 +98,10 @@ private:
 	bool DoesPrimExistOnStage() const;
 	bool DoesPrimExistOnEditTarget() const;
 	bool DoesPrimHaveSpecOnLocalLayerStack() const;
+	bool DoSelectedPrimsHaveCollapsingPreference(UsdUtils::ECollapsingPreference Preference) const;
 
-	/** Uses TreeItemExpansionStates to travel the tree and call SetItemExpansion */
-	void RestoreExpansionStates();
-	virtual void RequestListRefresh() override;
+	void RequestExpansionStateRestore();
+	virtual void Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime ) override;
 
 	void SelectItemsInternal(const TArray<FUsdPrimViewModelRef>& ItemsToSelect);
 
@@ -122,9 +129,13 @@ private:
 	TWeakPtr<FUsdPrimViewModel> PendingRenameItem;
 
 	// So that we can store these across refreshes
-	TMap<FString, bool> TreeItemExpansionStates;
+	TSet<FString> ExpandedPrimPaths;
+	TOptional<bool> RootWasExpanded;
+	bool bNeedExpansionStateRefresh = false;
 
 	FOnPrimSelectionChanged OnPrimSelectionChanged;
+
+	FDelegateHandle PostUndoRedoHandle;
 
 	TSharedPtr<FUICommandList> UICommandList;
 };

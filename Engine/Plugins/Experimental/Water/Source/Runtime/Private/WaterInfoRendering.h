@@ -7,10 +7,14 @@
 class AWaterZone;
 class UWaterBodyComponent;
 class FSceneInterface;
-class UTextureRenderTarget2D;
+class UTextureRenderTarget2DArray;
 class UPrimitiveComponent;
 class FSceneView;
 class FSceneViewFamily;
+
+
+template <typename KeyType, typename ValueType>
+using TWeakObjectPtrKeyMap = TMap<TWeakObjectPtr<KeyType>, ValueType, FDefaultSetAllocator, TWeakObjectPtrMapKeyFuncs<TWeakObjectPtr<KeyType>, ValueType>>;
 
 namespace UE::WaterInfo
 {
@@ -18,24 +22,24 @@ namespace UE::WaterInfo
 struct FRenderingContext
 {
 	AWaterZone* ZoneToRender = nullptr;
-	UTextureRenderTarget2D* TextureRenderTarget;
-	TArray<UWaterBodyComponent*> WaterBodies;
+	UTextureRenderTarget2DArray* TextureRenderTarget;
+	TArray<TWeakObjectPtr<UWaterBodyComponent>> WaterBodies;
 	TArray<TWeakObjectPtr<UPrimitiveComponent>> GroundPrimitiveComponents;
 	float CaptureZ;
 };
-	
-void UpdateWaterInfoRendering(
-	FSceneInterface* Scene,
-	const FRenderingContext& Context);
 
 void UpdateWaterInfoRendering2(
 	FSceneView& InView, 
-	const TMap<AWaterZone*, UE::WaterInfo::FRenderingContext>& WaterInfoContexts);
+	const FRenderingContext& Context,
+	int32 RenderTargetArrayLayer,
+	const FVector& WaterInfoCenter);
 
 void UpdateWaterInfoRendering_CustomRenderPass(
 	FSceneInterface* Scene,
 	const FSceneViewFamily& ViewFamily,
-	const FRenderingContext& Context);
+	const FRenderingContext& Context,
+	int32 TextureArraySlice,
+	const FVector& WaterInfoCenter);
 
 const FName& GetWaterInfoDepthPassName();
 const FName& GetWaterInfoColorPassName();

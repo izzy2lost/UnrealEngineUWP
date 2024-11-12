@@ -137,9 +137,11 @@ public:
 	int32 GetNumVideoStreams(int32 TrackIndex) const override;
 	bool GetVideoStreamFormat(FVideoStreamFormat& OutFormat, int32 InTrackIndex, int32 InStreamIndex) const override;
 	bool GetActiveVideoStreamFormat(FVideoStreamFormat& OutFormat) const override;
+	virtual Electra::FVariantValue GetMediaInfo(FName InInfoName) const override;
 	TSharedPtr<TMap<FString, TArray<TSharedPtr<Electra::IMediaStreamMetadata::IItem, ESPMode::ThreadSafe>>>, ESPMode::ThreadSafe> GetMediaMetadata() const override;
 
 	void NotifyOfOptionChange() override;
+	bool GetStreamBufferInformation(FStreamBufferInfo& OutBufferInformation, EPlayerTrackType InTrackType) const override;
 
 	void SuspendOrResumeDecoders(bool bSuspend, const Electra::FParamDict& InOptions) override;
 

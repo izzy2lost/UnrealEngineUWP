@@ -43,7 +43,7 @@ void UMassAgentCapsuleCollisionSyncTrait::BuildTemplate(FMassEntityTemplateBuild
 {
 	BuildContext.AddFragment<FCapsuleComponentWrapperFragment>();
 	BuildContext.AddFragment<FAgentRadiusFragment>();
-	if (bSyncTransform)
+	if (bSyncTransform || BuildContext.IsInspectingData())
 	{
 		BuildContext.AddFragment<FTransformFragment>();
 	}
@@ -66,14 +66,14 @@ void UMassAgentCapsuleCollisionSyncTrait::BuildTemplate(FMassEntityTemplateBuild
 			}
 		});
 
-	if (bSyncTransform)
+	if (bSyncTransform || BuildContext.IsInspectingData())
 	{
-		if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::ActorToMass))
+		if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::ActorToMass) || BuildContext.IsInspectingData())
 		{
 			BuildContext.AddTranslator<UMassCapsuleTransformToMassTranslator>();
 		}
 
-		if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::MassToActor))
+		if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::MassToActor) || BuildContext.IsInspectingData())
 		{
 			BuildContext.AddTranslator<UMassTransformToActorCapsuleTranslator>();
 		}
@@ -112,12 +112,12 @@ void UMassAgentMovementSyncTrait::BuildTemplate(FMassEntityTemplateBuildContext&
 			}
 		});
 
-	if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::ActorToMass))
+	if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::ActorToMass) || BuildContext.IsInspectingData())
 	{
 		BuildContext.AddTranslator<UMassCharacterMovementToMassTranslator>();
 	}
 
-	if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::MassToActor))
+	if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::MassToActor) || BuildContext.IsInspectingData())
 	{
 		BuildContext.AddTranslator<UMassCharacterMovementToActorTranslator>();
 	}
@@ -130,12 +130,14 @@ void UMassAgentOrientationSyncTrait::BuildTemplate(FMassEntityTemplateBuildConte
 {
 	BuildContext.RequireFragment<FCharacterMovementComponentWrapperFragment>();
 
-	if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::ActorToMass))
+	if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::ActorToMass) 
+		|| BuildContext.IsInspectingData())
 	{
 		BuildContext.AddTranslator<UMassCharacterOrientationToMassTranslator>();
 	}
 
-	if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::MassToActor))
+	if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::MassToActor)
+		|| BuildContext.IsInspectingData())
 	{
 		BuildContext.AddTranslator<UMassCharacterOrientationToActorTranslator>();
 	}
@@ -178,12 +180,14 @@ void UMassAgentFeetLocationSyncTrait::BuildTemplate(FMassEntityTemplateBuildCont
 			}
 		});
 
-	if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::ActorToMass))
+	if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::ActorToMass)
+		|| BuildContext.IsInspectingData())
 	{
 		BuildContext.AddTranslator<UMassSceneComponentLocationToMassTranslator>();
 	}
 
-	if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::MassToActor))
+	if (EnumHasAnyFlags(SyncDirection, EMassTranslationDirection::MassToActor)
+		|| BuildContext.IsInspectingData())
 	{
 		BuildContext.AddTranslator<UMassSceneComponentLocationToActorTranslator>();
 	}

@@ -8,14 +8,10 @@ VirtualShadowMapProjectionDirectional.ush:
 #include "../DeferredShadingCommon.ush"
 #include "../SceneTexturesCommon.ush"
 #include "../LightShaderParameters.ush"
-#include "../PathTracing/Utilities/PathTracingRandomSequence.ush"
 #include "../Visualization.ush"
-#include "../BlueNoise.ush"
 #include "VirtualShadowMapPageAccessCommon.ush"
 #include "VirtualShadowMapProjectionCommon.ush"
 #include "VirtualShadowMapSMRTCommon.ush"
-
-#define USE_BLUE_NOISE 1
 
 float2 ComputeDepthSlopeDirectionalUV(
 	FVirtualShadowMapProjectionShaderData ProjectionData,
@@ -176,37 +172,6 @@ bool IsBackfaceToDirectionalLight(float3 Normal, float3 LightDirection, float Li
 	return dot(Normal, LightDirection) < -SinAlpha;
 }
 
-// See http://extremelearning.com.au/unreasonable-effectiveness-of-quasirandom-sequences/
-float2 R2Sequence(int n)
-{
-	return frac(float(n) * float2(0.754877669f, 0.569840296f));
-}
-
-float4 GetRandomSample(
-	uint2 PixelPos,
-	uint TimeIndex,
-	uint SampleIndex,
-	uint MaxSampleCount)
-{
-#if USE_BLUE_NOISE
-	{
-		// Blue noise is cheaper to compute
-		int2 Offset1 = int2(R2Sequence(SampleIndex) * BlueNoise.Dimensions.xy);
-		int2 Offset2 = int2(R2Sequence(SampleIndex + MaxSampleCount) * BlueNoise.Dimensions.xy);
-		float4 RandomSample;
-		RandomSample.xy = BlueNoiseVec2(PixelPos + Offset1, TimeIndex);
-		RandomSample.zw = BlueNoiseVec2(PixelPos + Offset2, TimeIndex);
-		return RandomSample;
-	}
-#else
-	{
-		RandomSequence RandSequence;
-		RandomSequence_Initialize(RandSequence, PixelPos, SampleIndex, TimeIndex, MaxSampleCount);
-		return RandomSequence_GenerateSample4D(RandSequence);
-	}
-#endif
-}
-
 FVirtualShadowMapSampleResult TraceDirectional(
 	int VirtualShadowMapId,
 	FLightShaderParameters Light,
@@ -214,29 +179,16 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	const float SceneDepth,
 	float3 TranslatedWorldPosition,
 	float RayStartOffset,
-	uint MaxRayCount,
-	uint SamplesPerRay,
-	float RayLengthScale,
 	const float Noise,
-	bool bCullBackface,
 	float3 WorldNormal,
-	float TexelDitherScale,
-	float ExtrapolateSlope,
-	uint SMRTAdaptiveRayCount)
+	const FSMRTTraceSettings Settings = GetSMRTTraceSettingsDirectional())
 {
-
 	float3 ViewPosition = mul(float4(TranslatedWorldPosition, 1.0f), View.TranslatedWorldToView).xyz;
 	float DistanceFromViewOrigin = length(ViewPosition);
 
 	FVirtualShadowMapSampleResult Result = InitVirtualShadowMapSampleResult();
 	Result.bValid = true;	// TODO: false if all samples of all rays miss pages?
 	Result.ShadowFactor = 1.0f;
-
-	if (bCullBackface && IsBackfaceToDirectionalLight(WorldNormal, Light.Direction, Light.SourceRadius))
-	{
-		Result.ShadowFactor = 0.0f;		// Fully shadowed on backfaces
-		return Result;
-	}
 
 	// Find the best resolution mapped clipmap at the ray origin location
 	const int ClipmapId = GetMappedClipmapId(VirtualShadowMapId, TranslatedWorldPosition);
@@ -258,7 +210,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	// in some different way.
 	//
 	// 0.5 is arbitrary but makes it consistent with the previous dither scale cvar
-	float PerLightTexelDitherScale = TexelDitherScale * ProjectionData.TexelDitherScale;
+	float PerLightTexelDitherScale = Settings.TexelDitherScale * ProjectionData.TexelDitherScale;
 	float DitherScale = 0.0f;
 	if (PerLightTexelDitherScale > 0.0f)
 	{
@@ -274,7 +226,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	// and the maximum size a penumbra can be.
 	// Too high values will cause shadows to detach from their contact points (unless more samples are used).
 	// Too low values will greatly restrict how large penumbras can be in screen space.
-	float RayLength = RayLengthScale * DistanceFromViewOrigin;
+	float RayLength = VirtualShadowMap.SMRTRayLengthScale * DistanceFromViewOrigin;
 
 	// Clipmap origin should be near shaded samples, so shadow translated world should be regular range
 	float3 ViewToShadowTranslation = DFFastLocalSubtractDemote(ProjectionData.PreViewTranslation, PrimaryView.PreViewTranslation);
@@ -284,10 +236,11 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	uint i = 0;
 	float OccluderDistanceSum = 0.0f;
 	float MaxOccluderDistance = -1.0f;
+	const uint MaxRayCount = Settings.RayCount;
 	for ( ; i < MaxRayCount; i++)
 	{
 		// One sample for ray, one for texel dither
-		float4 RandSample = GetRandomSample(PixelPos, View.StateFrameIndex, i, MaxRayCount);
+		float4 RandSample = VirtualShadowMapGetRandomSample(PixelPos, View.StateFrameIndex, i, MaxRayCount);
 		float3 RayDir = GetRandomDirectionalLightRayDir(Light, RandSample.xy);
 		float2 TexelOffset = (RandSample.zw - 0.5f) * DitherScale;
 
@@ -299,8 +252,8 @@ FVirtualShadowMapSampleResult TraceDirectional(
 			RayStartOffset,
 			DepthSlopeUV,
 			TexelOffset,
-			ExtrapolateSlope);
-		FSMRTResult SMRTResult = SMRTRayCast(RayState, SamplesPerRay, Noise);
+			Settings.ExtrapolateMaxSlope);
+		FSMRTResult SMRTResult = SMRTRayCast(RayState, Settings.SamplesPerRay, Noise);
 
 		// Debug output (DCE'd if not used)
 		Result.ClipmapOrMipLevel = GetVirtualShadowMapProjectionData(RayState.SampledClipmapId).ClipmapLevel;
@@ -324,7 +277,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 		}
 
 		#if COMPUTESHADER
-		if (SMRTAdaptiveRayCount > 0)
+		if (Settings.AdaptiveRayCount > 0)
 		{
 			// TODO: Adapt this heuristic based on SMRTAdaptiveRayCount as well?
 			if( i == 0 )
@@ -338,7 +291,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 					break;
 				}
 			}
-			else if( i >= SMRTAdaptiveRayCount )
+			else if (i >= Settings.AdaptiveRayCount)
 			{
 				// After 2 iterations and all have hit, assume umbra
 				bool bAllLanesHit = WaveActiveAllTrue( RayMissCount == 0 );
@@ -386,7 +339,7 @@ bool GenerateRayDirectional(
 	// Too low values will greatly restrict how large penumbras can be in screen space.
 	float RayLength = RayLengthScale * DistanceFromViewOrigin;
 
-	float2 E = GetRandomSample(PixelPos, View.StateFrameIndex, RayIndex, RayCount).xy;
+	float2 E = VirtualShadowMapGetRandomSample(PixelPos, View.StateFrameIndex, RayIndex, RayCount).xy;
 
 	float3 RayDir = GetRandomDirectionalLightRayDir(Light, E);
 	OutRayStart = TranslatedWorldPosition;

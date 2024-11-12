@@ -82,7 +82,7 @@ namespace EpicGames.UHT.Tables
 	/// <summary>
 	/// Defines a keyword
 	/// </summary>
-	public struct UhtKeyword
+	public readonly struct UhtKeyword
 	{
 
 		/// <summary>
@@ -265,10 +265,7 @@ namespace EpicGames.UHT.Tables
 					}
 					else
 					{
-						if (tables == null)
-						{
-							tables = new List<string>();
-						}
+						tables ??= new List<string>();
 						if (info.AllowText != null)
 						{
 							tables.Add($"{keywordTable.UserName} {info.AllowText}");

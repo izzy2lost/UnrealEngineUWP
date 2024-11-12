@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+#include "Engine/DeveloperSettings.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "UObject/Package.h"
@@ -10,13 +11,43 @@
 
 #include "GameplayCamerasEditorSettings.generated.h"
 
-UCLASS(config=EditorPerProjectUserSettings)
-class GAMEPLAYCAMERASEDITOR_API UGameplayCamerasEditorSettings : public UObject
+UCLASS(Config=GameplayCameras, DefaultConfig, MinimalAPI, meta=(DisplayName="Gameplay Cameras Editor"))
+class UGameplayCamerasEditorSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 
 public:
 
 	UGameplayCamerasEditorSettings(const FObjectInitializer& ObjectInitializer);	
+
+public:
+
+	UPROPERTY(EditAnywhere, Config, Category=NodeTitleColors)
+	FLinearColor CameraNodeTitleColor;
+
+	UPROPERTY(EditAnywhere, Config, Category=NodeTitleColors)
+	FLinearColor CameraAssetTitleColor;
+
+	UPROPERTY(EditAnywhere, Config, Category=NodeTitleColors)
+	FLinearColor CameraRigAssetTitleColor;
+
+	UPROPERTY(EditAnywhere, Config, Category=NodeTitleColors)
+	FLinearColor CameraRigTransitionTitleColor;
+
+	UPROPERTY(EditAnywhere, Config, Category=NodeTitleColors)
+	FLinearColor CameraRigTransitionConditionTitleColor;
+
+	UPROPERTY(EditAnywhere, Config, Category=NodeTitleColors)
+	FLinearColor CameraBlendNodeTitleColor;
+
+public:
+
+	UPROPERTY()
+	FName LastCameraAssetToolkitModeName;
+
+protected:
+
+	// UDeveloperSettings interface.
+	virtual FName GetCategoryName() const override;
 };
 

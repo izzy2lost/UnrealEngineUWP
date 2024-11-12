@@ -67,7 +67,10 @@ enum class EGatherableFileType : uint8
 	Directory,
 	PackageFile,
 	VerseFile,
+	VerseModule,
 };
+
+bool IsVerseFile(const EGatherableFileType FileType);
 
 /** Information needed about a discovered asset file or path that is needed by the Discoverer */
 struct FDiscoveredPathData
@@ -664,7 +667,11 @@ private:
 	/** Store the given specially reported single file in the results. */
 	void AddDiscoveredFile(FDiscoveredPathData&& File);
 
-	/** For a given file path, determine the type it should be gathered as. */
+	/**
+	   For a given file path, determine the type it should be gathered as.
+	   For Verse files, this does _not_ verify the file matches Verse naming conventions, and you probably want to call
+	   `DoesPathContainInvalidCharacters` instead.
+	 */
 	static EGatherableFileType GetFileType(FStringView FilePath);
 
 	/**
@@ -858,17 +865,17 @@ public:
 	bool IsDiscoveryCacheReadEnabled() const;
 	EFeatureEnabled IsDiscoveryCacheWriteEnabled() const;
 	bool IsDiscoveryCacheInvalidateEnabled() const;
-	bool IsMonolithicCacheActivatedDuringPreload() const;
-	bool IsPreloadMonolithicCache() const;
+	bool IsPreloadCache() const;
 	bool IsGatherDependsData() const;
 	bool IsForceDependsGathering() const;
-	FString GetLegacyMonolithicCacheFilename() const;
-	const FString& GetMonolithicCacheBaseFilename() const;
+	FString GetLegacyCacheFilename() const;
+	FString GetLegacyNonMonolithicCacheDirectory() const;
+	const FString& GetCacheBaseFilename() const;
 	const FString& GetAssetRegistryCacheRootFolder() const;
-	TArray<FString> FindShardedMonolithicCacheFiles() const;
+	TArray<FString> FindShardedCacheFiles() const;
 
 private:
-	FString MonolithicCacheBaseFilename;
+	FString CacheBaseFilename;
 	FString AssetRegistryCacheRootFolder;
 	bool bForceDependsGathering = false;
 	bool bGatherDependsData = false;
@@ -877,9 +884,12 @@ private:
 	bool bDiscoveryCacheReadEnabled = false;
 	EFeatureEnabled DiscoveryCacheWriteEnabled = EFeatureEnabled::Never;
 	bool bDiscoveryCacheInvalidateEnabled = false;
-	bool bMonolithicCacheActivatedDuringPreload = false;
+	bool bPreloadCache = false;
 	bool bInitialized = false;
 };
 extern FPreloadSettings GPreloadSettings;
+
+/** Checks if the given path, for a given file type, matches the naming conventions for said type. */
+bool DoesPathContainInvalidCharacters(const EGatherableFileType FileType, FStringView FilePath);
 
 } // namespace UE::AssetDataGather::Private

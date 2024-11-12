@@ -202,7 +202,7 @@ FNiagaraGraphEditorSummoner::FNiagaraGraphEditorSummoner(TSharedPtr<class FNiaga
 , EditorPtr(InToolkit)
 , OnCreateGraphEditorWidget(CreateGraphEditorWidgetCallback)
 {
-
+	
 }
 
 TSharedRef<SWidget> FNiagaraGraphEditorSummoner::CreateTabBodyForObject(const FWorkflowTabSpawnInfo& Info, UEdGraph* DocumentID) const

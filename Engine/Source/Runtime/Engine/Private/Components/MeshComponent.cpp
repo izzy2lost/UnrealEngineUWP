@@ -449,6 +449,11 @@ void UMeshComponent::SetScalarParameterValueOnMaterials(const FName ParameterNam
 
 void UMeshComponent::SetVectorParameterValueOnMaterials(const FName ParameterName, const FVector ParameterValue)
 {
+	SetColorParameterValueOnMaterials(ParameterName, FLinearColor(ParameterValue));
+}
+
+void UMeshComponent::SetColorParameterValueOnMaterials(const FName ParameterName, const FLinearColor ParameterValue)
+{
 	if (!bEnableMaterialParameterCaching)
 	{
 		const TArray<UMaterialInterface*> MaterialInterfaces = GetMaterials();
@@ -595,6 +600,29 @@ void UMeshComponent::GetStreamingTextureInfoInner(FStreamingTextureLevelContext&
 		if (GetMaterialStreamingData(MaterialIndex, MaterialData))
 		{
 			LevelContext.ProcessMaterial(Bounds, MaterialData, ComponentScaling, OutStreamingTextures, bIsValidTextureStreamingBuiltData, this);
+		}
+	}
+}
+
+FColor UMeshComponent::GetWireframeColorForSceneProxy() const
+{
+	if (Mobility == EComponentMobility::Static)
+	{
+		return FColor(0, 255, 255, 255);
+	}
+	else if (Mobility == EComponentMobility::Stationary)
+	{
+		return FColor(128, 128, 255, 255);
+	}
+	else // Movable
+	{
+		if (BodyInstance.bSimulatePhysics)
+		{
+			return FColor(0, 255, 128, 255);
+		}
+		else
+		{
+			return FColor(255, 0, 255, 255);
 		}
 	}
 }

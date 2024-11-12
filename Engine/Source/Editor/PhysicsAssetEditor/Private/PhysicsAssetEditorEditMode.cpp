@@ -10,6 +10,7 @@
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
 #include "PhysicsEngine/PhysicsSettings.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 #include "Preferences/PhysicsAssetEditorOptions.h"
 #include "IPersonaPreviewScene.h"
 #include "PhysicsAssetEditor.h"
@@ -121,13 +122,42 @@ void FPhysicsAssetEditorEditMode::GetOnScreenDebugInfo(TArray<FText>& OutDebugIn
 bool FPhysicsAssetEditorEditMode::StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
 {
 	const EAxisList::Type CurrentAxis = InViewportClient->GetCurrentWidgetAxis();
-	if(!SharedData->bRunningSimulation && !SharedData->bManipulating && CurrentAxis != EAxisList::None)
+	if (CurrentAxis == EAxisList::None)
 	{
-		if(SharedData->GetSelectedBody() || SharedData->GetSelectedConstraint())
+		return false; // not manipulating a required axis
+	}
+		
+	return HandleBeginTransform();
+}
+
+bool FPhysicsAssetEditorEditMode::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
+{
+	return HandleEndTransform(InViewportClient);
+}
+
+bool FPhysicsAssetEditorEditMode::BeginTransform(const FGizmoState& InState)
+{
+	return HandleBeginTransform();
+}
+
+bool FPhysicsAssetEditorEditMode::EndTransform(const FGizmoState& InState)
+{
+	return HandleEndTransform(Owner->GetFocusedViewportClient());
+}
+
+bool FPhysicsAssetEditorEditMode::HandleBeginTransform()
+{
+	if (!SharedData->bRunningSimulation && !SharedData->bManipulating)
+	{
+		if(SharedData->GetSelectedBody() || SharedData->GetSelectedConstraint() || SharedData->GetSelectedCoM())
 		{
 			if(SharedData->GetSelectedBody())
 			{
 				GEditor->BeginTransaction(NSLOCTEXT("UnrealEd", "MoveElement", "Move Element"));
+			}
+			else if (SharedData->GetSelectedCoM())
+			{
+				GEditor->BeginTransaction(NSLOCTEXT("UnrealEd", "MoveCoM", "Move Center of Mass"));
 			}
 			else
 			{
@@ -141,6 +171,20 @@ bool FPhysicsAssetEditorEditMode::StartTracking(FEditorViewportClient* InViewpor
 			{
 				SharedData->PhysicsAsset->SkeletalBodySetups[SharedData->SelectedBodies[i].Index]->Modify();
 				SharedData->SelectedBodies[i].ManipulateTM = FTransform::Identity;
+				SharedData->SelectedBodies[i].CoMPosition = SharedData->EditorSkelComp->Bodies[SharedData->SelectedBodies[i].Index]->GetCOMPosition();
+			}
+
+			SharedData->bManipulating = true;
+		}
+	
+		if (SharedData->GetSelectedCoM())
+		{
+			for (int32 i = 0; i < SharedData->SelectedCoMs.Num(); ++i)
+			{
+				const int32 BodyIndex = SharedData->SelectedCoMs[i].Index;
+				SharedData->PhysicsAsset->SkeletalBodySetups[BodyIndex]->Modify();
+				SharedData->SelectedCoMs[i].ManipulateTM = FTransform::Identity;
+				SharedData->SelectedCoMs[i].CoMPosition = SharedData->EditorSkelComp->Bodies[BodyIndex]->GetCOMPosition();
 			}
 
 			SharedData->bManipulating = true;
@@ -175,7 +219,7 @@ bool FPhysicsAssetEditorEditMode::StartTracking(FEditorViewportClient* InViewpor
 	return SharedData->bManipulating;
 }
 
-bool FPhysicsAssetEditorEditMode::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
+bool FPhysicsAssetEditorEditMode::HandleEndTransform(FEditorViewportClient* InViewportClient) const
 {
 	if (SharedData->bManipulating)
 	{
@@ -188,7 +232,6 @@ bool FPhysicsAssetEditorEditMode::EndTracking(FEditorViewportClient* InViewportC
 
 			FKAggregateGeom* AggGeom = &BodySetup->AggGeom;
 
-
 			if (SelectedObject.PrimitiveType == EAggCollisionShape::Convex)
 			{
 				FKConvexElem& Convex = AggGeom->ConvexElems[SelectedObject.PrimitiveIndex];
@@ -199,9 +242,15 @@ bool FPhysicsAssetEditorEditMode::EndTracking(FEditorViewportClient* InViewportC
 			}
 		}
 
+		SharedData->bShouldUpdatedSelectedCoMs = true;
+
 		GEditor->EndTransaction();
 		SharedData->RefreshPhysicsAssetChange(SharedData->PhysicsAsset, false);
-		InViewport->Invalidate();
+
+		if (InViewportClient)
+		{
+			InViewportClient->Invalidate();
+		}
 
 		return true;
 	}
@@ -486,8 +535,40 @@ bool FPhysicsAssetEditorEditMode::InputDelta(FEditorViewportClient* InViewportCl
 				}
 			}
 		}
-	}
+
+		for (int32 i = 0; i < SharedData->SelectedCoMs.Num(); ++i)
+		{
+			FPhysicsAssetEditorSharedData::FSelection& SelectedObject = SharedData->SelectedCoMs[i];
+			if (SharedData->bManipulating)
+			{
+				const int32 BodyIndex = SelectedObject.Index;
+				const int32 BoneIndex = SharedData->EditorSkelComp->GetBoneIndex(SharedData->PhysicsAsset->SkeletalBodySetups[BodyIndex]->BoneName);
+				FTransform BoneTM = SharedData->EditorSkelComp->GetBoneTransform(BoneIndex);
+				const float BoneScale = BoneTM.GetScale3D().GetAbsMax();
+				BoneTM.RemoveScaling();
+
+				SelectedObject.WidgetTM.SetRotation(BoneTM.GetRotation());
+				SelectedObject.WidgetTM.SetTranslation(SelectedObject.CoMPosition);
 	
+				if (InViewportClient->GetWidgetMode() == UE::Widget::WM_Translate)
+				{
+					FVector DragToUse = GetLocalTranslation(InViewportClient, InDrag, SelectedObject.WidgetTM);
+					FVector Dir = DragToUse.GetSafeNormal();
+					FVector DragVec = Dir * DragToUse.Size() / BoneScale;
+
+					SelectedObject.CoMPosition += DragVec; // Use widget movement to update selected objects target worldspace location, then calculate the correct CoM nudge to position the world space CoM at this location when manipulation ends.
+
+					// Update CoM nudge value in body instance to ensure the values in the details panel update as the manipulator is moved in the viewport.
+					const FVector CalculatedCoMOffset = CalculateCoMNudgeForWorldSpacePosition(BodyIndex, SelectedObject.CoMPosition);
+					SharedData->EditorSkelComp->Bodies[BodyIndex]->COMNudge = CalculatedCoMOffset;
+					SharedData->PhysicsAsset->SkeletalBodySetups[BodyIndex]->DefaultInstance.COMNudge = CalculatedCoMOffset;
+				}
+			}
+
+			bHandled = true;
+		}
+	}
+
 	return bHandled;
 }
 
@@ -538,6 +619,8 @@ void FPhysicsAssetEditorEditMode::Tick(FEditorViewportClient* ViewportClient, fl
 			EnumRemoveFlags(RenderSettings->ConstraintViewportManipulationFlags, EConstraintTransformComponentFlags::AllChild); // Remove Child Frame flags.
 		}	
 	}
+
+	UpdateCoM();
 }
 
 void FPhysicsAssetEditorEditMode::Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI)
@@ -613,27 +696,35 @@ void FPhysicsAssetEditorEditMode::DrawHUD(FEditorViewportClient* ViewportClient,
 	int32 HalfY = Viewport->GetSizeXY().Y / 2;
 
 	// If showing center-of-mass, and physics is started up..
-	if (SharedData->GetShowCom())
+	if (FPhysicsAssetRenderSettings* const RenderSettings = UPhysicsAssetRenderUtilities::GetSettings(SharedData->PhysicsAsset))
 	{
-		// iterate over each bone
-		for (int32 i = 0; i <SharedData->EditorSkelComp->Bodies.Num(); ++i)
+		if (RenderSettings && !RenderSettings->bHideBodyMass && (RenderSettings->CenterOfMassViewMode != EPhysicsAssetEditorCenterOfMassViewMode::None))
 		{
-			FBodyInstance* BodyInst = SharedData->EditorSkelComp->Bodies[i];
-			check(BodyInst);
-
-			FVector BodyCOMPos = BodyInst->GetCOMPosition();
-			float BodyMass = BodyInst->GetBodyMass();
-
-			FPlane Projection = View->Project(BodyCOMPos);
-			if (Projection.W > 0.f) // This avoids drawing bone names that are behind us.
+			const bool bDrawSelectedOnly = RenderSettings->CenterOfMassViewMode == EPhysicsAssetEditorCenterOfMassViewMode::Selected;
+			
+			// iterate over each body
+			for (int32 BodyIndex = 0, BodyCount = SharedData->EditorSkelComp->Bodies.Num(); BodyIndex < BodyCount; ++BodyIndex)
 			{
-				int32 XPos = HalfX + (HalfX * Projection.X);
-				int32 YPos = HalfY + (HalfY * (Projection.Y * -1));
+				if (!bDrawSelectedOnly || SharedData->IsBodySelected(BodyIndex))
+				{
+					FBodyInstance* BodyInst = SharedData->EditorSkelComp->Bodies[BodyIndex];
+					check(BodyInst);
 
-				FString COMString = FString::Printf(TEXT("%3.3f"), BodyMass);
-				TextItem.Text = FText::FromString(COMString);
-				TextItem.SetColor(SharedData->COMRenderColor);
-				Canvas->DrawItem(TextItem, XPos, YPos);
+					FVector BodyCOMPos = SharedData->GetCOMRenderPosition(BodyIndex);
+					float BodyMass = BodyInst->GetBodyMass();
+
+					FPlane Projection = View->Project(BodyCOMPos);
+					if (Projection.W > 0.f) // This avoids drawing bone names that are behind us.
+					{
+						const int32 XPos = HalfX + (HalfX * Projection.X) + RenderSettings->COMRenderMassTextOffsetScreenspace;
+						const int32 YPos = HalfY + (HalfY * (Projection.Y * -1)) + RenderSettings->COMRenderMassTextOffsetScreenspace;
+
+						FString COMString = FString::Printf(TEXT("%3.3f"), BodyMass);
+						TextItem.Text = FText::FromString(COMString);
+						TextItem.SetColor(SharedData->COMRenderColor);
+						Canvas->DrawItem(TextItem, XPos, YPos);
+					}
+				}
 			}
 		}
 	}
@@ -646,7 +737,7 @@ bool FPhysicsAssetEditorEditMode::AllowWidgetMove()
 
 bool FPhysicsAssetEditorEditMode::ShouldDrawWidget() const
 {
-	return !SharedData->bRunningSimulation && (SharedData->GetSelectedBody() || SharedData->GetSelectedConstraint());
+	return !SharedData->bRunningSimulation && (SharedData->GetSelectedBody() || SharedData->GetSelectedConstraint() || SharedData->GetSelectedCoM());
 }
 
 bool FPhysicsAssetEditorEditMode::UsesTransformWidget() const
@@ -657,6 +748,11 @@ bool FPhysicsAssetEditorEditMode::UsesTransformWidget() const
 bool FPhysicsAssetEditorEditMode::UsesTransformWidget(UE::Widget::EWidgetMode CheckMode) const
 {
 	if (SharedData->GetSelectedConstraint() && CheckMode == UE::Widget::WM_Scale)
+	{
+		return false;
+	}
+
+	if (SharedData->GetSelectedCoM() && (CheckMode != UE::Widget::WM_Translate))
 	{
 		return false;
 	}
@@ -694,6 +790,18 @@ bool FPhysicsAssetEditorEditMode::GetCustomDrawingCoordinateSystem(FMatrix& InMa
 			return true;
 		}
 	}
+	else if (SharedData->GetSelectedCoM())
+	{
+		const int32 BoneIndex = SharedData->EditorSkelComp->GetBoneIndex(SharedData->PhysicsAsset->SkeletalBodySetups[SharedData->GetSelectedCoM()->Index]->BoneName);
+		if (BoneIndex != INDEX_NONE)
+		{
+			FTransform SelectedCoMTM = SharedData->EditorSkelComp->GetBoneTransform(BoneIndex);
+			SelectedCoMTM.RemoveScaling();
+
+			InMatrix = SelectedCoMTM.ToMatrixNoScale().RemoveTranslation();
+			return true;
+		}
+	}
 	else if (SharedData->GetSelectedConstraint())
 	{
 		InMatrix = SharedData->GetConstraintMatrix(SharedData->GetSelectedConstraint()->Index, GetConstraintFrameForWidget(), 1.f).ToMatrixNoScale().RemoveTranslation();
@@ -723,6 +831,18 @@ FVector FPhysicsAssetEditorEditMode::GetWidgetLocation() const
 			return SharedData->EditorSkelComp->GetPrimitiveTransform(BoneTM, SharedData->GetSelectedBody()->Index, SharedData->GetSelectedBody()->PrimitiveType, SharedData->GetSelectedBody()->PrimitiveIndex, Scale).GetTranslation();
 		}
 	}
+	else if (SharedData->GetSelectedCoM())
+	{
+		if (SharedData->bManipulating)
+		{
+			// return the CoM position from the FSelection object because the physics body's CoM position will only be updated at the end of manipulation.
+			return SharedData->GetSelectedCoM()->CoMPosition;
+		}
+		else
+		{
+			return SharedData->EditorSkelComp->Bodies[SharedData->GetSelectedCoM()->Index]->GetCOMPosition();
+		}
+	}
 	else if (SharedData->GetSelectedConstraint())
 	{
 		return SharedData->GetConstraintMatrix(SharedData->GetSelectedConstraint()->Index, GetConstraintFrameForWidget(), 1.f).GetTranslation();
@@ -749,6 +869,13 @@ bool FPhysicsAssetEditorEditMode::HandleClick(FEditorViewportClient* InViewportC
 				HPhysicsAssetEditorEdConstraintProxy* ConstraintProxy = (HPhysicsAssetEditorEdConstraintProxy*)HitProxy;
 
 				SharedData->HitConstraint(ConstraintProxy->ConstraintIndex, InViewportClient->IsCtrlPressed() || InViewportClient->IsShiftPressed());
+				return true;
+			}
+			else if (HitProxy && HitProxy->IsA(HPhysicsAssetEditorEdCoMProxy::StaticGetType()))
+			{
+				HPhysicsAssetEditorEdCoMProxy* CoMProxy = (HPhysicsAssetEditorEdCoMProxy*)HitProxy;
+
+				SharedData->HitCoM(CoMProxy->BodyIndex, InViewportClient->IsCtrlPressed() || InViewportClient->IsShiftPressed());
 				return true;
 			}
 			else
@@ -1095,6 +1222,69 @@ void FPhysicsAssetEditorEditMode::HitNothing(FEditorViewportClient* InViewportCl
 
 	InViewportClient->Invalidate();
 	PhysicsAssetEditorPtr.Pin()->RefreshHierachyTree();
+}
+
+void FPhysicsAssetEditorEditMode::UpdateCoM()
+{
+	if (SharedData->bShouldUpdatedSelectedCoMs) // < This calculation must be delayed by a frame s.t. changes to the physics state have been propagated to the physics bodies.
+	{
+		TSet<int32> EncounteredBodyIndexs;
+
+		for (int32 i = 0; i < SharedData->SelectedBodies.Num(); ++i)
+		{
+			FPhysicsAssetEditorSharedData::FSelection& SelectedObject = SharedData->SelectedBodies[i];
+			const int32 BodyIndex = SelectedObject.Index;
+			FBodyInstance* const EditorBodyInstance = SharedData->EditorSkelComp->Bodies[BodyIndex];
+
+			if (SharedData->IsCoMAxisFixedInComponentSpace(BodyIndex, EAxis::X) || SharedData->IsCoMAxisFixedInComponentSpace(BodyIndex, EAxis::Y) || SharedData->IsCoMAxisFixedInComponentSpace(BodyIndex, EAxis::Z))
+			{
+				if (!EncounteredBodyIndexs.Contains(BodyIndex)) // Ensure we only update the CoM of each physics body once (SelectedBodies actually contains a list of selected primitives).
+				{
+					EncounteredBodyIndexs.Add(BodyIndex);
+
+					const FVector CoMOffset = EditorBodyInstance->COMNudge;
+
+					FVector	CalculatedCoMOffset = CalculateCoMNudgeForWorldSpacePosition(BodyIndex, SelectedObject.CoMPosition);
+
+					// Only apply lock to the specified Axis in bone space.
+					if (!SharedData->IsCoMAxisFixedInComponentSpace(BodyIndex, EAxis::X)) { CalculatedCoMOffset.X = CoMOffset.X; }
+					if (!SharedData->IsCoMAxisFixedInComponentSpace(BodyIndex, EAxis::Y)) { CalculatedCoMOffset.Y = CoMOffset.Y; }
+					if (!SharedData->IsCoMAxisFixedInComponentSpace(BodyIndex, EAxis::Z)) { CalculatedCoMOffset.Z = CoMOffset.Z; }
+
+					SharedData->PhysicsAsset->SkeletalBodySetups[BodyIndex]->DefaultInstance.COMNudge = CalculatedCoMOffset;
+				}
+			}
+		}
+
+		for (int32 i = 0; i < SharedData->SelectedCoMs.Num(); ++i)
+		{
+			FPhysicsAssetEditorSharedData::FSelection& SelectedObject = SharedData->SelectedCoMs[i];
+			const FVector CalculatedCoMOffset = CalculateCoMNudgeForWorldSpacePosition(SelectedObject.Index, SelectedObject.CoMPosition);
+			SharedData->PhysicsAsset->SkeletalBodySetups[SelectedObject.Index]->DefaultInstance.COMNudge = CalculatedCoMOffset;
+		}
+
+		SharedData->RefreshPhysicsAssetChange(SharedData->PhysicsAsset, false);
+
+		SharedData->bShouldUpdatedSelectedCoMs = false;
+	}
+}
+
+FVector FPhysicsAssetEditorEditMode::CalculateCoMNudgeForWorldSpacePosition(const int32 BodyIndex, const FVector& CoMPositionWorldSpace) const
+{
+	FVector	CalculatedCoMOffset = FVector::ZeroVector;
+
+	if (SharedData->EditorSkelComp->Bodies.IsValidIndex(BodyIndex))
+	{
+		if (FBodyInstance* const EditorBodyInstance = SharedData->EditorSkelComp->Bodies[BodyIndex])
+		{
+			const int32 BoneIndex = SharedData->EditorSkelComp->GetBoneIndex(SharedData->PhysicsAsset->SkeletalBodySetups[BodyIndex]->BoneName);
+			const FTransform BoneTM = SharedData->EditorSkelComp->GetBoneTransform(BoneIndex);
+			const FVector CoMWithoutNudge = EditorBodyInstance->GetMassSpaceLocal().GetTranslation() - EditorBodyInstance->COMNudge;
+			CalculatedCoMOffset = BoneTM.InverseTransformPosition(CoMPositionWorldSpace) - CoMWithoutNudge;
+		}
+	}
+
+	return CalculatedCoMOffset;
 }
 
 #undef LOCTEXT_NAMESPACE

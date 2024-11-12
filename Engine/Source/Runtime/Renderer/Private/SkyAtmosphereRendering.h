@@ -96,12 +96,13 @@ struct FSkyAtmosphereRenderContext
 	FViewMatrices* ViewMatrices;			// The actual view matrices we use to render the sky
 	TUniformBufferRef<FViewUniformShaderParameters> ViewUniformBuffer;
 	TRDGUniformBufferRef<FSceneUniformParameters> SceneUniformBuffer;
+	bool bSceneHasSkyMaterial;
 
 	FRenderTargetBindingSlots RenderTargets;
 
 	FIntRect Viewport;
 
-	bool bLightDiskEnabled;
+	bool bIsReflectionCapture;
 	bool bRenderSkyPixel;
 	float AerialPerspectiveStartDepthInCm;
 	float NearClippingDistance;
@@ -144,7 +145,12 @@ public:
 	const TUniformBufferRef<FAtmosphereUniformShaderParameters>& GetAtmosphereUniformBuffer() { return AtmosphereUniformBuffer; }
 	TRefCountPtr<IPooledRenderTarget>& GetTransmittanceLutTexture() { return TransmittanceLutTexture; }
 	TRefCountPtr<IPooledRenderTarget>& GetMultiScatteredLuminanceLutTexture() { return MultiScatteredLuminanceLutTexture; }
-	TRefCountPtr<IPooledRenderTarget>& GetDistantSkyLightLutTexture();
+
+	void CreateDistantSkyLightLutBufferAndSRV(FRDGBuilder& GraphBuilder);
+	TRefCountPtr<FRDGPooledBuffer>& GetDistantSkyLightLutBuffer();
+	TRefCountPtr<FRDGPooledBuffer>& GetMobileDistantSkyLightLutBuffer();
+	FRHIShaderResourceView* GetDistantSkyLightLutBufferSRV();
+	FRHIShaderResourceView* GetMobileDistantSkyLightLutBufferSRV();
 
 	FRDGTextureRef GetTransmittanceLutTexture(FRDGBuilder& GraphBuilder) const { return GraphBuilder.RegisterExternalTexture(TransmittanceLutTexture); }
 
@@ -165,7 +171,10 @@ private:
 
 	TRefCountPtr<IPooledRenderTarget> TransmittanceLutTexture;
 	TRefCountPtr<IPooledRenderTarget> MultiScatteredLuminanceLutTexture;
-	TRefCountPtr<IPooledRenderTarget> DistantSkyLightLutTexture;
+	TRefCountPtr<FRDGPooledBuffer> DistantSkyLightLutBuffer;
+	FRHIShaderResourceView* DistantSkyLightLutBufferSRV = nullptr;
+	TRefCountPtr<FRDGPooledBuffer> MobileDistantSkyLightLutBuffer;
+	FRHIShaderResourceView* MobileDistantSkyLightLutBufferSRV = nullptr;
 };
 
 /** Pending RDG resource to commit after the pre-pass / nanite rasterization so that RenderSkyAtmosphereLookUpTables() can overlap them on async compute. */
@@ -185,7 +194,8 @@ private:
 	FSceneRenderer* SceneRenderer = nullptr;
 	TArray<FViewRDGResources, TInlineAllocator<4>> ViewResources;
 
-	FRDGTextureRef DistantSkyLightLut = nullptr;
+	FRDGBufferRef DistantSkyLightLutBuffer = nullptr;
+	FRDGBufferRef MobileDistantSkyLightLutBuffer = nullptr;
 	FRDGTextureRef RealTimeReflectionCaptureSkyAtmosphereViewLutTexture = nullptr;
 	FRDGTextureRef RealTimeReflectionCaptureCamera360APLutTexture = nullptr;
 	FRDGTextureRef TransmittanceLut = nullptr;
@@ -211,7 +221,7 @@ extern ESkyAtmospherePassLocation GetSkyAtmospherePassLocation();
 
 bool ShouldRenderSkyAtmosphere(const FScene* Scene, const FEngineShowFlags& EngineShowFlags);
 
-void InitSkyAtmosphereForScene(FRHICommandListImmediate& RHICmdList, FScene* Scene);
+void InitSkyAtmosphereForScene(FRHICommandListImmediate& RHICmdList, FRDGBuilder& GraphBuilder, FScene* Scene);
 void InitSkyAtmosphereForView(FRHICommandListImmediate& RHICmdList, const FScene* Scene, FViewInfo& View);
 
 extern void SetupSkyAtmosphereViewSharedUniformShaderParameters(const class FViewInfo& View, const FSkyAtmosphereSceneProxy& SkyAtmosphereProxy, FSkyAtmosphereViewSharedUniformShaderParameters& OutParameters);

@@ -433,14 +433,21 @@ private:
 		// We have to make a temporary filename if given a null filename
 		if (InFilename)
 		{
-			File->Filename = UTF8_TO_TCHAR(InFilename);
+			new (&File->Filename) FString(UTF8_TO_TCHAR(InFilename));
 		}
 		else
 		{
 			static const FString TmpPath = FPaths::ProjectIntermediateDir() / TEXT("SQLite");
 			PlatformFile.CreateDirectory(*TmpPath);
-			File->Filename = FPaths::CreateTempFilename(*TmpPath);
+			new (&File->Filename) FString(FPaths::CreateTempFilename(*TmpPath));
 		}
+
+		auto ReturnIOError = [&File]()
+		{
+			File->Filename.~FString();
+
+			return SQLITE_IOERR;
+		};
 
 		// Does the file already exist? If so "exclusive" should fail. If not, anything that doesn't specify "create" should fail
 		const bool bFileExists = PlatformFile.FileExists(*File->Filename);
@@ -448,12 +455,13 @@ private:
 		{
 			if (InFlags & SQLITE_OPEN_EXCLUSIVE)
 			{
-				return SQLITE_IOERR;
+				return ReturnIOError();
 			}
 		}
 		else if (!(InFlags & SQLITE_OPEN_CREATE))
 		{
-			return SQLITE_IOERR;
+
+			return ReturnIOError();
 		}
 
 		// Stat the file to fetch its write-ability.
@@ -487,7 +495,7 @@ private:
 		}
 		else
 		{
-			return SQLITE_IOERR;
+			return ReturnIOError();
 		}
 
 		// Opened the file - fill in the rest of the data
@@ -528,6 +536,8 @@ private:
 			PlatformFile.DeleteFile(*File->Filename);
 		}
 
+		File->Filename.~FString();
+
 		return SQLITE_OK;
 	}
 
@@ -539,6 +549,12 @@ private:
 
 		// Zero the buffer first in-case of a short read
 		FMemory::Memzero(OutBuffer, InReadAmountBytes);
+
+		//Seek() returns differently on different platform when offset is out of bound, so check it ahead
+		int64 iFileSize = File->FileHandle->Size();
+		if (InReadOffsetBytes >= iFileSize) {
+			return SQLITE_IOERR_SHORT_READ;
+		}
 
 		if (!File->FileHandle->Seek(InReadOffsetBytes))
 		{

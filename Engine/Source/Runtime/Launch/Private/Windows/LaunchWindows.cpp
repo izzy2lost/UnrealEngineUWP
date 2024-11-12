@@ -22,7 +22,12 @@ DEFINE_LOG_CATEGORY_STATIC(LogASan, Log, All);
 
 static void ASanErrorCallback(const char* ErrorStr)
 {
-	UE_LOG(LogASan, Fatal, TEXT("ASan Error: %s"), ANSI_TO_TCHAR(ErrorStr));
+	if (GIsCriticalError)
+	{
+		UE_LOG(LogASan, Warning, TEXT("Critical error raised prior to ASan error; engine memory may be unstable in this state!"));
+	}
+	/* Marking the end of sanitizer report for Gauntlet. */
+	UE_LOG(LogASan, Fatal, TEXT("ASan Error: %s\nEnd of Address Sanitizer report"), ANSI_TO_TCHAR(ErrorStr));
 }
 
 #endif
@@ -47,7 +52,7 @@ extern "C" { _declspec(dllexport) uint32 AmdPowerXpressRequestHighPerformance = 
 // versions of Windows will transparently load default OS-provided D3D12 library.
 #define USE_D3D12_REDIST (PLATFORM_DESKTOP && PLATFORM_CPU_X86_FAMILY && PLATFORM_64BITS && 1)
 #if USE_D3D12_REDIST
-extern "C" { _declspec(dllexport) extern const UINT D3D12SDKVersion = 611; } // D3D12_SDK_VERSION
+extern "C" { _declspec(dllexport) extern const UINT D3D12SDKVersion = 614; } // D3D12_SDK_VERSION
 extern "C" { _declspec(dllexport) extern const char* D3D12SDKPath = ".\\D3D12\\"; }
 #endif // USE_D3D12_REDIST
 
@@ -211,6 +216,20 @@ LAUNCH_API int32 LaunchWindowsStartup( HINSTANCE hInInstance, HINSTANCE hPrevIns
 	if ( FParse::Param( CmdLine,TEXT("crashreports") ) )
 	{
 		GAlwaysReportCrash = true;
+	}
+
+	uint32 LogicalCoreAffinity = 0;
+	uint32 PhysicalCoreAffinity = 0;
+	FParse::Value(CmdLine, TEXT("-processaffinity="), LogicalCoreAffinity);
+	FParse::Value(CmdLine, TEXT("-processaffinityphysical="), PhysicalCoreAffinity);
+
+	if (LogicalCoreAffinity > 0)
+	{
+		FWindowsPlatformProcess::SetProcessAffinity(LogicalCoreAffinity, false);
+	}
+	else if (PhysicalCoreAffinity > 0)
+	{
+		FWindowsPlatformProcess::SetProcessAffinity(PhysicalCoreAffinity, true);
 	}
 
 	bool bNoExceptionHandler = FParse::Param(CmdLine,TEXT("noexceptionhandler"));

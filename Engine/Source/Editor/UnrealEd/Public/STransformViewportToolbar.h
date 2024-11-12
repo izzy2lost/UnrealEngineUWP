@@ -87,10 +87,7 @@ private:
 	FOnCamSpeedScalarChanged OnCamSpeedScalarChanged;
 
 	/** Grid snap label callbacks */
-	FText GetLocationGridLabel() const;
-	FText GetRotationGridLabel() const;
 	FText GetLayer2DLabel() const;
-	FText GetScaleGridLabel() const;
 
 	/** GridSnap menu construction callbacks */
 	TSharedRef<SWidget> FillLocationGridSnapMenu();
@@ -113,10 +110,6 @@ private:
 	/** Callbacks for preserving non-uniform scaling when snapping */
 	static void TogglePreserveNonUniformScale();
 	static bool IsPreserveNonUniformScaleChecked();
-	
-	/** Methods to build more complex duel lists */
-	TSharedRef<SWidget> BuildLocationGridCheckBoxList(FName InExtentionHook, const FText& InHeading, const TArray<float>& InGridSizes) const;
-	TSharedRef<SWidget> BuildRotationGridCheckBoxList(FName InExtentionHook, const FText& InHeading, const TArray<float>& InGridSizes, ERotationGridMode InGridMode) const;
 
 	/** Make the surface snapping toolbar checkbox button */
 	TSharedRef< SWidget > MakeSurfaceSnappingButton();

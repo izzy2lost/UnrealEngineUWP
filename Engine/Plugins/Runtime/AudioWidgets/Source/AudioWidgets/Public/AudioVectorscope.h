@@ -23,11 +23,12 @@ namespace AudioWidgets
 			const float InTimeWindowMs, 
 			const float InMaxTimeWindowMs, 
 			const float InAnalysisPeriodMs, 
-			const EAudioPanelLayoutType InPanelLayoutType);
+			const EAudioPanelLayoutType InPanelLayoutType,
+			const FAudioVectorscopePanelStyle* PanelStyle = nullptr);
 
 		void CreateAudioBus(const uint32 InNumChannels);
 		void CreateDataProvider(Audio::FDeviceId InAudioDeviceId, const float InTimeWindowMs, const float InMaxTimeWindowMs, const float InAnalysisPeriodMs);
-		void CreateVectorscopeWidget(const EAudioPanelLayoutType InPanelLayoutType);
+		void CreateVectorscopeWidget(const EAudioPanelLayoutType InPanelLayoutType, const FAudioVectorscopePanelStyle* PanelStyle = nullptr);
 
 		void StartProcessing();
 		void StopProcessing();

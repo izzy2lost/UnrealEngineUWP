@@ -53,6 +53,8 @@ public:
 		FString APIServerET;
 		/** ET API Endpoint - This is the API endpoint for the provider. */
 		FString APIEndpointET;
+		/** ET API UnixSocketPath - This is the UnixSocketPath to use as the target for the API endpoint for the provider. */
+		FString APIUnixSocketPathET;
 		/** ET Alt API Servers - Base URLs to send events on retry. */
 		TArray<FString> AltAPIServersET;
 		/** 
@@ -100,6 +102,8 @@ public:
 		static FString GetKeyNameForAPIServer() { return TEXT("APIServerET"); }
 		/** KeyName required for APIEndpoint configuration. */
 		static FString GetKeyNameForAPIEndpoint() { return TEXT("APIEndpointET"); }
+		/** KeyName required for APIEndpoint configuration. */
+		static FString GetKeyNameForAPIUnixSocketPath() { return TEXT("APIUnixSocketPathET"); }
 		/** KeyName required for AppVersion configuration. */
 		static FString GetKeyNameForAppVersion() { return TEXT("AppVersionET"); }
 		/** Optional parameter to use the legacy backend protocol. */

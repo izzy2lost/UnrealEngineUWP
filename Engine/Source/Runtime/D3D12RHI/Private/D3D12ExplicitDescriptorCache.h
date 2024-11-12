@@ -2,11 +2,12 @@
 
 #pragma once
 
-#include "D3D12RHIPrivate.h"
+#include "D3D12RHICommon.h"
 #include "Experimental/Containers/SherwoodHashTable.h"
 
 class FD3D12DynamicRHI;
 struct FD3D12DefaultViews;
+class FD3D12CommandContext;
 class FD3D12DescriptorCache;
 struct FD3D12VertexBufferCache;
 struct FD3D12IndexBufferCache;
@@ -26,12 +27,15 @@ public:
 
 	UE_NONCOPYABLE(FD3D12ExplicitDescriptorHeapCache)
 
-	struct Entry
+	struct FEntry
 	{
 		ID3D12DescriptorHeap* Heap = nullptr;
-		uint64 FenceValue = 0;
 		uint32 NumDescriptors = 0;
 		D3D12_DESCRIPTOR_HEAP_TYPE Type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
+
+		// Information for stale entry release, updated upon adding the entry to the free list
+		uint64 LastUsedFrame = 0;
+		double LastUsedTime = 0.0;
 	};
 
 	FD3D12ExplicitDescriptorHeapCache(FD3D12Device* Device)
@@ -41,17 +45,21 @@ public:
 
 	~FD3D12ExplicitDescriptorHeapCache();
 
-	void ReleaseHeap(Entry& Entry);
+	FEntry AllocateHeap(D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32 NumDescriptors);
+	void DeferredReleaseHeap(FEntry&& Entry);
 
-	Entry AllocateHeap(D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32 NumDescriptors);
+	void FlushFreeList();
 
-	void ReleaseStaleEntries(uint32 MaxAge, uint64 CompletedFenceValue);
+private:
 
-	void Flush();
+	void ReleaseHeap(FEntry&& Entry);
+
+	// Assumes CriticalSection is already locked
+	void ReleaseStaleEntries(uint32 MaxAgeInFrames, float MaxAgeInSeconds);
 
 	FCriticalSection CriticalSection;
-	TArray<Entry> Entries;
-	uint32 AllocatedEntries = 0;
+	TArray<FEntry> FreeList;
+	uint32 NumAllocatedEntries = 0;
 };
 
 struct FD3D12ExplicitDescriptorHeap : public FD3D12DeviceChild
@@ -76,10 +84,7 @@ struct FD3D12ExplicitDescriptorHeap : public FD3D12DeviceChild
 	bool CompareDescriptors(int32 BaseIndex, const D3D12_CPU_DESCRIPTOR_HANDLE* InDescriptors, uint32 InNumDescriptors);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE GetDescriptorCPU(uint32 Index) const;
-
 	D3D12_GPU_DESCRIPTOR_HANDLE GetDescriptorGPU(uint32 Index) const;
-
-	void UpdateSyncPoint();
 
 	D3D12_DESCRIPTOR_HEAP_TYPE Type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
 	ID3D12DescriptorHeap* D3D12Heap = nullptr;
@@ -94,7 +99,7 @@ struct FD3D12ExplicitDescriptorHeap : public FD3D12DeviceChild
 	D3D12_CPU_DESCRIPTOR_HANDLE CPUBase = {};
 	D3D12_GPU_DESCRIPTOR_HANDLE GPUBase = {};
 
-	FD3D12ExplicitDescriptorHeapCache::Entry HeapCacheEntry;
+	FD3D12ExplicitDescriptorHeapCache::FEntry HeapCacheEntry;
 
 	TArray<D3D12_CPU_DESCRIPTOR_HANDLE> Descriptors;
 
@@ -116,11 +121,7 @@ public:
 		WorkerData.SetNum(MaxWorkerCount);
 	}
 
-	void Init(uint32 NumViewDescriptors, uint32 NumSamplerDescriptors, ERHIBindlessConfiguration BindlessConfig);
-
-	void UpdateSyncPoint();
-
-	void SetDescriptorHeaps(FD3D12CommandContext& CommandContext);
+	void Init(uint32 NumConstantDescriptors, uint32 NumViewDescriptors, uint32 NumSamplerDescriptors, ERHIBindlessConfiguration BindlessConfig);
 
 	// Returns descriptor heap base index for this descriptor table allocation or -1 if allocation failed.
 	int32 Allocate(const D3D12_CPU_DESCRIPTOR_HANDLE* Descriptors, uint32 NumDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32 WorkerIndex);
@@ -132,6 +133,7 @@ public:
 	FD3D12ExplicitDescriptorHeap SamplerHeap;
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	ERHIBindlessConfiguration BindlessConfiguration{};
 	bool bBindlessViews = false;
 	bool bBindlessSamplers = false;
 #endif

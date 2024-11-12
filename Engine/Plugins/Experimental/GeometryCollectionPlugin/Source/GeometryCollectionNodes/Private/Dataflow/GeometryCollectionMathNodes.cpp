@@ -1,12 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/GeometryCollectionMathNodes.h"
+#include "Math/BasicMathExpressionEvaluator.h"
 #include "Dataflow/DataflowCore.h"
 
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionMathNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 
 	void GeometryCollectionMathNodes()
@@ -68,13 +69,15 @@ namespace Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDegreesToRadiansDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMathConstantsDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FOneMinusDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FFloatMathExpressionDataflowNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FMathExpressionDataflowNode);
 
 		// Math
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY_NODE_COLORS_BY_CATEGORY("Math", FLinearColor(0.f, 0.4f, 0.8f), CDefaultNodeBodyTintColor);
 	}
 }
 
-void FAddDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FAddDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -86,7 +89,7 @@ void FAddDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutp
 	}
 }
 
-void FSubtractDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSubtractDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -98,7 +101,7 @@ void FSubtractDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflo
 	}
 }
 
-void FMultiplyDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMultiplyDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -110,7 +113,7 @@ void FMultiplyDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflo
 	}
 }
 
-void FSafeDivideDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSafeDivideDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -126,7 +129,7 @@ void FSafeDivideDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataf
 	}
 }
 
-void FDivisionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDivisionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&Remainder) ||
 		Out->IsA<int32>(&ReturnValue))
@@ -147,7 +150,7 @@ void FDivisionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflo
 	}
 }
 
-void FSafeReciprocalDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSafeReciprocalDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -162,7 +165,7 @@ void FSafeReciprocalDataflowNode::Evaluate(Dataflow::FContext& Context, const FD
 	}
 }
 
-void FSquareDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSquareDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -173,7 +176,7 @@ void FSquareDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowO
 	}
 }
 
-void FSquareRootDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSquareRootDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -188,7 +191,7 @@ void FSquareRootDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataf
 	}
 }
 
-void FInverseSqrtDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FInverseSqrtDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -203,7 +206,7 @@ void FInverseSqrtDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 	}
 }
 
-void FCubeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCubeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -214,7 +217,7 @@ void FCubeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOut
 	}
 }
 
-void FNegateDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FNegateDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -225,7 +228,7 @@ void FNegateDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowO
 	}
 }
 
-void FAbsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FAbsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -236,7 +239,7 @@ void FAbsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutp
 	}
 }
 
-void FFloorDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FFloorDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -247,7 +250,7 @@ void FFloorDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOu
 	}
 }
 
-void FCeilDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCeilDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -258,7 +261,7 @@ void FCeilDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOut
 	}
 }
 
-void FRoundDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FRoundDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -269,7 +272,7 @@ void FRoundDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOu
 	}
 }
 
-void FTruncDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FTruncDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -280,7 +283,7 @@ void FTruncDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOu
 	}
 }
 
-void FFracDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FFracDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -291,7 +294,7 @@ void FFracDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOut
 	}
 }
 
-void FMinDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMinDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -303,7 +306,7 @@ void FMinDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutp
 	}
 }
 
-void FMaxDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMaxDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -315,7 +318,7 @@ void FMaxDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutp
 	}
 }
 
-void FMin3DataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMin3DataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -328,7 +331,7 @@ void FMin3DataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOut
 	}
 }
 
-void FMax3DataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMax3DataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -341,7 +344,7 @@ void FMax3DataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOut
 	}
 }
 
-void FSignDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSignDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -352,7 +355,7 @@ void FSignDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOut
 	}
 }
 
-void FClampDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FClampDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -365,7 +368,7 @@ void FClampDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOu
 	}
 }
 
-void FFitDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FFitDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -386,7 +389,7 @@ void FFitDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutp
 	}
 }
 
-void FEFitDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FEFitDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -406,7 +409,7 @@ void FEFitDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOut
 	}
 }
 
-void FPowDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FPowDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -418,7 +421,7 @@ void FPowDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutp
 	}
 }
 
-void FLogDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FLogDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -434,7 +437,7 @@ void FLogDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutp
 	}
 }
 
-void FLogeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FLogeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -445,7 +448,7 @@ void FLogeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOut
 	}
 }
 
-void FLerpDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FLerpDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -462,7 +465,7 @@ void FLerpDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOut
 	}
 }
 
-void FWrapDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FWrapDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -479,7 +482,7 @@ void FWrapDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOut
 	}
 }
 
-void FExpDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FExpDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -490,7 +493,7 @@ void FExpDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutp
 	}
 }
 
-void FSinDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FSinDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -501,7 +504,7 @@ void FSinDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutp
 	}
 }
 
-void FArcSinDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FArcSinDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -516,7 +519,7 @@ void FArcSinDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowO
 	}
 }
 
-void FCosDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCosDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -527,7 +530,7 @@ void FCosDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutp
 	}
 }
 
-void FArcCosDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FArcCosDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -542,7 +545,7 @@ void FArcCosDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowO
 	}
 }
 
-void FTanDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FTanDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -553,7 +556,7 @@ void FTanDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutp
 	}
 }
 
-void FArcTanDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FArcTanDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -564,7 +567,7 @@ void FArcTanDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowO
 	}
 }
 
-void FArcTan2DataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FArcTan2DataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -576,7 +579,7 @@ void FArcTan2DataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflow
 	}
 }
 
-void FNormalizeToRangeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FNormalizeToRangeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -608,7 +611,7 @@ void FNormalizeToRangeDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 }
 
 
-void FScaleVectorDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FScaleVectorDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA(&ScaledVector))
 	{
@@ -620,7 +623,7 @@ void FScaleVectorDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 	}
 }
 
-void FDotProductDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDotProductDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -632,7 +635,7 @@ void FDotProductDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataf
 	}
 }
 
-void FCrossProductDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FCrossProductDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FVector>(&ReturnValue))
 	{
@@ -644,7 +647,7 @@ void FCrossProductDataflowNode::Evaluate(Dataflow::FContext& Context, const FDat
 	}
 }
 
-void FNormalizeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FNormalizeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FVector>(&ReturnValue))
 	{
@@ -656,7 +659,7 @@ void FNormalizeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDatafl
 	}
 }
 
-void FLengthDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FLengthDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -667,7 +670,7 @@ void FLengthDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowO
 	}
 }
 
-void FDistanceDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDistanceDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -679,7 +682,7 @@ void FDistanceDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflo
 	}
 }
 
-void FIsNearlyZeroDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FIsNearlyZeroDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<bool>(&ReturnValue))
 	{
@@ -690,7 +693,7 @@ void FIsNearlyZeroDataflowNode::Evaluate(Dataflow::FContext& Context, const FDat
 	}
 }
 
-void FRandomFloatDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FRandomFloatDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -708,7 +711,7 @@ void FRandomFloatDataflowNode::Evaluate(Dataflow::FContext& Context, const FData
 	}
 }
 
-void FRandomFloatInRangeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FRandomFloatInRangeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -729,7 +732,7 @@ void FRandomFloatInRangeDataflowNode::Evaluate(Dataflow::FContext& Context, cons
 	}
 }
 
-void FRandomUnitVectorDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FRandomUnitVectorDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FVector>(&ReturnValue))
 	{
@@ -747,7 +750,7 @@ void FRandomUnitVectorDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 	}
 }
 
-void FRandomUnitVectorInConeDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FRandomUnitVectorInConeDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<FVector>(&ReturnValue))
 	{
@@ -768,7 +771,7 @@ void FRandomUnitVectorInConeDataflowNode::Evaluate(Dataflow::FContext& Context, 
 	}
 }
 
-void FRadiansToDegreesDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FRadiansToDegreesDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&Degrees))
 	{
@@ -776,7 +779,7 @@ void FRadiansToDegreesDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 	}
 }
 
-void FDegreesToRadiansDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FDegreesToRadiansDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&Radians))
 	{
@@ -784,7 +787,7 @@ void FDegreesToRadiansDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 	}
 }
 
-void FMathConstantsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FMathConstantsDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -847,7 +850,7 @@ void FMathConstantsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDa
 	}
 }
 
-void FOneMinusDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FOneMinusDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	if (Out->IsA<float>(&ReturnValue))
 	{
@@ -858,5 +861,130 @@ void FOneMinusDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflo
 	}
 }
 
+FFloatMathExpressionDataflowNode::FFloatMathExpressionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowNode(InParam, InGuid)
+{
+	RegisterInputConnection(&A);
+	RegisterInputConnection(&B);
+	RegisterInputConnection(&C);
+	RegisterInputConnection(&D);
+	RegisterOutputConnection(&ReturnValue);
+}
 
+void FFloatMathExpressionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	check(Out->IsA(&ReturnValue));
+
+	float FloatResult = 0.0f;
+
+	FString ExpressionToEvaluate{ Expression };
+	ExpressionToEvaluate = ExpressionToEvaluate.TrimStartAndEnd();
+	if (!ExpressionToEvaluate.IsEmpty())
+	{
+		const FString VarA("{A}");
+		if (ExpressionToEvaluate.Contains(VarA))
+		{
+			const float InA = GetValue(Context, &A);
+			const FString StrA = FString::SanitizeFloat(InA);
+			ExpressionToEvaluate.ReplaceInline(*VarA, *StrA, ESearchCase::CaseSensitive);
+		}
+
+		const FString VarB("{B}");
+		if (ExpressionToEvaluate.Contains(VarB))
+		{
+			const float InB = GetValue(Context, &B);
+			const FString StrB = FString::SanitizeFloat(InB);
+			ExpressionToEvaluate.ReplaceInline(*VarB, *StrB, ESearchCase::CaseSensitive);
+		}
+
+		const FString VarC("{C}");
+		if (ExpressionToEvaluate.Contains(VarC))
+		{
+			const float InC = GetValue(Context, &C);
+			const FString StrC = FString::SanitizeFloat(InC);
+			ExpressionToEvaluate.ReplaceInline(*VarC, *StrC, ESearchCase::CaseSensitive);
+		}
+
+		const FString VarD("{D}");
+		if (ExpressionToEvaluate.Contains(VarD))
+		{
+			const float InD = GetValue(Context, &D);
+			const FString StrD = FString::SanitizeFloat(InD);
+			ExpressionToEvaluate.ReplaceInline(*VarD, *StrD, ESearchCase::CaseSensitive);
+		}
+
+		FBasicMathExpressionEvaluator Evaluator;
+		TValueOrError<double, FExpressionError> Result = Evaluator.Evaluate(*ExpressionToEvaluate);
+		if (Result.IsValid())
+		{
+			FloatResult = FMath::Clamp((float)Result.GetValue(), TNumericLimits<float>::Lowest(), TNumericLimits<float>::Max());
+		}
+	}
+	SetValue(Context, FloatResult, &ReturnValue);
+}
+
+
+
+FMathExpressionDataflowNode::FMathExpressionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowNode(InParam, InGuid)
+{
+	RegisterInputConnection(&A);
+	RegisterInputConnection(&B);
+	RegisterInputConnection(&C);
+	RegisterInputConnection(&D);
+	RegisterOutputConnection(&ReturnValue);
+}
+
+void FMathExpressionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	check(Out->IsA(&ReturnValue));
+
+	double Result = 0.0f;
+
+	
+	FString ExpressionToEvaluate{ Expression };
+	ExpressionToEvaluate = ExpressionToEvaluate.TrimStartAndEnd();
+	if (!ExpressionToEvaluate.IsEmpty())
+	{
+		const FString VarA("{A}");
+		if (ExpressionToEvaluate.Contains(VarA))
+		{
+			const double InA = GetValue(Context, &A);
+			const FString StrA = FString::SanitizeFloat(InA);
+			ExpressionToEvaluate.ReplaceInline(*VarA, *StrA, ESearchCase::CaseSensitive);
+		}
+
+		const FString VarB("{B}");
+		if (ExpressionToEvaluate.Contains(VarB))
+		{
+			const double InB = GetValue(Context, &B);
+			const FString StrB = FString::SanitizeFloat(InB);
+			ExpressionToEvaluate.ReplaceInline(*VarB, *StrB, ESearchCase::CaseSensitive);
+		}
+
+		const FString VarC("{C}");
+		if (ExpressionToEvaluate.Contains(VarC))
+		{
+			const double InC = GetValue(Context, &C);
+			const FString StrC = FString::SanitizeFloat(InC);
+			ExpressionToEvaluate.ReplaceInline(*VarC, *StrC, ESearchCase::CaseSensitive);
+		}
+
+		const FString VarD("{D}");
+		if (ExpressionToEvaluate.Contains(VarD))
+		{
+			const double InD = GetValue(Context, &D);
+			const FString StrD = FString::SanitizeFloat(InD);
+			ExpressionToEvaluate.ReplaceInline(*VarD, *StrD, ESearchCase::CaseSensitive);
+		}
+
+		FBasicMathExpressionEvaluator Evaluator;
+		TValueOrError<double, FExpressionError> EvalResult = Evaluator.Evaluate(*ExpressionToEvaluate);
+		if (EvalResult.IsValid())
+		{
+			Result = FMath::Clamp((double)EvalResult.GetValue(), TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max());
+		}
+	}
+	SetValue(Context, Result, &ReturnValue);
+}
 

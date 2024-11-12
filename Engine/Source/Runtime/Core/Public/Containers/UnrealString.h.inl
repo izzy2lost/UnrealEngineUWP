@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+// HEADER_UNIT_SKIP - Should not be included directly
+// IWYU pragma: private
+
 /*******************************************************************************************************************
  * NOTICE                                                                                                          *
  *                                                                                                                 *
@@ -19,6 +22,9 @@
 #endif
 #ifndef UE_STRING_CHARTYPE_IS_TCHAR
 	#error "UnrealString.h.inl should only be included after defining UE_STRING_CHARTYPE_IS_TCHAR"
+#endif
+#ifndef UE_STRING_PRINTF_FMT_CHARTYPE
+	#error "UnrealString.h.inl should only be included after defining UE_STRING_PRINTF_FMT_CHARTYPE"
 #endif
 #ifndef UE_STRING_DEPRECATED
 	#error "UnrealString.h.inl should only be included after defining UE_STRING_DEPRECATED"
@@ -50,6 +56,7 @@ class UE_STRING_CLASS
 public:
 	using AllocatorType = TSizedDefaultAllocator<32>;
 	using ElementType   = UE_STRING_CHARTYPE;
+	using FmtCharType   = UE_STRING_PRINTF_FMT_CHARTYPE;
 
 private:
 	/** Array holding the character data */
@@ -58,7 +65,7 @@ private:
 
 	/** Like the TIsCharEncodingCompatibleWithTCHAR trait, but for the element type of the string */
 	template <typename SrcEncoding>
-	using TIsCharEncodingCompatibleWithElementType = TIsCharEncodingCompatibleWith<SrcEncoding, ElementType>;
+	using TIsCharEncodingCompatibleWithPrintfFmt = TIsCharEncodingCompatibleWith<SrcEncoding, UE_STRING_PRINTF_FMT_CHARTYPE>;
 
 public:
 	UE_STRING_CLASS() = default;
@@ -189,7 +196,25 @@ public:
         }
     }
 #endif
-    
+
+	////////////////////////////////////////////////////////
+	// Start - intrusive TOptional<UE_STRING_CLASS> state //
+	////////////////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = UE_STRING_CLASS;
+
+	explicit UE_STRING_CLASS(FIntrusiveUnsetOptionalState Tag)
+		: Data(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Data == Tag;
+	}
+	//////////////////////////////////////////////////////
+	// End - intrusive TOptional<UE_STRING_CLASS> state //
+	//////////////////////////////////////////////////////
+
 #if defined(__OBJC__) && UE_STRING_CHARTYPE_IS_TCHAR
 	/** Convert Objective-C NSString* to string class */
 	FORCEINLINE UE_STRING_CLASS(const NSString* In) : UE_STRING_CLASS((__bridge CFStringRef)In)
@@ -444,13 +469,21 @@ public:
 	CORE_API void InsertAt(int32 Index, const UE_STRING_CLASS& Characters);
 
 	/**
+	 * Removes a character from the string.
+	 *
+	 * @param Index          The index of the character to remove.
+	 * @param AllowShrinking Whether or not to reallocate to shrink the storage after removal.
+	 */
+	CORE_API void RemoveAt(int32 Index, EAllowShrinking AllowShrinking = EAllowShrinking::Yes);
+
+	/**
 	 * Removes characters within the string.
 	 *
 	 * @param Index          The index of the first character to remove.
 	 * @param Count          The number of characters to remove.
 	 * @param AllowShrinking Whether or not to reallocate to shrink the storage after removal.
 	 */
-	CORE_API void RemoveAt(int32 Index, int32 Count = 1, EAllowShrinking AllowShrinking = EAllowShrinking::Yes);
+	CORE_API void RemoveAt(int32 Index, int32 Count, EAllowShrinking AllowShrinking = EAllowShrinking::Yes);
 	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveAt")
 	FORCEINLINE void RemoveAt(int32 Index, int32 Count, bool bAllowShrinking)
 	{
@@ -1084,6 +1117,18 @@ public:
 		return Data.Num() ? Data.Num() - 1 : 0;
 	}
 
+	/** @returns Number of bytes used for characters, excluding the null-terminator and slack */
+	[[nodiscard]] FORCEINLINE SIZE_T NumBytesWithoutNull() const
+	{
+		return static_cast<SIZE_T>(Len()) * sizeof(ElementType);
+	}
+
+	/** @returns Number of bytes used for characters, including the null-terminator but excluding slack */
+	[[nodiscard]] FORCEINLINE SIZE_T NumBytesWithNull() const
+	{
+		return (static_cast<SIZE_T>(Len()) + 1) * sizeof(ElementType);
+	}
+
 	/** Returns the left most given number of characters */
 	[[nodiscard]] FORCEINLINE UE_STRING_CLASS Left( int32 Count ) const &
 	{
@@ -1528,7 +1573,7 @@ public:
 	template <typename FmtType, typename... Types>
 	[[nodiscard]] static UE_STRING_CLASS Printf(const FmtType& Fmt, Types... Args)
 	{
-		static_assert(TIsArrayOrRefOfTypeByPredicate<FmtType, TIsCharEncodingCompatibleWithElementType>::Value, "Formatting string must be a character array.");
+		static_assert(TIsArrayOrRefOfTypeByPredicate<FmtType, TIsCharEncodingCompatibleWithPrintfFmt>::Value, "Formatting string must be a literal " PREPROCESSOR_TO_STRING(UE_STRING_PRINTF_FMT_CHARTYPE) " array.");
 		static_assert((TIsValidVariadicFunctionArg<Types>::Value && ...), "Invalid argument(s) passed to Printf");
 
 		return PrintfImpl((const ElementType*)Fmt, Args...);
@@ -1541,8 +1586,8 @@ public:
 	template <typename FmtType, typename... Types>
 	UE_STRING_CLASS& Appendf(const FmtType& Fmt, Types... Args)
 	{
-		static_assert(TIsArrayOrRefOfTypeByPredicate<FmtType, TIsCharEncodingCompatibleWithElementType>::Value, "Formatting string must be a character array.");
-		static_assert((TIsValidVariadicFunctionArg<Types>::Value && ...), "Invalid argument(s) passed to TString::Appendf");
+		static_assert(TIsArrayOrRefOfTypeByPredicate<FmtType, TIsCharEncodingCompatibleWithPrintfFmt>::Value, "Formatting string must be a literal " PREPROCESSOR_TO_STRING(UE_STRING_PRINTF_FMT_CHARTYPE) " array.");
+		static_assert((TIsValidVariadicFunctionArg<Types>::Value && ...), "Invalid argument(s) passed to Appendf");
 
 		AppendfImpl(*this, (const ElementType*)Fmt, Args...);
 		return *this;
@@ -2240,6 +2285,12 @@ public:
 	{
 		// This must match the GetTypeHash behavior of FStringView
 		return FCrc::Strihash_DEPRECATED(S.Len(), *S);
+	}
+
+	static void AutoRTFMAssignFromOpenToClosed(UE_STRING_CLASS& Closed, const UE_STRING_CLASS& Open)
+	{
+		const AutoRTFM::EContextStatus Status = AutoRTFM::Close([&] { Closed = Open; });
+		ensure(AutoRTFM::EContextStatus::OnTrack == Status);
 	}
 };
 

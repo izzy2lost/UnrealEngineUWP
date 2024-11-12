@@ -56,13 +56,14 @@
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "Engine/Selection.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Animation/MorphTarget.h"
 #include "Editor.h"
 #include "Editor/Transactor.h"
 #include "EditorDirectories.h"
 #include "FileHelpers.h"
 #include "Dialogs/Dialogs.h"
+#include "Dialog/SMessageDialog.h"
 #include "UnrealEdGlobals.h"
 #include "PackageTools.h"
 #include "Internationalization/TextPackageNamespaceUtil.h"
@@ -99,14 +100,20 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "UObject/PropertyBagRepository.h"
 #include "UObject/ReferencerFinder.h"
 #include "Containers/Set.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Logging/LogMacros.h"
 #include "UncontrolledChangelistsModule.h"
 #include "AssetCompilingManager.h"
+#include "ObjectEditorUtils.h"
+#include "Settings/EditorStyleSettings.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogObjectTools, Log, All);
+
+#define LOCTEXT_NAMESPACE "ObjectTools"
 
 static TAutoConsoleVariable<bool> CVarUseLegacyGetReferencersForDeletion(
 	TEXT("Editor.UseLegacyGetReferencersForDeletion"),
@@ -504,8 +511,8 @@ namespace ObjectTools
 	{
 		for (TPropertyValueIterator<FObjectProperty> PIter(InObject->GetClass(), InObject); PIter; ++PIter)
 		{
-			FObjectProperty* Property = PIter.Key();
-			void* Value = const_cast<void*>(PIter->Value);
+			const FObjectProperty* Property = PIter.Key();
+			const void* Value = PIter->Value;
 			if (const UObject* ValueObject = Property->GetPropertyValue(Value))
 			{
 				if (int32* TimesEncountered = CheckedObjects.Find(ValueObject))
@@ -858,15 +865,21 @@ namespace ObjectTools
 		// object. This will delete the object so the new one can be created in its place.
 		if(bPromptToOverwrite && ObjectsToOverwriteName.Len() > 0 )
 		{
-			bool bOverwriteExistingObjects =
-				EAppReturnType::Yes == FMessageDialog::Open(
-				EAppMsgType::YesNo,
-				EAppReturnType::No,
-				FText::Format(
-				NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackage_F", "An object [{0}] of class [{1}] already exists in file [{2}].  Do you want to replace the existing object?  If you click 'Yes', the existing object will be deleted.  Otherwise, click 'No' and choose a unique name for your new object." ),
-				FText::FromString(ObjectsToOverwriteName),
-				FText::FromString(ObjectsToOverwriteClass),
-				FText::FromString(ObjectsToOverwritePackage) ) );
+			TSharedRef<SMessageDialog> ConfirmDialog = SNew(SMessageDialog)
+				.Icon(FAppStyle::Get().GetBrush("Icons.WarningWithColor.Large"))
+				.Title(FText(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_Title", "Overwrite Existing Object")))
+				.Message(FText::Format(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_Message", "An object already exists with this name.\n\n\tName: {0}\n\tClass: {1}\n\tAsset path: {2}\n\nOverwrite the existing object?"),
+					FText::FromString(ObjectsToOverwriteName),
+					FText::FromString(ObjectsToOverwriteClass),
+					FText::FromString(ObjectsToOverwritePackage)))
+				.Buttons({
+					SCustomDialog::FButton(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_ButtonOverwrite", "Overwrite")).SetPrimary(true),
+					SCustomDialog::FButton(NSLOCTEXT("UnrealEd", "ReplaceExistingObjectInPackageConfirmation_ButtonCancel", "Cancel")),
+					})
+				.ContentMinWidth(300.0f);
+			uint32 ConfirmationResult = ConfirmDialog->ShowModal();
+
+			bool bOverwriteExistingObjects = ConfirmationResult == 0;
 
 			// The user didn't want to overwrite the existing options, so bail out of the duplicate operation.
 			if( !bOverwriteExistingObjects )
@@ -1359,6 +1372,9 @@ namespace ObjectTools
 			}
 		}
 
+		// Reset property bag associations after replacing references.
+		UE::FPropertyBagRepository::Get().ReassociateObjects(ReplacementMap);
+
 		// Now alter the referencing objects the change has completed via PostEditChange,
 		// this is done in a separate loop to prevent reading of data that we want to overwrite
 		int32 NumObjsPostEdited = 0;
@@ -1844,7 +1860,7 @@ namespace ObjectTools
 
 				if ( Redirector->Rename(*ObjName.ToString(), NULL, REN_Test) )
 				{
-					Redirector->Rename(*ObjName.ToString(), NULL, REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+					Redirector->Rename(*ObjName.ToString(), NULL, REN_DontCreateRedirectors | REN_NonTransactional);
 					FAssetRegistryModule::AssetCreated(Redirector);
 				}
 				else
@@ -2703,20 +2719,24 @@ namespace ObjectTools
 
 	void AddExtraObjectsToDelete(TArray< UObject* >& ObjectsToDelete)
 	{
-		const int32 OriginalNum = ObjectsToDelete.Num();
-		for (int32 i=0; i < OriginalNum; ++i)
+		// Allows to inject extra assets to delete without modifying the engine source.
+		TSet<UObject*> SecondaryObjects;
+		FEditorDelegates::OnAddExtraObjectsToDelete.Broadcast(ObjectsToDelete, SecondaryObjects);
+		for (UObject* Object : SecondaryObjects)
 		{
-			UObject* ObjectToDelete = ObjectsToDelete[i];
+			ObjectsToDelete.AddUnique(Object);
+		}
 
-			// Delete MapBuildData with maps & owned packages for map
-			if (UWorld* World = Cast<UWorld>(ObjectToDelete))
+		// Recursively include external packages
+		const int32 OriginalNum = ObjectsToDelete.Num();
+		TSet<const UPackage*> ProcessedOuterPackages;
+		for (int32 Index=0; Index < OriginalNum; ++Index)
+		{
+			const UObject* ObjectToDelete = ObjectsToDelete[Index];
+			const UPackage* OuterPackage = ObjectToDelete->GetPackage();
+			if (!ProcessedOuterPackages.Contains(OuterPackage))
 			{
-				if (World->PersistentLevel && World->PersistentLevel->MapBuildData)
-				{
-					ObjectsToDelete.AddUnique(World->PersistentLevel->MapBuildData);
-				}
-
-				for (UPackage* Package : World->GetOutermost()->GetExternalPackages())
+				for (UPackage* Package : OuterPackage->GetExternalPackages())
 				{
 					// Don't include newly created packages
 					if (!Package->HasAnyPackageFlags(PKG_NewlyCreated))
@@ -2724,16 +2744,11 @@ namespace ObjectTools
 						ObjectsToDelete.AddUnique(Package);
 					}
 				}
+				
+				ProcessedOuterPackages.Add(OuterPackage);
 			}
+			
 		}
-
-		// Allows to inject extra assets to delete without modifying the engine source.
-		FEditorDelegates::OnAssetsAddExtraObjectsToDelete.Broadcast(ObjectsToDelete);
-
-		//This method is called 2x in the deletion flow. Make sure there is no duplicates in the array as we can't rely on the methods registered to the delegate to uniquely add.
-		TSet<UObject*> CleanupDuplicatesSet(MoveTemp(ObjectsToDelete)); // Move items into the set to remove duplicate pointers.
-		ObjectsToDelete = CleanupDuplicatesSet.Array(); // Copy elements back again
-
 	}
 
 	bool ContainsWorldInUse(const TArray< UObject* >& ObjectsToDelete)
@@ -3531,7 +3546,6 @@ namespace ObjectTools
 
 		TArray<UPackage*> PackagesFailedToDelete;
 		{
-			int32 ReplaceableObjectsNum = 0;
 			{
 				for(TWeakObjectPtr<UObject>& Object : ObjectsToDelete)
 				{
@@ -3605,14 +3619,12 @@ namespace ObjectTools
 					{
 						FForceReplaceInfo ReplaceInfo;
 						ForceReplaceReferences(GetFallbackStruct(), UDStructToReplace, ReplaceInfo, false);
-						ReplaceableObjectsNum += ReplaceInfo.ReplaceableObjects.Num();
 					}
 				}
 
 				{
 					FForceReplaceInfo ReplaceInfo;
 					ForceReplaceReferences(nullptr, ObjectsToReplace, ReplaceInfo, false);
-					ReplaceableObjectsNum += ReplaceInfo.ReplaceableObjects.Num();
 				}
 			}
 
@@ -3630,6 +3642,7 @@ namespace ObjectTools
 			FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
 
 			int32 Count = 0;
+			const int32 OriginalNumObjectsToDelete = ObjectsToDelete.Num();
 			for(auto It = ObjectsToDelete.CreateIterator(); It; ++It)
 			{
 				UObject* CurObject = It->Get();
@@ -3655,7 +3668,7 @@ namespace ObjectTools
 					It.RemoveCurrent();
 				}
 
-				GWarn->StatusUpdate(Count, ReplaceableObjectsNum, NSLOCTEXT("UnrealEd", "ConsolidateAssetsUpdate_DeletingObjects", "Deleting Assets..."));
+				GWarn->StatusUpdate(Count, OriginalNumObjectsToDelete, NSLOCTEXT("UnrealEd", "ConsolidateAssetsUpdate_DeletingObjects", "Deleting Assets..."));
 				++Count;
 
 			}
@@ -5020,11 +5033,90 @@ namespace ObjectTools
 			}
 		}
 	}
+
+	FText GetUserFacingFunctionName(const UFunction* Function, bool bAllowFriendlyNames)
+	{
+		FText ReturnDisplayName;
+
+		if (Function != nullptr)
+		{
+			static const FName NAME_DisplayName { TEXT("DisplayName") };
+
+			// Functions do not use friendly names because they can be manually input by a user in the editor (and it would otherwise not adhere to their name)
+			// There is a long-term goal of removing friendly names from the Engine.  However, we keep them in the case of FullTitle as it helps the nodes
+			// be decipherable in a zoomed-out view.
+			if (GEditor && bAllowFriendlyNames && GetDefault<UEditorStyleSettings>()->bShowFriendlyNames)
+			{
+				ReturnDisplayName = Function->GetDisplayNameText();
+			}
+			else if (const FString* OverrideDisplayName = Function->FindMetaData(NAME_DisplayName))
+			{
+				ReturnDisplayName = FText::FromString(*OverrideDisplayName);
+			}
+
+			if (ReturnDisplayName.IsEmpty())
+			{
+				// Previous (and similar) code paths would go through FField::GetMetaDataText(DisplayName) which attempts localization
+				// However, we do not localize function names (and we've explicitly requested non-friendly names), so just show us the real name
+				ReturnDisplayName = FText::FromString(Function->GetName());
+			}
+		}
+
+		return ReturnDisplayName;
+	}
+
+	FString GetDefaultTooltipForFunction(const UFunction* Function)
+	{
+		FString Tooltip;
+
+		if (Function != nullptr)
+		{
+			Tooltip = Function->GetToolTipText().ToString();
+		}
+
+		if (!Tooltip.IsEmpty())
+		{
+			// Strip off the doxygen nastiness
+			static const FString DoxygenParam(TEXT("@param"));
+			static const FString DoxygenReturn(TEXT("@return"));
+			static const FString DoxygenSee(TEXT("@see"));
+			static const FString TooltipSee(TEXT("See:"));
+			static const FString DoxygenNote(TEXT("@note"));
+			static const FString TooltipNote(TEXT("Note:"));
+
+			Tooltip.Split(DoxygenParam, &Tooltip, nullptr, ESearchCase::IgnoreCase, ESearchDir::FromStart);
+			Tooltip.Split(DoxygenReturn, &Tooltip, nullptr, ESearchCase::IgnoreCase, ESearchDir::FromStart);
+
+			Tooltip.ReplaceInline(*DoxygenSee, *TooltipSee);
+			Tooltip.ReplaceInline(*DoxygenNote, *TooltipNote);
+
+			Tooltip.TrimStartAndEndInline();
+
+			UClass* CurrentSelfClass = (Function != nullptr) ? Function->GetOwnerClass() : nullptr;
+			UClass const* TrueSelfClass = CurrentSelfClass;
+			if (CurrentSelfClass && CurrentSelfClass->ClassGeneratedBy)
+			{
+				TrueSelfClass = CurrentSelfClass->GetAuthoritativeClass();
+			}
+
+			FText TargetDisplayText = (TrueSelfClass != nullptr) ? TrueSelfClass->GetDisplayNameText() : LOCTEXT("None", "None");
+
+			FFormatNamedArguments Args;
+			Args.Add(TEXT("TargetName"), TargetDisplayText);
+			Args.Add(TEXT("Tooltip"), FText::FromString(Tooltip));
+			return FText::Format(LOCTEXT("CallFunction_Tooltip", "{Tooltip}\n\nTarget is {TargetName}"), Args).ToString();
+		}
+		else
+		{
+			return GetUserFacingFunctionName(Function).ToString();
+		}
+	}
 }
 
 
-
-
+UE_TRACE_EVENT_BEGIN(Cpu, RenderThumbnail, NoSync)
+UE_TRACE_EVENT_FIELD(UE::Trace::WideString, ObjectPath)
+UE_TRACE_EVENT_END()
 
 namespace ThumbnailTools
 {
@@ -5037,7 +5129,10 @@ namespace ThumbnailTools
 			return;
 		}
 		
-		TRACE_CPUPROFILER_EVENT_SCOPE(ThumbnailTools::RenderThumbnail);
+#if CPUPROFILERTRACE_ENABLED
+		UE_TRACE_LOG_SCOPED_T(Cpu, RenderThumbnail, CpuChannel)
+			<< RenderThumbnail.ObjectPath(*InObject->GetPathName());
+#endif // CPUPROFILERTRACE_ENABLED
 
 		// Renderer must be initialized before generating thumbnails
 		check( GIsRHIInitialized );
@@ -5074,6 +5169,18 @@ namespace ThumbnailTools
 
 		// Get the rendering info for this object
 		FThumbnailRenderingInfo* RenderInfo = GUnrealEd ? GUnrealEd->GetThumbnailManager()->GetRenderingInfo( InObject ) : nullptr;
+
+		UObject* ObjectToRender = InObject;
+		if ((RenderInfo != nullptr) && RenderInfo->bUseClassDefaultObject)
+		{
+			if (UBlueprint* Blueprint = Cast<UBlueprint>(InObject))
+			{
+				if (Blueprint->GeneratedClass != nullptr)
+				{
+					ObjectToRender = Blueprint->GeneratedClass->ClassDefaultObject;
+				}
+			}
+		}
 
 		if( InFlushMode == EThumbnailTextureFlushMode::AlwaysFlush )
 		{
@@ -5115,7 +5222,7 @@ namespace ThumbnailTools
 					if( RenderInfo->Renderer->IsA( UTextureThumbnailRenderer::StaticClass() ) )
 					{
 						RenderInfo->Renderer->GetThumbnailSize(
-							InObject,
+							ObjectToRender,
 							ZoomFactor,
 							DesiredWidth,		// Out
 							DesiredHeight );	// Out
@@ -5149,7 +5256,7 @@ namespace ThumbnailTools
 			const int32 YPos = 0;
 			const bool bAdditionalViewFamily = false;
 			RenderInfo->Renderer->Draw(
-				InObject,
+				ObjectToRender,
 				XPos,
 				YPos,
 				DrawWidth,
@@ -5813,5 +5920,6 @@ namespace ThumbnailTools
 
 		return false;
 	}
-		}
+}
 
+#undef LOCTEXT_NAMESPACE

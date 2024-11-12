@@ -541,7 +541,6 @@ namespace EpicGames.UHT.Types
 		{
 			TemplateWrapperName = templateWrapperName;
 			TemplateArgumentStruct = templateArgumentStruct;
-			MetaData.Add("BaseStruct", templateArgumentStruct.PathName);
 		}
 
 		/// <inheritdoc/>
@@ -594,13 +593,15 @@ namespace EpicGames.UHT.Types
 				return null;
 			}
 
-			if (propertySettings.MetaData.ContainsKey("BaseStruct"))
+			UhtPropertySettings rootSettings = propertySettings.RootSettings;
+			if (rootSettings.MetaData.ContainsKey("BaseStruct"))
 			{
 				tokenReader.LogError("BaseStruct metadata is implicitly set from the TInstancedStruct template argument and should not be explicitly specified.");
 				return null;
 			}
 
 			// With TInstancedStruct, BaseStruct is used as a type limiter.
+			rootSettings.MetaData.Add("BaseStruct", baseScriptStruct.PathName);
 			return new UhtTemplateStructProperty(propertySettings, baseScriptStruct.Session.FInstancedStruct, "TInstancedStruct", baseScriptStruct);
 		}
 
@@ -618,19 +619,20 @@ namespace EpicGames.UHT.Types
 				return null;
 			}
 
-			if (propertySettings.MetaData.ContainsKey(RefTypeName))
+			UhtPropertySettings rootSettings = propertySettings.RootSettings;
+			if (rootSettings.MetaData.ContainsKey(RefTypeName))
 			{
 				tokenReader.LogError("{0} metadata is implicitly set from the TStateTreePropertyRef template argument and should not be explicitly specified.", RefTypeName);
 				return null;
 			}
 
-			if (propertySettings.MetaData.ContainsKey(IsRefToArrayName))
+			if (rootSettings.MetaData.ContainsKey(IsRefToArrayName))
 			{
 				tokenReader.LogError("{0} metadata is implicitly set from the TStateTreePropertyRef template argument and should not be explicitly specified.", IsRefToArrayName);
 				return null;
 			}
 
-			if(!tokenReader.SkipExpectedType(matchedToken.Value, propertySettings.PropertyCategory == UhtPropertyCategory.Member))
+			if (!tokenReader.SkipExpectedType(matchedToken.Value, propertySettings.PropertyCategory == UhtPropertyCategory.Member))
 			{
 				return null;
 			}
@@ -664,23 +666,23 @@ namespace EpicGames.UHT.Types
 				}
 
 				// It's a UStruct or UClass
-				instancedStructProperty.MetaData.Add(RefTypeName, foundStruct.PathName);
+				rootSettings.MetaData.Add(RefTypeName, foundStruct.PathName);
 			}
 			else if(foundType is UhtEnum foundEnum)
 			{
 				// It's an enum
-				instancedStructProperty.MetaData.Add(RefTypeName, foundEnum.PathName);
+				rootSettings.MetaData.Add(RefTypeName, foundEnum.PathName);
 			}
 			else
 			{
 				// It's a primitive or unknown type.
-				instancedStructProperty.MetaData.Add(RefTypeName, identifier.ToString());
+				rootSettings.MetaData.Add(RefTypeName, identifier.ToString());
 			}
 
 			if (isRefToArray)
 			{
 				tokenReader.Require(">");
-				instancedStructProperty.MetaData.Add(IsRefToArrayName, true);
+				rootSettings.MetaData.Add(IsRefToArrayName, true);
 			}
 
 			tokenReader.Require(">");

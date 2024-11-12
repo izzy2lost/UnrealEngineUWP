@@ -20,6 +20,7 @@ namespace Electra
 			HTTPReader,
 			BufferedDataReader,
 			HLSPlaylistReader,
+			HLSParser,
 			HLSPlaylistBuilder,
 			HLSManifest,
 			HLSFMP4Reader,
@@ -34,12 +35,17 @@ namespace Electra
 			MKVPlaylist,
 			MKVStreamReader,
 			MKVParser,
+			MPEGTSParser,
 			LicenseKey,
 			DASHMPDReader,
 			DASHMPDParser,
 			DASHMPDBuilder,
 			DASHManifest,
 			DASHStreamReader,
+			MPEGAudioPlaylistReader,
+			MPEGAudioPlaylist,
+			MPEGAudioStreamReader,
+			CommonSegmentReader,
 			EntityCache,
 			DRM,
 			SubtitleDecoder,
@@ -68,6 +74,8 @@ namespace Electra
 					return TEXT("Buffered data reader");
 				case EFacility::HLSPlaylistReader:
 					return TEXT("HLS playlist reader");
+				case EFacility::HLSParser:
+					return TEXT("HLS parser");
 				case EFacility::HLSPlaylistBuilder:
 					return TEXT("HLS playlist builder");
 				case EFacility::HLSManifest:
@@ -100,6 +108,12 @@ namespace Electra
 					return TEXT("DASH manifest");
 				case EFacility::DASHStreamReader:
 					return TEXT("DASH stream reader");
+				case EFacility::MPEGAudioPlaylistReader:
+					return TEXT("MPEG audio playlist reader");
+				case EFacility::MPEGAudioPlaylist:
+					return TEXT("MPEG audio playlist");
+				case EFacility::MPEGAudioStreamReader:
+					return TEXT("MPEG audio stream reader");
 				case EFacility::EntityCache:
 					return TEXT("Entity cache");
 				case EFacility::DRM:
@@ -118,6 +132,10 @@ namespace Electra
 					return TEXT("MKV reader");
 				case EFacility::MKVParser:
 					return TEXT("MKV parser");
+				case EFacility::MPEGTSParser:
+					return TEXT("MPEG TS parser");
+				case EFacility::CommonSegmentReader:
+					return TEXT("Common stream reader");
 			}
 			return TEXT("???");
 		}

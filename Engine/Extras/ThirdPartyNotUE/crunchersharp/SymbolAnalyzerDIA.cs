@@ -78,6 +78,10 @@ namespace CruncherSharp
 					if (info != null)
 					{
 						info.NewSize = sym.length;
+						if (MemPools != null)
+						{
+							info.SetNewMemPools(MemPools);
+						}
 					}
 				}
 				else
@@ -244,7 +248,7 @@ namespace CruncherSharp
 		{
 			if (symbol.symTag == (uint)SymTagEnum.SymTagVTable)
 			{
-				return new SymbolMemberInfo(SymbolMemberInfo.MemberCategory.VTable, string.Empty, string.Empty, 8, 0, (ulong)symbol.offset, symbol.bitPosition);
+				return new SymbolMemberInfo(SymbolMemberInfo.MemberCategory.VTable, string.Empty, string.Empty, 8, 0, (uint)symbol.offset, symbol.bitPosition);
 			}
 
 			if (symbol.isStatic != 0 || (symbol.symTag != (uint)SymTagEnum.SymTagData && symbol.symTag != (uint)SymTagEnum.SymTagBaseClass))
@@ -278,7 +282,7 @@ namespace CruncherSharp
 				category = SymbolMemberInfo.MemberCategory.Pointer;
 			}
 
-			var info = new SymbolMemberInfo(category, symbolName, typeName, typeSymbol.length, symbol.length, (ulong)symbol.offset, symbol.bitPosition);
+			var info = new SymbolMemberInfo(category, symbolName, typeName, typeSymbol.length, (uint)symbol.length, (ulong)symbol.offset, symbol.bitPosition);
 
 			if (typeSymbol.volatileType == 1)
 			{
@@ -371,8 +375,8 @@ namespace CruncherSharp
 					return typeSymbol.reference != 0 ? $"{GetType(typeSymbol.type)}&" : $"{GetType(typeSymbol.type)}*";
 				case SymTagEnum.SymTagBaseType:
 					if (typeSymbol.constType != 0)
-						return "const " + SymbolMemberInfo.GetBaseType(typeSymbol);
-					return SymbolMemberInfo.GetBaseType(typeSymbol);
+						return "const " + GetBaseType(typeSymbol);
+					return GetBaseType(typeSymbol);
 				case SymTagEnum.SymTagArrayType:
 					// get array dimension:
 					var dimension = typeSymbol.count.ToString();
@@ -385,7 +389,66 @@ namespace CruncherSharp
 					return string.Empty;
 			}
 		}
-	}
 
+		public static string GetBaseType(IDiaSymbol typeSymbol)
+		{
+			//cf. https://msdn.microsoft.com/en-us/library/4szdtzc3.aspx
+			switch (typeSymbol.baseType)
+			{
+				case 0:
+					return string.Empty;
+				case 1:
+					return "void";
+				case 2:
+					return "char";
+				case 3:
+					return "wchar";
+				case 6:
+					{
+						switch (typeSymbol.length)
+						{
+							case 1:
+								return "int8";
+							case 2:
+								return "int16";
+							case 4:
+								return "int32";
+							case 8:
+								return "int64";
+							default:
+								return "int";
+						}
+					}
+				case 7:
+					switch (typeSymbol.length)
+					{
+						case 1:
+							return "uint8";
+						case 2:
+							return "uint16";
+						case 4:
+							return "uint32";
+						case 8:
+							return "uint64";
+						default:
+							return "uint";
+					}
+				case 8:
+					return "float";
+				case 9:
+					return "BCS";
+				case 10:
+					return "bool";
+				case 13:
+					return "int32";
+				case 14:
+					return "uint32";
+				case 29:
+					return "bit";
+				default:
+					return $"Unhandled: {typeSymbol.baseType}";
+			}
+		}
+	}
 
 }

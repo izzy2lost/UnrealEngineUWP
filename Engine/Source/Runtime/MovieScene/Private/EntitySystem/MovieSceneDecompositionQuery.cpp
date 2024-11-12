@@ -42,18 +42,50 @@ void FDecomposedValue::Decompose(
 			Additives.AccumulateThis(Pair.Value);
 		}
 	}
+	for (TTuple<FMovieSceneEntityID, FWeightedValue> Pair : DecomposedOverrides)
+	{
+		if (Pair.Get<0>() == EntityID)
+		{
+			ThisValue = Pair.Value;
+			OutBlendType = EDecomposedValueBlendType::Override;
+		}
+	}
 }
-
+static void AddToValue(FWeightedValue& Data, double& OutCurrentValue)
+{
+	if (Data.bIsAdditive)
+	{
+		OutCurrentValue += (Data.Value * Data.Weight);
+	}
+	else //override do weighted blend
+	{
+		if (Data.Weight >= 1.0)
+		{
+			OutCurrentValue = Data.Value;
+		}
+		else
+		{
+			OutCurrentValue = (OutCurrentValue * (1.0 - Data.Weight)) +
+				(Data.Value * Data.Weight);
+		}
+	}
+}
 double FDecomposedValue::Recompose(FMovieSceneEntityID RecomposeEntity, double CurrentValue, const double* InitialValue) const
 {
-	// First, a little reminder... the formula for blending values is:
+	// First, a little reminder... the formula for blending values is either:
 	//
 	// Value = Absolutes + Additives
 	//
 	// Absolutes = (Abs1 * AbsWeight1 + ... + AbsN * AbsWeightN) / (AbsWeight1 + ... + AbsWeightN)
 	// Additives = (Add1 * AddWeight1 + ... AddN * AddWeightN)
 	//
-	//
+	// Or if an Override is present it's Absolutes  plus the Additives and Overrides in blending order
+	// Value = Absolutes + BlendOrder1 +  BlendOrder2
+	// 
+	// Where the BlendOrder is either
+	// AdditivesN = (AddN * AddWeightN) or
+	// OverrideN = (OverrideN * OverrideWeightN) + (Value * (1.0 -OverrideWeightN))
+	// 
 	// Sort through all the data we have so that the contribution of RecomposeEntity is set aside in Channel.  The
 	// contributions of other decomposed entities (if any) are combined into OtherAbsolute and OtherAdditive, which
 	// should also be combined with Result (which contains non-decomposed entities) to get the full picture.
@@ -62,11 +94,13 @@ double FDecomposedValue::Recompose(FMovieSceneEntityID RecomposeEntity, double C
 	FAccumulatedWeightedValue OtherAbsolute;
 	FAccumulatedWeightedValue OtherAdditive;
 	Decompose(RecomposeEntity, Channel, BlendType, OtherAbsolute, OtherAdditive);
-
+	
 	FAccumulatedWeightedValue ResultAbsolute = Result.Absolute;
-	const bool bIsAdditive = (BlendType != EDecomposedValueBlendType::Absolute);
+	const bool bIsAdditive = (BlendType == EDecomposedValueBlendType::Additive ||
+		BlendType == EDecomposedValueBlendType::AdditiveFromBase);
+	const bool bIsOverride = (BlendType == EDecomposedValueBlendType::Override);
 	float TotalAbsoluteWeight = ResultAbsolute.TotalWeight + OtherAbsolute.TotalWeight;
-	if (!bIsAdditive)
+	if (!bIsAdditive && !bIsOverride)
 	{
 		TotalAbsoluteWeight += Channel.Weight;
 	}
@@ -84,7 +118,39 @@ double FDecomposedValue::Recompose(FMovieSceneEntityID RecomposeEntity, double C
 	// between what we have and what the desired current value is.
 	if (OtherAbsolute.TotalWeight == 0.f && OtherAdditive.TotalWeight == 0.f)
 	{
-		if (bIsAdditive)
+		//for overrides we need to iterate over everthing since it's order dependent since 
+		//there can be an override track anywhere
+		if (bIsOverride && AllDecomposedOverrides.Num() > 0) //if override we go up to this one's BlendValue
+		{
+			AllDecomposedOverrides.Sort();
+			double OverrideValue = ResultAbsolute.Total; //current value that's set
+			double PreviousValue = OverrideValue;    //value set right before this one
+			double ExtraValue = 0.0;
+			for(FWeightedValue& Data: AllDecomposedOverrides)
+			{
+				if (Data.BlendingOrder < Channel.BlendingOrder)
+				{
+					AddToValue(Data, OverrideValue);
+					PreviousValue = OverrideValue;
+				}
+				else if(Data.BlendingOrder > Channel.BlendingOrder)
+				{
+					AddToValue(Data, ExtraValue);
+				}
+			}
+			if (Channel.bIsAdditive)
+			{
+				const double Difference = CurrentValue - ExtraValue - PreviousValue;
+				return (Channel.Weight == 0.f ? Difference : (Difference / Channel.Weight));
+			}
+			else
+			{
+				const double Difference = (CurrentValue - ExtraValue) - (PreviousValue * (1.0 - Channel.Weight));
+				return (Channel.Weight == 0.f ? Difference : (Difference / Channel.Weight));
+
+			}
+		}
+		else if (bIsAdditive)
 		{
 			// For an additive channel, we just put the missing difference on it, adjusted by its weight.
 			const double WeightedAdditiveResult = CurrentValue - ResultAbsolute.Normalize() - Result.Additive;

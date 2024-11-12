@@ -13,11 +13,13 @@
 #include "DatasmithFacadeAnimation.h"
 
 // Datasmith SDK.
+#include "DatasmithAnimationSerializer.h"
 #include "DatasmithExporterManager.h"
 #include "DatasmithExportOptions.h"
 #include "DatasmithSceneExporter.h"
 
 #include "Misc/Paths.h"
+#include "HAL/FileManager.h"
 
 FDatasmithFacadeScene::FDatasmithFacadeScene(
 	const TCHAR* InApplicationHostName,
@@ -541,6 +543,30 @@ bool FDatasmithFacadeScene::ExportScene(bool bCleanupUnusedElements)
 	SceneExporterRef->Export(SceneRef, bCleanupUnusedElements);
 
 	return true;
+}
+
+void FDatasmithFacadeScene::SerializeLevelSequences()
+{
+	FDatasmithAnimationSerializer AnimSerializer;
+	int32 NumSequences = SceneRef->GetLevelSequencesCount();
+	for (int32 SequenceIndex = 0; SequenceIndex < NumSequences; ++SequenceIndex)
+	{
+		const TSharedPtr<IDatasmithLevelSequenceElement>& LevelSequence = SceneRef->GetLevelSequence(SequenceIndex);
+		if (LevelSequence.IsValid())
+		{
+			FString AnimFilePath = FPaths::Combine(SceneExporterRef->GetAssetsOutputPath(), LevelSequence->GetName()) + DATASMITH_ANIMATION_EXTENSION;
+
+			if (AnimSerializer.Serialize(LevelSequence.ToSharedRef(), *AnimFilePath))
+			{
+				TUniquePtr<FArchive> AnimArchive(IFileManager::Get().CreateFileReader(*AnimFilePath));
+				if (AnimArchive)
+				{
+					LevelSequence->SetFileHash(FMD5Hash::HashFileFromArchive(AnimArchive.Get()));
+				}
+				LevelSequence->SetFile(*AnimFilePath);
+			}
+		}
+	}
 }
 
 TSharedRef<IDatasmithScene> FDatasmithFacadeScene::GetScene() const

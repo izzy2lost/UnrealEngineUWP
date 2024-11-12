@@ -8,7 +8,8 @@ public class MovieScene : ModuleRules
 	{
         PrivateIncludePathModuleNames.AddRange(
             new string[] {
-                "TargetPlatform",
+				"MovieSceneTracks",
+				"TargetPlatform",
 				"UniversalObjectLocator"
 			}
         );
@@ -19,6 +20,7 @@ public class MovieScene : ModuleRules
 				"CoreUObject",
                 "InputCore",
                 "Engine",
+				"SlateCore",
 				"TimeManagement",
 				"UniversalObjectLocator"
 			}

@@ -52,12 +52,12 @@ ensuring that the state of a project is continuously being monitored and that bu
 
    * A project in Horde parlance is typically a game or project, analagous to a stream depot in
    Perforce. Epic has several streams under the `UE5` project on our internal Horde instance, such as `//UE5/Main`,
-   `//UE5/Release-5.4`, `//UE5/Dev-Main-HordeDemo` and so on.
+   `//UE5/Release-5.5`, `//UE5/Dev-Main-HordeDemo` and so on.
    * The referenced config file, `ue5.project.json` exists in the same directory and references a stream configured
-   in `ue5-dev-main-hordedemo.stream.json`. The name of this file is not important for this tutorial.
+   in `ue5-release-5.5.stream.json`. The name of this file is not important for this tutorial.
 
-5. Open the `ue5-release-5.4.stream.json` file and update the `name` property to a stream on your Perforce server.
-   The default is `//UE5/Release-5.4`.
+5. Open the `ue5-release-5.5.stream.json` file and update the `name` property to a stream on your Perforce server.
+   The default is `//UE5/Release-5.5-HordeSync`.
    * You should update the `Project` and `ProjectPath` macros below to reference your project. By
      default, these are set to build Epic's **Lyra** sample.
 
@@ -67,7 +67,7 @@ ensuring that the state of a project is continuously being monitored and that bu
 
 ## Default Jobs
 
-The example `ue5-release-5.4.stream.json` file configures the appearance of its page in the Horde Dashboard, as
+The example `ue5-release-5.5.stream.json` file configures the appearance of its page in the Horde Dashboard, as
 well as job templates and agent types.
 
 * A **job template** defines a set of parameters that are used to construct a

@@ -76,13 +76,6 @@ void UVCamModifier::BeginDestroy()
 	UObject::BeginDestroy();
 }
 
-void UVCamModifier::PostLoad()
-{
-	Super::PostLoad();
-
-	bNeedsInitialization = true;
-}
-
 UVCamComponent* UVCamModifier::GetOwningVCamComponent() const
 {
 	return GetTypedOuter<UVCamComponent>();

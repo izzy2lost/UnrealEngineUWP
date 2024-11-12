@@ -4,9 +4,9 @@
 	MetalTransitionData.cpp: Metal RHI Resource Transition Implementation.
 ==============================================================================*/
 
-#include "MetalRHIPrivate.h"
 #include "MetalTransitionData.h"
-
+#include "MetalRHIContext.h"
+#include "MetalRHIPrivate.h"
 
 //------------------------------------------------------------------------------
 
@@ -35,9 +35,8 @@ void FMetalTransitionData::BeginResourceTransitions() const
 {
 }
 
-void FMetalTransitionData::EndResourceTransitions() const
+void FMetalTransitionData::EndResourceTransitions(FMetalCommandEncoder& CurrentEncoder) const
 {
-	//@ToDo: Support AysncCompute with MTLEvent
 	check(SrcPipelines == DstPipelines);
 
 	for (const auto& Info : Infos)
@@ -58,16 +57,52 @@ void FMetalTransitionData::EndResourceTransitions() const
 		switch (Info.Type)
 		{
 			case FRHITransitionInfo::EType::UAV:
-				GetMetalDeviceContext().TransitionResource(Info.UAV);
+			{
+				FMetalUnorderedAccessView* UAV = ResourceCast(Info.UAV);
+				
+				if (UAV->IsTexture())
+				{
+					FMetalSurface* Surface = ResourceCast(UAV->GetTexture());
+					if (Surface->Texture)
+					{
+						CurrentEncoder.TransitionResources(Surface->Texture.get());
+						if (Surface->MSAATexture)
+						{
+							CurrentEncoder.TransitionResources(Surface->MSAATexture.get());
+						}
+					}
+				}
+				else
+				{
+					FMetalRHIBuffer* Buffer = ResourceCast(UAV->GetBuffer());
+					CurrentEncoder.TransitionResources(Buffer->GetCurrentBuffer()->GetMTLBuffer());
+				}
 				break;
-
+			}
 			case FRHITransitionInfo::EType::Buffer:
-				GetMetalDeviceContext().TransitionRHIResource(Info.Buffer);
+			{
+				auto Resource = ResourceCast(Info.Buffer);
+				if (Resource->GetCurrentBufferOrNil())
+				{
+					CurrentEncoder.TransitionResources(Resource->GetCurrentBuffer()->GetMTLBuffer());
+				}
+				
 				break;
-
+			}
 			case FRHITransitionInfo::EType::Texture:
-				GetMetalDeviceContext().TransitionResource(Info.Texture);
+			{
+				FMetalSurface* Surface = GetMetalSurfaceFromRHITexture(Info.Texture);
+				
+				if ((Surface != nullptr) && Surface->Texture)
+				{
+					CurrentEncoder.TransitionResources(Surface->Texture.get());
+					if (Surface->MSAATexture)
+					{
+						CurrentEncoder.TransitionResources(Surface->MSAATexture.get());
+					}
+				}
 				break;
+			}
 
 			default:
 				checkNoEntry();
@@ -88,6 +123,6 @@ void FMetalRHICommandContext::RHIEndTransitions(TArrayView<const FRHITransition*
 {
 	for (auto Transition : Transitions)
 	{
-		Transition->GetPrivateData<FMetalTransitionData>()->EndResourceTransitions();
+		Transition->GetPrivateData<FMetalTransitionData>()->EndResourceTransitions(CurrentEncoder);
 	}
 }

@@ -7,7 +7,7 @@ using EpicGames.UHT.Utils;
 
 namespace EpicGames.UHT.Exporters.CodeGen
 {
-	internal struct UhtMacroCreator : IDisposable
+	internal readonly struct UhtMacroCreator : IDisposable
 	{
 		private readonly StringBuilder _builder;
 		private readonly int _startingLength;

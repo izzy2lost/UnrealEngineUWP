@@ -155,7 +155,7 @@ namespace EpicGames.Core
 		/// <returns></returns>
 		public FileSet Except(params string[] rules)
 		{
-			return new FileSetFromFilter(this, new FileFilter(rules.Select(x => $"-{x}")));
+			return new FileSetFromFilter(this, new FileFilter(rules.Select(x => $"-{x}"), FileFilterType.Include));
 		}
 
 		/// <summary>
@@ -316,7 +316,8 @@ namespace EpicGames.Core
 		public override IEnumerable<KeyValuePair<string, FileReference>> EnumerateFiles() => _directoryInfo.EnumerateFiles().Select(x => new KeyValuePair<string, FileReference>(x.Name, new FileReference(x)));
 
 		/// <inheritdoc/>
-		public override IEnumerable<KeyValuePair<string, FileSet>> EnumerateDirectories() => _directoryInfo.EnumerateDirectories().Select(x => KeyValuePair.Create<string, FileSet>(x.Name, new FileSetFromDirectory(x)));
+		public override IEnumerable<KeyValuePair<string, FileSet>> EnumerateDirectories() => _directoryInfo.EnumerateDirectories().Select(x => KeyValuePair.Create<string, FileSet>(x.Name, new FileSetFromDirectory(x, $"{Path}{x.Name}/")));
+
 	}
 
 	/// <summary>

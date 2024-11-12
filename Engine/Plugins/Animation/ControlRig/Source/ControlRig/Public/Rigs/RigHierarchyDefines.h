@@ -8,6 +8,7 @@
 #include "RigHierarchyDefines.generated.h"
 
 class URigHierarchy;
+struct FRigBaseElement;
 
 // Debug define which performs a full check on the cache validity for all elements of the hierarchy.
 // This can be useful for debugging cache validity bugs.
@@ -26,14 +27,14 @@ enum class ERigElementType : uint8
 	Space = Null UMETA(Hidden),
 	Control = 0x004,
 	Curve = 0x008,
-	RigidBody = 0x010 UMETA(Hidden), 
+	Physics = 0x010, 
 	Reference = 0x020,
 	Connector = 0x040,
 	Socket = 0x080,
 	
 	First = Bone UMETA(Hidden), 
 	Last = Socket UMETA(Hidden), 
-	All = Bone | Null | Control | Curve | RigidBody | Reference | Connector | Socket,
+	All = Bone | Null | Control | Curve | Physics | Reference | Connector | Socket,
 	ToResetAfterConstructionEvent = Bone | Control | Curve | Socket UMETA(Hidden),
 };
 
@@ -1212,8 +1213,8 @@ template<>
 inline FString FRigControlValue::ToString<bool>() const
 {
 	const bool Value = Get<bool>();
-	static const FString True = TEXT("True");
-	static const FString False = TEXT("False");
+	static const TCHAR* True = TEXT("True");
+	static const TCHAR* False = TEXT("False");
 	return Value ? True : False;
 }
 
@@ -1580,9 +1581,9 @@ public:
 			{
 				return FString::Printf(TEXT("Curve(%s)"), *Name.ToString());
 			}
-			case ERigElementType::RigidBody:
+			case ERigElementType::Physics:
 			{
-				return FString::Printf(TEXT("RigidBody(%s)"), *Name.ToString());
+				return FString::Printf(TEXT("Physics(%s)"), *Name.ToString());
 			}
 			case ERigElementType::Reference:
 			{
@@ -1602,6 +1603,46 @@ public:
 	}
 
 	FString ToPythonString() const;
+};
+
+struct CONTROLRIG_API FRigElementKeyAndIndex
+{
+public:
+
+	inline static const FRigElementKey InvalidKey = FRigElementKey(NAME_None, ERigElementType::Bone);
+	inline static constexpr int32 InvalidIndex = INDEX_NONE;
+
+	FRigElementKeyAndIndex()
+		: Key(InvalidKey)
+		, Index(InvalidIndex)
+	{
+	}
+
+	explicit FRigElementKeyAndIndex(const FRigBaseElement* InElement);
+
+	FRigElementKeyAndIndex(const FRigElementKey& InKey, const int32& InIndex)
+		: Key(InKey)
+		, Index(InIndex)
+	{
+	}
+
+	bool IsValid() const
+	{
+		return Key.IsValid() && Index != INDEX_NONE;
+	}
+
+	operator int32() const
+	{
+		return Index;
+	}
+
+	friend uint32 GetTypeHash(const FRigElementKeyAndIndex& InKeyAndIndex)
+	{
+		return GetTypeHash(InKeyAndIndex.Index);
+	}
+	
+	const FRigElementKey& Key;
+	const int32& Index;
 };
 
 USTRUCT(BlueprintType)

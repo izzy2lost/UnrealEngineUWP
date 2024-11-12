@@ -108,6 +108,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 FWidgetBlueprintGeneratedClassDelegates::FGetAssetTags FWidgetBlueprintGeneratedClassDelegates::GetAssetTags;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 FWidgetBlueprintGeneratedClassDelegates::FGetAssetTagsWithContext FWidgetBlueprintGeneratedClassDelegates::GetAssetTagsWithContext;
+FWidgetBlueprintGeneratedClassDelegates::FCollectSaveOverrides FWidgetBlueprintGeneratedClassDelegates::CollectSaveOverrides;
 
 #endif
 
@@ -377,21 +378,23 @@ void UWidgetBlueprintGeneratedClass::PurgeClass(bool bRecompilingOnLoad)
 {
 	Super::PurgeClass(bRecompilingOnLoad);
 
-	const ERenameFlags RenFlags = REN_DontCreateRedirectors | ( ( bRecompilingOnLoad ) ? REN_ForceNoResetLoaders : 0 ) | REN_NonTransactional | REN_DoNotDirty;
+	const ERenameFlags RenFlags = REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty;
 
 	// Remove the old widdget tree.
 	if ( WidgetTree )
 	{
-		WidgetTree->Rename(nullptr, GetTransientPackage(), RenFlags);
+        // Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
 		FLinkerLoad::InvalidateExport(WidgetTree);
+		WidgetTree->Rename(nullptr, GetTransientPackage(), RenFlags);
 		WidgetTree = nullptr;
 	}
 
 	// Remove all animations.
 	for ( UWidgetAnimation* Animation : Animations )
 	{
-		Animation->Rename(nullptr, GetTransientPackage(), RenFlags);
+        // Rename will remove the renamed object's linker when moving to a new package so invalidate the export beforehand
 		FLinkerLoad::InvalidateExport(Animation);
+		Animation->Rename(nullptr, GetTransientPackage(), RenFlags);
 	}
 
 	Animations.Empty();
@@ -553,6 +556,12 @@ void UWidgetBlueprintGeneratedClass::GetAssetRegistryTags(FAssetRegistryTagsCont
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	FWidgetBlueprintGeneratedClassDelegates::GetAssetTagsWithContext.Broadcast(this, Context);
+}
+
+void UWidgetBlueprintGeneratedClass::CollectSaveOverrides(FObjectCollectSaveOverridesContext SaveContext)
+{
+	Super::CollectSaveOverrides(SaveContext);
+	FWidgetBlueprintGeneratedClassDelegates::CollectSaveOverrides.Broadcast(this, SaveContext);
 }
 #endif
 

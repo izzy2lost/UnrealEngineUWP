@@ -5,6 +5,7 @@
 #include "AvaSceneTree.h"
 #include "Delegates/Delegate.h"
 #include "GameFramework/Actor.h"
+#include "IAvaRemoteControlInterface.h"
 #include "IAvaSceneInterface.h"
 #include "IAvaSequenceProvider.h"
 #include "UObject/ObjectPtr.h"
@@ -23,13 +24,21 @@ class ISequencer;
 #endif
 
 UCLASS(MinimalAPI, NotPlaceable, Hidden, NotBlueprintable, NotBlueprintType, DisplayName = "Motion Design Scene")
-class AAvaScene : public AActor, public IAvaSequenceProvider, public IAvaSceneInterface, public IAvaViewportDataProvider
+class AAvaScene : public AActor, public IAvaSequenceProvider, public IAvaSceneInterface, public IAvaViewportDataProvider, public IAvaRemoteControlInterface
 {
 	GENERATED_BODY()
 
-	static void OnSceneCreated(FString&& InCreationType);
-
 public:
+#if WITH_EDITOR
+	enum class ESceneAction : uint8
+	{
+		Created,
+		Activated,
+		Deactivated,
+	};
+	AVALANCHE_API static void NotifySceneEvent(ESceneAction InAction);
+#endif
+
 	AVALANCHE_API static AAvaScene* GetScene(ULevel* InLevel, bool bInCreateSceneIfNotFound);
 
 	AAvaScene();
@@ -39,7 +48,7 @@ public:
 #if WITH_EDITOR
 	TArray<uint8>& GetOutlinerData() { return OutlinerData; }
 
-	void OnWorldRenamed(UWorld* InWorld, const TCHAR* InName, UObject* InNewOuter, ERenameFlags InFlags, bool& bOutShouldFailRename);
+	void OnWorldRenamed(UWorld* InWorld);
 
 	void OnGetWorldTags(FAssetRegistryTagsContext Context) const;
 #endif
@@ -78,8 +87,14 @@ public:
 	virtual void RebuildSequenceTree() override;
 	//~ End IAvaSequenceProvider
 
+	//~ Begin IAvaRemoteControlInterface
+	virtual void OnValuesApplied_Implementation() override;
+	//~ End IAvaRemoteControlInterface
+
 	//~ Begin AActor
 	virtual void PostActorCreated() override;
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type InEndPlayReason) override;
 #if WITH_EDITOR
 	virtual bool IsSelectable() const override { return false; }
 	virtual bool SupportsExternalPackaging() const override { return false; }
@@ -88,6 +103,7 @@ public:
 
 	//~ Begin UObject
 	virtual void PostLoad() override;
+	virtual void PostInitializeComponents() override;
 	virtual void PostDuplicate(EDuplicateMode::Type InDuplicateMode) override;
 	virtual void PostEditImport() override;
 	virtual void BeginDestroy() override;
@@ -99,6 +115,9 @@ public:
 	virtual void SetStartupCameraName(FName InName) override;
 #endif
 	//~ End IAvaViewportDataProvider
+
+	void RegisterObjects();
+	void UnregisterObjects();
 
 protected:
 	UPROPERTY()

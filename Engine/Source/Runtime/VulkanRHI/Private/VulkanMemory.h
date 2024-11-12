@@ -6,7 +6,10 @@
 
 #pragma once 
 
+#include "Containers/Map.h"
 #include "Misc/ScopeRWLock.h"
+#include "VulkanConfiguration.h"
+#include "VulkanThirdParty.h"
 
 //enable to store FILE/LINE, and optionally a stacktrace via r.vulkan.backtrace
 #if !UE_BUILD_SHIPPING
@@ -469,7 +472,7 @@ namespace VulkanRHI
 		void Free(FVulkanDevice& Device);
 		void Swap(FVulkanAllocation& Other);
 		void Reference(const FVulkanAllocation& Other); //point to other, but don't take ownership
-		bool HasAllocation();
+		bool HasAllocation() const;
 
 		void Disown(); //disown & own should be used if ownership is transferred.
 		void Own();
@@ -1115,64 +1118,50 @@ namespace VulkanRHI
 	};
 
 
-	// Simple tape allocation per frame for a VkBuffer, used for Volatile allocations
-	class FTempFrameAllocationBuffer : public FDeviceChild
+	// Simple temp allocation blocks used for volatile allocations
+	class FTempBlockAllocator : public FDeviceChild
 	{
-		enum
-		{
-			ALLOCATION_SIZE = (4 * 1024 * 1024),
-		};
-
 	public:
-		FTempFrameAllocationBuffer(FVulkanDevice* InDevice);
-		virtual ~FTempFrameAllocationBuffer();
-		void Destroy();
-
-		struct FTempAllocInfo
+		struct FTempMemoryBlock
 		{
 			FVulkanAllocation Allocation;
-			void* Data = 0;
-			uint32 CurrentOffset = 0;
-			uint32 Size = 0;
-			uint32 LockCounter = 0;
+			VkBuffer Buffer = 0;
+			uint8* MappedPointer = 0;
+			VkDeviceAddress BufferAddress = 0;
 
-			uint32 GetBindOffset()
-			{
-				checkNoEntry();
-				return 0;
-			}
-
+			// Used by owners to suballocate
+			TMap<FVulkanCmdBuffer*, uint64> Fences;
+			std::atomic<uint32> CurrentOffset = 0;
 		};
 
-		void Alloc(uint32 InSize, uint32 InAlignment, FTempAllocInfo& OutInfo);
-		void Reset();
+		struct FInternalAlloc
+		{
+			FTempMemoryBlock* Block = nullptr;
+			uint32 Offset = 0;
+		};
+
+		FTempBlockAllocator(FVulkanDevice* InDevice, uint32 InBlockSize, uint32 InBlockAlignment, VkBufferUsageFlags InBufferUsage);
+		virtual ~FTempBlockAllocator();
+
+		uint8* Alloc(uint32 InSize, FVulkanCmdBuffer* CmdBuffer, VkDescriptorBufferBindingInfoEXT& OutBindingInfo, VkDeviceSize& OutOffset);
+		uint8* Alloc(uint32 InSize, uint32 InAlignment, FVulkanCmdBuffer* CmdBuffer, FVulkanAllocation& OutAllocation, VkDescriptorAddressInfoEXT* OutDescriptorAddressInfo = nullptr);
+
+		void UpdateBlocks();
 
 	protected:
-		uint32 BufferIndex;
+		FTempMemoryBlock* AllocBlock();
+		FInternalAlloc InternalAlloc(uint32 InSize, FVulkanCmdBuffer* CmdBuffer);
 
-		enum
-		{
-			NUM_BUFFERS = 3,
-		};
+		const uint32 BlockSize;
+		const uint32 BlockAlignment;
+		const VkBufferUsageFlags BufferUsage;
 
-		struct FFrameEntry
-		{
-			FVulkanAllocation Allocation;
-			TArray<FVulkanAllocation> PendingDeletionList;
-			uint8* MappedData = nullptr;
-			uint8* CurrentData = nullptr;
-			uint32 Size = 0;
-			uint32 PeakUsed = 0;
-
-			void InitBuffer(FVulkanDevice* InDevice, uint32 InSize);
-			void Reset(FVulkanDevice* Device);
-			bool TryAlloc(uint32 InSize, uint32 InAlignment, FTempAllocInfo& OutInfo);
-		};
-		FFrameEntry Entries[NUM_BUFFERS];
-		FCriticalSection CS;
-
-		friend class FVulkanCommandListContext;
+		FTempMemoryBlock* CurrentBlock = nullptr;
+		TArray<FTempMemoryBlock*> BusyBlocks;
+		TArray<FTempMemoryBlock*> AvailableBlocks;
+		FRWLock RWLock;
 	};
+
 
 	class VULKANRHI_API FSemaphore : public FRefCount
 	{

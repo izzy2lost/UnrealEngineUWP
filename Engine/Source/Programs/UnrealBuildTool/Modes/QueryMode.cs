@@ -165,7 +165,7 @@ namespace UnrealBuildTool
 					return QueryCapabilities(Arguments, Logger, ResponseOptions);
 				case QueryType.AvailableTargets:
 					Logger.LogInformation("QueryAvailableTargets");
-					return QueryAvailableTargets(Arguments, Logger, ResponseOptions);
+					return QueryAvailableTargetsAsync(Arguments, Logger, ResponseOptions);
 				case QueryType.TargetDetails:
 					Logger.LogInformation("QueryTargetDetails");
 					return QueryTargetDetails(Arguments, Logger, ResponseOptions);
@@ -196,7 +196,7 @@ namespace UnrealBuildTool
 			return 0;
 		}
 
-		private async Task<int> QueryAvailableTargets(CommandLineArguments Arguments, ILogger Logger, JsonSerializerOptions JsonOptions)
+		private async Task<int> QueryAvailableTargetsAsync(CommandLineArguments Arguments, ILogger Logger, JsonSerializerOptions JsonOptions)
 		{
 			try
 			{
@@ -258,7 +258,6 @@ namespace UnrealBuildTool
 
 							// Ensure the intermediate environment does not conflict with normal builds
 							TargetDescriptors[0].IntermediateEnvironment = UnrealIntermediateEnvironment.Query;
-						
 
 							UEBuildTarget CurrentTarget;
 							using (GlobalTracer.Instance.BuildSpan("UEBuildTarget.Create()").StartActive())
@@ -299,9 +298,8 @@ namespace UnrealBuildTool
 
 				var Reply = new
 				{
-					Targets = Targets,
-
-					DefaultTarget = DefaultTarget,
+					Targets,
+					DefaultTarget,
 					DefaultPlatform = Platforms[0].ToString(),
 					DefaultConfiguration = UnrealTargetConfiguration.Development.ToString(),
 				};
@@ -352,7 +350,7 @@ namespace UnrealBuildTool
 				// TOOD: Error 
 				return 1;
 			}
-			
+
 			// Ensure the intermediate environment does not conflict with normal builds
 			TargetDescriptors[0].IntermediateEnvironment = UnrealIntermediateEnvironment.Query;
 

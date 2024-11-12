@@ -34,7 +34,7 @@ FTG_Name UTG_Node::GetNodeName() const
 #if WITH_EDITOR
 void UTG_Node::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Node::PostEditChangeProperty."));
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Node::PostEditChangeProperty."));
 }
 
 void UTG_Node::PostEditUndo()
@@ -147,8 +147,12 @@ void UTG_Node::OnExpressionChangedWithoutVar(const FPropertyChangedEvent& Proper
 		if (PinId.IsValid())
 		{
 			auto ModifiedPin = GetPin(PinId);
-			auto Arg = ModifiedPin->GetArgument();
-			ModifiedPin->EditSelfVar()->CopyFrom(GetExpression(), Arg);
+
+			if(ModifiedPin)
+			{
+				auto Arg = ModifiedPin->GetArgument();
+				ModifiedPin->EditSelfVar()->CopyFrom(GetExpression(), Arg);
+			}
 		}
 	}
 
@@ -228,12 +232,12 @@ void UTG_Node::Serialize(FArchive& Ar)
 
 	if (!Expression)
 	{
-		UE_LOG(LogTextureGraph, Log, TEXT("    %s Node: NUll Expression???"),
+		UE_LOG(LogTextureGraph, Verbose, TEXT("    %s Node: NUll Expression???"),
 			(Ar.IsSaving() ? TEXT("Saved") : TEXT("Loaded")));
 		Expression = NewObject<UTG_Expression_Null>(this, UTG_Expression_Null::StaticClass(), NAME_None, RF_Transactional);
 	}
 
-	UE_LOG(LogTextureGraph, Log, TEXT("    %s Node: %s"),
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("    %s Node: %s"),
 		(Ar.IsSaving() ? TEXT("Saved") : TEXT("Loaded")),
 		*GetId().ToString());
 }
@@ -488,7 +492,7 @@ FTG_Variant::EType UTG_Node::GetExpressionCommonVariantType() const
 
 FTG_Variant::EType UTG_Node::EvalExpressionCommonVariantType() const
 {
-	FTG_Variant::EType Type = FTG_Variant::EType::Scalar;
+	FTG_Variant::EType Type = FTG_Variant::EType::Invalid;
 
 	for (auto Pin : Pins)
 	{
@@ -498,8 +502,14 @@ FTG_Variant::EType UTG_Node::EvalExpressionCommonVariantType() const
 			{
 				// now we know the thing connected to the pin variant exist, what is its type?
 				UTG_Pin* OtherPin = GetGraph()->GetPin(Pin->GetVarId());
-				FTG_Variant::EType OtherType = FTG_Variant::GetTypeFromName(OtherPin->GetArgumentCPPTypeName());
-				Type = FTG_Variant::WhichCommonType(Type, OtherType);
+
+				if (OtherPin)
+				{
+					FTG_Variant::EType OtherType = FTG_Variant::GetTypeFromName(OtherPin->GetArgumentCPPTypeName());
+					Type = FTG_Variant::WhichCommonType(Type, OtherType);
+				}
+				else
+					return FTG_Variant::EType::Invalid;
 			}
 			// removed the else part here since the selfvar/default will be reset to the common type on the next evaluation
 			/*else
@@ -531,7 +541,7 @@ int UTG_Node::GetAllOutputValues(TArray<FTG_Variant>& OutVariants, TArray<FName>
 			}
 			else
 			{
-				UE_LOG(LogTextureGraph, Log, TEXT("Output {} failed to collect as variant"), *(Pin->GetAliasName().ToString()));
+				UE_LOG(LogTextureGraph, Warning, TEXT("Output {} failed to collect as variant"), *(Pin->GetAliasName().ToString()));
 			}
 		}
 	}

@@ -13,6 +13,7 @@ class FTransport
 public:
 	virtual					~FTransport() {}
 	void					SetReader(FStreamReader& InReader);
+	FStreamReader*			GetReader() const { return Reader; }
 	template <typename RetType>
 	RetType const*			GetPointer();
 	template <typename RetType>

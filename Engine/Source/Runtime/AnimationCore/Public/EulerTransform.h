@@ -16,7 +16,7 @@
 class UScriptStruct;
 template <class T> struct TBaseStructure;
 
-UENUM()
+UENUM(BlueprintType)
 enum class EEulerRotationOrder : uint8
 {
 	XYZ,

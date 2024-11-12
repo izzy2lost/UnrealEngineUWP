@@ -45,6 +45,7 @@ public:
 		, _ItemWidth(128)
 		, _ItemAlignment(EListItemAlignment::EvenlyDistributed)
 		, _OnContextMenuOpening()
+		, _OnItemsRebuilt()
 		, _OnMouseButtonClick()
 		, _OnMouseButtonDoubleClick()
 		, _OnSelectionChanged()
@@ -88,6 +89,8 @@ public:
 		SLATE_ATTRIBUTE( EListItemAlignment, ItemAlignment )
 
 		SLATE_EVENT( FOnContextMenuOpening, OnContextMenuOpening )
+
+		SLATE_EVENT( FSimpleDelegate, OnItemsRebuilt )
 
 		SLATE_EVENT( FOnMouseButtonClick, OnMouseButtonClick )
 
@@ -153,6 +156,7 @@ public:
 		
 		this->SetItemsSource(InArgs.MakeListItemsSource(this->SharedThis(this)));
 		this->OnContextMenuOpening = InArgs._OnContextMenuOpening;
+		this->OnItemsRebuilt = InArgs._OnItemsRebuilt;
 		this->OnClick = InArgs._OnMouseButtonClick;
 		this->OnDoubleClick = InArgs._OnMouseButtonDoubleClick;
 		this->OnSelectionChanged = InArgs._OnSelectionChanged;
@@ -256,7 +260,7 @@ public:
 			}
 
 			// If it's valid we'll scroll it into view and return an explicit widget in the FNavigationReply
-			if (ItemsSourceRef.IsValidIndex(AttemptSelectIndex))
+			if (ItemsSourceRef.IsValidIndex(AttemptSelectIndex) && this->bIsGamepadScrollingEnabled)
 			{
 				this->NavigationSelect(ItemsSourceRef[AttemptSelectIndex], InNavigationEvent);
 				return FNavigationReply::Explicit(nullptr);

@@ -34,6 +34,8 @@ public class Party : ModuleRules
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 		}
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 
 	protected virtual bool bUsesPSNSessions { get { return false; } }

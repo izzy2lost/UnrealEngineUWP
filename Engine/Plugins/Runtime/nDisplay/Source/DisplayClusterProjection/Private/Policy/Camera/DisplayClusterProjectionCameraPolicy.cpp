@@ -39,11 +39,7 @@ void FDisplayClusterProjectionCameraPolicy::UpdatePostProcessSettings(IDisplayCl
 	// The ICVFX camera postprocess is more detailed and is defined in the FDisplayClusterConfigurationICVFX_CameraSettings structure.
 	if (InViewport && !EnumHasAnyFlags(InViewport->GetRenderSettingsICVFX().RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::InCamera))
 	{
-		float DeltaTime = 0.0f;
-		if (ADisplayClusterRootActor* SceneRootActor = InViewport->GetConfiguration().GetRootActor(EDisplayClusterRootActorType::Scene))
-		{
-			DeltaTime = SceneRootActor->GetWorldDeltaSeconds();
-		}
+		const float DeltaTime = InViewport->GetConfiguration().GetRootActorWorldDeltaSeconds(EDisplayClusterRootActorType::Scene);
 
 		FMinimalViewInfo ViewInfo;
 		if (ImplSetupProjectionViewPoint(InViewport, DeltaTime, ViewInfo) && ViewInfo.PostProcessBlendWeight > 0.0f)

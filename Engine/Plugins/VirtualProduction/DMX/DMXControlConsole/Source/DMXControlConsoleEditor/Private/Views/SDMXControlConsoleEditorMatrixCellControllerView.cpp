@@ -11,6 +11,7 @@
 #include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Layouts/Controllers/DMXControlConsoleMatrixCellController.h"
 #include "Misc/Optional.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/DMXControlConsoleElementControllerModel.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
@@ -33,6 +34,7 @@ namespace UE::DMX::Private
 		{
 			constexpr float CollapsedViewModeHeight = 230.f;
 			constexpr float ExpandedViewModeHeight = 310.f;
+			constexpr float PhysicalValueTypeHeight = 330.f;
 		}
 	}
 
@@ -183,8 +185,15 @@ namespace UE::DMX::Private
 		}
 
 		const TArray<UDMXControlConsoleCellAttributeController*>& CellAttributeControllers = MatrixCellController->GetCellAttributeControllers();
+		
+		const float NumSteps = CellAttributeControllers.Num();
+		FScopedSlowTask Task(NumSteps, LOCTEXT("OnCellAttributeControllerAddedSlowTask", "Updating Control Console..."));
+		Task.MakeDialogDelayed(.5f);
+		
 		for (UDMXControlConsoleCellAttributeController* CellAttributeController : CellAttributeControllers)
 		{
+			Task.EnterProgressFrame();
+
 			if (!CellAttributeController)
 			{
 				continue;
@@ -216,7 +225,7 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		const TSharedRef<FDMXControlConsoleElementControllerModel> NewElementControllerModel = MakeShared<FDMXControlConsoleElementControllerModel>(CellAttributeController);
+		const TSharedRef<FDMXControlConsoleElementControllerModel> NewElementControllerModel = MakeShared<FDMXControlConsoleElementControllerModel>(CellAttributeController, EditorModel);
 		const TSharedRef<SDMXControlConsoleEditorElementControllerView> ElementControllerView =
 			SNew(SDMXControlConsoleEditorElementControllerView, NewElementControllerModel, EditorModel.Get())
 			.Padding(FMargin(2.f, 0.f))
@@ -320,14 +329,24 @@ namespace UE::DMX::Private
 	FOptionalSize SDMXControlConsoleEditorMatrixCellControllerView::GetMatrixCellControllerHeightByFadersViewMode() const
 	{
 		using namespace DMXControlConsoleEditorMatrixCellControllerView::Private;
-		const UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
-		if (EditorData)
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+		if (!ControlConsoleEditorData)
 		{
-			const EDMXControlConsoleEditorViewMode ViewMode = EditorData->GetFadersViewMode();
-			return ViewMode == EDMXControlConsoleEditorViewMode::Collapsed ? CollapsedViewModeHeight : ExpandedViewModeHeight;
+			return CollapsedViewModeHeight;
 		}
-
-		return CollapsedViewModeHeight;
+		
+		if (ControlConsoleEditorData->GetFadersViewMode() == EDMXControlConsoleEditorViewMode::Collapsed)
+		{
+			return CollapsedViewModeHeight;
+		}
+		else if (ControlConsoleEditorData->GetValueType() == EDMXControlConsoleEditorValueType::Physical)
+		{
+			return PhysicalValueTypeHeight;
+		}
+		else
+		{
+			return ExpandedViewModeHeight;
+		}
 	}
 
 	FText SDMXControlConsoleEditorMatrixCellControllerView::GetMatrixCellLabelText() const

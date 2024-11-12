@@ -171,7 +171,6 @@ bool FMovieSceneLiveLinkSectionTemplate::GetLiveLinkFrameArray(const FFrameTime&
 
 	bool bSendInterpolated = bAlwaysSendInterpolated || !TimeCodeFrameTime.IsSet() || LowerBound == UpperBound || bMustDoInterpolation;
 	FLiveLinkWorldTime WorldTime = FLiveLinkWorldTime(); //this calls FPlatform::Seconds()
-	FVector Vector;
 
 	if (!bSendInterpolated)
 	{

@@ -40,6 +40,8 @@ class FChannelCurveModel : public FCurveModel
 {
 public:
 	FChannelCurveModel(TMovieSceneChannelHandle<ChannelType> InChannel, UMovieSceneSection* InOwningSection, TWeakPtr<ISequencer> InWeakSequencer);
+	FChannelCurveModel(TMovieSceneChannelHandle<ChannelType> InChannel, UMovieSceneSection* InOwningSection, UObject* InOwningObject, TWeakPtr<ISequencer> InWeakSequencer);
+
 	~FChannelCurveModel();
 
 	virtual const void* GetCurve() const override;
@@ -47,7 +49,7 @@ public:
 	virtual void Modify() override;
 
 	virtual void DrawCurve(const FCurveEditor& CurveEditor, const FCurveEditorScreenSpace& ScreenSpace, TArray<TTuple<double, double>>& OutInterpolatingPoints) const override;
-	virtual void GetKeys(const FCurveEditor& CurveEditor, double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const override;
+	virtual void GetKeys(double MinTime, double MaxTime, double MinValue, double MaxValue, TArray<FKeyHandle>& OutKeyHandles) const override;
 	virtual void GetKeyDrawInfo(ECurvePointType PointType, const FKeyHandle InKeyHandle, FKeyDrawInfo& OutDrawInfo) const override;
 
 	virtual void GetKeyPositions(TArrayView<const FKeyHandle> InKeys, TArrayView<FKeyPosition> OutKeyPositions) const override;
@@ -62,18 +64,29 @@ public:
 	virtual void AddKeys(TArrayView<const FKeyPosition> InKeyPositions, TArrayView<const FKeyAttributes> InAttributes, TArrayView<TOptional<FKeyHandle>>* OutKeyHandles) override;
 	virtual void RemoveKeys(TArrayView<const FKeyHandle> InKeys) override;
 
+	virtual FTransform2d GetCurveTransform() const override;
 	virtual bool IsReadOnly() const override;
 	virtual UObject* GetOwningObject() const override
 	{
+		if (UObject* OwningObject = WeakOwningObject.Get())
+		{
+			return OwningObject;
+		}
 		return WeakSection.Get();
 	}
 	virtual bool HasChangedAndResetTest() override
 	{
-		if (UMovieSceneSection* Section = WeakSection.Get())
+		UMovieSceneSignedObject* SignedOwner = Cast<UMovieSceneSignedObject>(WeakOwningObject.Get());
+		if (!SignedOwner)
 		{
-			if (Section->GetSignature() != LastSignature)
+			SignedOwner = WeakSection.Get();
+		}
+
+		if (SignedOwner)
+		{
+			if (SignedOwner->GetSignature() != LastSignature)
 			{
-				LastSignature = Section->GetSignature();
+				LastSignature = SignedOwner->GetSignature();
 				return true;
 			}
 			return false;
@@ -96,10 +109,11 @@ private:
 
 	void FixupCurve();
 
-private:
+protected:
 
 	TMovieSceneChannelHandle<ChannelType> ChannelHandle;
 	TWeakObjectPtr<UMovieSceneSection> WeakSection;
+	TWeakObjectPtr<> WeakOwningObject;
 	TWeakPtr<ISequencer> WeakSequencer;
 	FDelegateHandle OnDestroyHandle;
 	FGuid LastSignature;

@@ -26,7 +26,6 @@ There is working code for this already but the concept/API needs more fleshing o
 #include "NiagaraDataChannelPublic.h"
 #include "NiagaraDataInterfaceDataChannelCommon.h"
 #include "NiagaraDataInterfaceRW.h"
-#include "NiagaraDataSetAccessor.h"
 #include "NiagaraDataInterfaceDataChannelRead.generated.h"
 
 class UNiagaraDataInterfaceDataChannelWrite;
@@ -34,7 +33,7 @@ struct FNDIDataChannelWriteInstanceData;
 class UNiagaraDataChannelHandler;
 class FNiagaraDataBuffer;
 
-struct FNiagaraDataChannelDataProxy;
+using FNiagaraDataChannelDataProxyPtr = TSharedPtr<struct FNiagaraDataChannelDataProxy>;
 
 /** Mode controlling the behavior of the Spawn function for Niagara's Data Channel Read Data Interface.*/
 UENUM()
@@ -52,7 +51,24 @@ enum class ENDIDataChannelSpawnMode
 	Max UMETA(Hidden),
 };
 
-UCLASS(Experimental, EditInlineNew, Category = "Data Channels", CollapseCategories, meta = (DisplayName = "Data Channel Reader"), MinimalAPI)
+/** Mode controlling the behavior of the ScaleSpawnCount function for Niagara's Data Channel Read Data Interface.*/
+UENUM()
+enum class ENDIDataChannelSpawnScaleMode
+{
+	/** This mode will override any previously set scale values. */
+	Override,
+
+	/** This mode will combine with previously set scales. e.g. Two calls that scale by 0.5 will result in a final spawn scale of 0.25. */
+	Scale,
+
+	Max UMETA(Hidden),
+};
+
+/**
+The Data Channel Reader Data Interface allows us to read from a Niagara Data Channel.
+It also allows us to spawn particles into emitters in this system based upon the entries in a Niagara Data Channel.
+*/
+UCLASS(EditInlineNew, Category = "Data Channels", CollapseCategories, meta = (DisplayName = "Data Channel Reader"), MinimalAPI)
 class UNiagaraDataInterfaceDataChannelRead : public UNiagaraDataInterfaceRWBase
 {
 	GENERATED_UCLASS_BODY()
@@ -73,18 +89,26 @@ public:
 	UPROPERTY(EditAnywhere, Category="Data Channel")
 	TObjectPtr<UNiagaraDataChannelAsset> Channel;
 	
-	/** True if this reader will read the current frame's data. If false, we read the previous frame.
-	* Reading the current frame introduces a tick order dependency but allows for zero latency reads. Any data channel elements that are generated after this reader is used are missed.
-	* Reading the previous frame's data introduces a frame of latency but ensures we never miss any data as we have access to the whole frame.
+	/** 
+	* If this interface should read the current frame's data from the Data Channel. If false, the interface will read from the previous frame if it's available.
+	* 
+	* Reading the current frame allows us to use the most current data and have the least possible latency from the source.
+	* However, it introduces a tick order dependency between this read and the Blueprints, Game Code or other Niagara Systems writing into this Data Channel.
+	* If this interface reads data before those writing to the Data Channel have executed, then that data will be missed.
+	* 
+	* Reading the previous frame allows us to avoid this tick order dependency.
+	* We can be sure we are reading all data that is written to the Data Channel, regardless of when the writes happened in the frame.
+	* However it does introduce a 1 frame delay in the data being read and so can cause latency/lag.
 	*/
 	UPROPERTY(EditAnywhere, Category = "Data Channel", AdvancedDisplay)
 	bool bReadCurrentFrame = false;
 
 	/**
-	Whether this DI should request updated source data from the Data Channel each tick.
-	Some Data Channels have multiple separate source data elements for things such as spatial subdivision. 
+	The source Data Channel data for this interface will be refreshed every frame.
+	Some Data Channels have multiple separate data elements for things such as spatial subdivision. 
 	Each DI will request the correct one for it's owning system instance from the data channel. 
-	Depending on the data channel this could be an expensive search so we should avoid doing this every tick if possible.
+	Depending on the Data Channel this could be an expensive search so we should avoid doing this every tick if possible.
+	However it may be required. For example if the Niagara System is moving and reading from a spatially sub-divided NDC such as the Islands type.
 	*/
 	UPROPERTY(EditAnywhere, Category = "Data Channel", AdvancedDisplay)
 	bool bUpdateSourceDataEveryTick = true;
@@ -97,7 +121,7 @@ public:
 	It will also mean that Exec Index will be correct on a per NDC Entry level. 
 	Without this settings ExecIndex will be 0...TotalSpawnCount-1. With this it will be 0...SpawnCount for each NDC item individually.
 	Unless absolutely needed this is discouraged as it comes at significant performance cost when spawning and GPU emitters can currently only handle 8 individual spawns per frame.
-	Calling GetNDCSpawnInfo() in the particle spawn script to get the spawning NDC Index is prefered.
+	Calling GetNDCSpawnInfo() in the particle spawn script to get the spawning NDC Index is preferred.
 	*/
 	UPROPERTY(EditAnywhere, Category = "Spawning", AdvancedDisplay)
 	bool bOverrideSpawnGroupToDataChannelIndex = false;
@@ -149,6 +173,11 @@ public:
 
 	//We cannot overlap frames as we must correctly sync up with the data channel manager on Begin/End frame etc.
 	virtual bool PostSimulateCanOverlapFrames() const { return false; }
+	virtual bool PostStageCanOverlapTickGroups() const { return false; }
+
+	virtual bool RequiresCurrentFrameNDC() const { return bReadCurrentFrame; }
+
+	virtual uint32 GetGpuCountBufferEstimate() const { return 1; }
 	//UNiagaraDataInterface Interface
 
 	//Functions usable anywhere.
@@ -160,6 +189,12 @@ public:
 
 	//Emitter only functions.
 	NIAGARA_API void SpawnConditional(FVectorVMExternalFunctionContext& Context, int32 FuncIndex);
+
+	template<typename T>
+	NIAGARA_API void SpawnDirect(FVectorVMExternalFunctionContext& Context, FName NDCVarName);
+	
+	template<typename T>
+	NIAGARA_API void ScaleSpawnCount(FVectorVMExternalFunctionContext& Context, FName NDCVarName);
 
 	FNDIDataChannelCompiledData& GetCompiledData() { return CompiledData; }
 
@@ -186,6 +221,25 @@ struct FNDIDataChannelRead_EmitterSpawnData
 	}
 };
 
+struct FNDIDataChannelRead_EmitterSpawnInfo
+{
+private:
+	uint32 Count = 0;
+	float Scale = 1.0f;
+
+public:
+	uint32 Get() const
+	{
+		float Value = Count * Scale;
+		return static_cast<uint32>(Value > MAX_int32 ? MAX_int32 : Value);
+	}
+
+	void SetCount(uint32 NewCount) { Count = NewCount; }
+	void Append(uint32 NewCount) { Count += NewCount; }
+	void SetScale(float NewScale) { Scale = NewScale; }
+	void ApplyScale(float NewScale) { Scale *= NewScale; }
+};
+
 struct FNDIDataChannelRead_EmitterInstanceData
 {
 	//Spawn data buffers needed for accessing the correct NDCIndex and spawn data from a particle during CPU or GPU execution.
@@ -193,7 +247,7 @@ struct FNDIDataChannelRead_EmitterInstanceData
 	FNDIDataChannelRead_EmitterSpawnData NDCSpawnData;
 
 	//Spawn Counts for each entry in the NDC.
-	TArray<int32> NDCSpawnCounts;
+	TArray<FNDIDataChannelRead_EmitterSpawnInfo> NDCSpawnCounts;
 
 	void Reset()
 	{
@@ -238,19 +292,26 @@ struct FNDIDataChannelReadInstanceData
 	*/
 	std::atomic<int32> ConsumeIndex = 0;
 
+	// Num Elements in the NDC at the time we generated our NDCSpawnData.
+	int32 NDCElementCountAtSpawn = 0;
+
 	/** 
 	Instance data for each emitter using this DI.
 	*/
 	TMap<FNiagaraEmitterInstance*,FNDIDataChannelRead_EmitterInstanceData> EmitterInstanceData;
 
-	uint32 CachedLayoutHash = INDEX_NONE;
 	FNiagaraSystemInstance* Owner = nullptr;
 
 	virtual ~FNDIDataChannelReadInstanceData();
-	FNiagaraDataBuffer* GetReadBufferCPU(bool bPrevFrame);
+	FNiagaraDataBuffer* GetReadBufferCPU(bool bPrevFrame)const;
 	bool Init(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance);
+	void Cleanup(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance);
 	bool Tick(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance, bool bIsInit = false);	
 	bool PostTick(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance);
+
+	//Set the current NDC Data. In some cases we must unregister ourselves from the current data and register with the new.
+	//TODO: move to a more handle based approach that will make this bookkeeping more robust.
+	void SetDataChannelData(FNiagaraDataChannelDataPtr NewData, UNiagaraDataInterfaceDataChannelRead* Interface);
 };
 
 struct FNiagaraDataInterfaceProxy_DataChannelRead : public FNiagaraDataInterfaceProxyRW
@@ -260,6 +321,7 @@ struct FNiagaraDataInterfaceProxy_DataChannelRead : public FNiagaraDataInterface
 	virtual void GetDispatchArgs(const FNDIGpuComputeDispatchArgsGenContext& Context) override;
 
 	virtual void PreStage(const FNDIGpuComputePreStageContext& Context)override;
+	virtual void PostStage(const FNDIGpuComputePostStageContext& Context)override;
 	virtual void PostSimulate(const FNDIGpuComputePostSimulateContext& Context)override;
 
 	/** Persistent per instance data on the RT. Constructed when consuming data passed from GT->RT. */
@@ -267,9 +329,11 @@ struct FNiagaraDataInterfaceProxy_DataChannelRead : public FNiagaraDataInterface
 	{
 		//GPU Dataset from the channel handler. We'll grab the current buffer from this on the RT.
 		//This must be grabbed fresh from the handler each frame as it's lifetime cannot be ensured.
-		FNiagaraDataChannelDataProxy* ChannelDataRTProxy = nullptr;
+		FNiagaraDataChannelDataProxyPtr ChannelDataRTProxy = nullptr;
 
 		bool bReadPrevFrame = false;
+
+		int32 NDCElementCountAtSpawn = 0;
 
 		/**
 		A buffer containing layout information needed to access parameters for each script using this DI.
@@ -288,6 +352,10 @@ struct FNiagaraDataInterfaceProxy_DataChannelRead : public FNiagaraDataInterface
 		TArray<int32> NDCSpawnData;
 
 		FRDGBufferRef NDCSpawnDataBuffer;
+
+		uint32 ConsumeInstanceCountOffset = INDEX_NONE;
+
+		FNiagaraDataBufferRef GPUBuffer;
 	};
 
 	TMap<FNiagaraSystemInstanceID, FInstanceData> SystemInstancesToProxyData_RT;

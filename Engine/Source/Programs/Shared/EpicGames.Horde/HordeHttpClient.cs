@@ -3,30 +3,31 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents.Telemetry;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Dashboard;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Graphs;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Tools;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Polly;
-using Polly.Extensions.Http;
-using Polly.Retry;
-using Polly.Timeout;
+using EpicGames.Horde.Ugs;
+
+using static EpicGames.Horde.HordeHttpRequest;
 
 #pragma warning disable CA2234
 
@@ -55,14 +56,23 @@ namespace EpicGames.Horde
 		public const string HttpClientName = "HordeHttpClient";
 
 		/// <summary>
+		/// Name of clients used for anonymous requests.
+		/// </summary>
+		public const string AnonymousHttpClientName = "HordeAnonymousHttpClient";
+
+		/// <summary>
 		/// Name of clients created from the http client factory for handling upload redirects. Should not contain Horde auth headers.
 		/// </summary>
 		public const string UploadRedirectHttpClientName = "HordeUploadRedirectHttpClient";
 
+		/// <summary>
+		/// Accessor for the inner http client
+		/// </summary>
+		public HttpClient HttpClient => _httpClient;
+
 		readonly HttpClient _httpClient;
 
-		static readonly JsonSerializerOptions s_jsonSerializerOptions = CreateJsonSerializerOptions();
-		internal static JsonSerializerOptions JsonSerializerOptions => s_jsonSerializerOptions;
+		internal static JsonSerializerOptions JsonSerializerOptions => HordeHttpRequest.JsonSerializerOptions;
 
 		/// <summary>
 		/// Base address for the Horde server
@@ -85,30 +95,24 @@ namespace EpicGames.Horde
 		}
 
 		/// <summary>
-		/// Create the shared instance of JSON options for HordeHttpClient instances
-		/// </summary>
-		static JsonSerializerOptions CreateJsonSerializerOptions()
-		{
-			JsonSerializerOptions options = new JsonSerializerOptions();
-			ConfigureJsonSerializer(options);
-			return options;
-		}
-
-		/// <summary>
 		/// Configures a JSON serializer to read Horde responses
 		/// </summary>
 		/// <param name="options">options for the serializer</param>
 		public static void ConfigureJsonSerializer(JsonSerializerOptions options)
+			=> HordeHttpRequest.ConfigureJsonSerializer(options);
+
+		#region Connection
+		/// <summary>
+		/// Check account login status.
+		/// </summary>
+		public async Task<bool> CheckConnectionAsync(CancellationToken cancellationToken = default)
 		{
-			options.AllowTrailingCommas = true;
-			options.ReadCommentHandling = JsonCommentHandling.Skip;
-			options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-			options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-			options.PropertyNameCaseInsensitive = true;
-			options.Converters.Add(new JsonStringEnumConverter());
-			options.Converters.Add(new StringIdJsonConverterFactory());
-			options.Converters.Add(new BinaryIdJsonConverterFactory());
+			HttpResponseMessage response = await _httpClient.GetAsync("account", cancellationToken);
+
+			return response.IsSuccessStatusCode;
 		}
+
+		#endregion
 
 		#region Artifacts
 
@@ -119,13 +123,23 @@ namespace EpicGames.Horde
 		/// <param name="type">Additional search keys tagged on the artifact</param>
 		/// <param name="description">Description for the artifact</param>
 		/// <param name="streamId">Stream to create the artifact for</param>
-		/// <param name="change">Change number for the artifact</param>
+		/// <param name="commitId">Commit for the artifact</param>
 		/// <param name="keys">Keys used to identify the artifact</param>
 		/// <param name="metadata">Metadata for the artifact</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public Task<CreateArtifactResponse> CreateArtifactAsync(ArtifactName name, ArtifactType type, string? description, StreamId? streamId = null, int? change = null, List<string>? keys = null, List<string>? metadata = null, CancellationToken cancellationToken = default)
+		public Task<CreateArtifactResponse> CreateArtifactAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string>? keys = null, IEnumerable<string>? metadata = null, CancellationToken cancellationToken = default)
 		{
-			return PostAsync<CreateArtifactResponse, CreateArtifactRequest>(_httpClient, $"api/v2/artifacts", new CreateArtifactRequest(name, type, description, streamId, change, keys ?? new List<string>(), metadata ?? new List<string>()), cancellationToken);
+			return PostAsync<CreateArtifactResponse, CreateArtifactRequest>(_httpClient, $"api/v2/artifacts", new CreateArtifactRequest(name, type, description, streamId, keys?.ToList() ?? new List<string>(), metadata?.ToList() ?? new List<string>()) { CommitId = commitId }, cancellationToken);
+		}
+
+		/// <summary>
+		/// Deletes an artifact
+		/// </summary>
+		/// <param name="id">Identifier for the artifact</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public async Task DeleteArtifactAsync(ArtifactId id, CancellationToken cancellationToken = default)
+		{
+			await DeleteAsync(_httpClient, $"api/v2/artifacts/{id}", cancellationToken);
 		}
 
 		/// <summary>
@@ -149,62 +163,44 @@ namespace EpicGames.Horde
 		}
 
 		/// <summary>
-		/// Finds artifacts with a set of ids or keys
-		/// </summary>
-		/// <param name="ids">Artifact ids to return</param>
-		/// <param name="keys">Keys to find</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Information about all the artifacts</returns>
-		public async Task<List<GetArtifactResponse>> FindArtifactsAsync(IEnumerable<ArtifactId>? ids = null, IEnumerable<string>? keys = null, CancellationToken cancellationToken = default)
-		{
-			QueryStringBuilder queryParams = new QueryStringBuilder();
-			if (ids != null)
-			{
-				foreach (ArtifactId id in ids)
-				{
-					queryParams.Add("id", id.ToString());
-				}
-			}
-			if (keys != null)
-			{
-				foreach (string key in keys)
-				{
-					queryParams.Add("key", key);
-				}
-			}
-
-			FindArtifactsResponse response = await GetAsync<FindArtifactsResponse>(_httpClient, $"api/v2/artifacts?{queryParams}", cancellationToken);
-			return response.Artifacts;
-		}
-
-		/// <summary>
 		/// Finds artifacts with a certain type with an optional streamId
 		/// </summary>
-		/// <param name="type">Type to find</param>
 		/// <param name="streamId">Stream to look for the artifact in</param>
-		/// <param name="minChange">The minimum change number for the artifacts</param>
-		/// <param name="maxChange">The minimum change number for the artifacts</param>
+		/// <param name="minCommitId">The minimum change number for the artifacts</param>
+		/// <param name="maxCommitId">The minimum change number for the artifacts</param>
+		/// <param name="name">Name of the artifact</param>
+		/// <param name="type">Type to find</param>
 		/// <param name="keys">Keys for artifacts to return</param>
+		/// <param name="maxResults">Maximum number of results to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about all the artifacts</returns>
-		public async Task<List<GetArtifactResponse>> FindArtifactsByTypeAsync(ArtifactType type, StreamId? streamId = null, int? minChange = null, int? maxChange = null, IEnumerable<string>? keys = null, CancellationToken cancellationToken = default)
+		public async Task<List<GetArtifactResponse>> FindArtifactsAsync(StreamId? streamId = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, ArtifactName? name = null, ArtifactType? type = null, IEnumerable<string>? keys = null, int maxResults = 100, CancellationToken cancellationToken = default)
 		{
 			QueryStringBuilder queryParams = new QueryStringBuilder();
-			queryParams.Add("type", type.ToString());
 
 			if (streamId != null)
 			{
 				queryParams.Add("streamId", streamId.ToString()!);
 			}
 
-			if (minChange != null)
+			if (minCommitId != null)
 			{
-				queryParams.Add("minChange", minChange.ToString()!);
+				queryParams.Add("minChange", minCommitId.ToString()!);
 			}
 
-			if (maxChange != null)
+			if (maxCommitId != null)
 			{
-				queryParams.Add("maxChange", maxChange.ToString()!);
+				queryParams.Add("maxChange", maxCommitId.ToString()!);
+			}
+
+			if (name != null)
+			{
+				queryParams.Add("name", name.Value.ToString());
+			}
+
+			if (type != null)
+			{
+				queryParams.Add("type", type.Value.ToString());
 			}
 
 			if (keys != null)
@@ -214,6 +210,8 @@ namespace EpicGames.Horde
 					queryParams.Add("key", key);
 				}
 			}
+
+			queryParams.Add("maxResults", maxResults.ToString());
 
 			FindArtifactsResponse response = await GetAsync<FindArtifactsResponse>(_httpClient, $"api/v2/artifacts?{queryParams}", cancellationToken);
 			return response.Artifacts;
@@ -350,6 +348,43 @@ namespace EpicGames.Horde
 
 		#endregion
 
+		#region Storage
+
+		/// <summary>
+		/// Attempts to read a named storage ref from the server
+		/// </summary>
+		/// <param name="path">Path to the ref</param>
+		/// <param name="cacheTime">Max allowed age for a cached value to be returned</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public async Task<ReadRefResponse?> TryReadRefAsync(string path, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		{
+			using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, path))
+			{
+				if (cacheTime.IsSet())
+				{
+					request.Headers.CacheControl = new CacheControlHeaderValue { MaxAge = cacheTime.MaxAge };
+				}
+
+				using (HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken))
+				{
+					if (response.StatusCode == HttpStatusCode.NotFound)
+					{
+						return null;
+					}
+					else if (!response.IsSuccessStatusCode)
+					{
+						throw new StorageException($"Unable to read ref '{path}' (status: {response.StatusCode}, body: {await response.Content.ReadAsStringAsync(cancellationToken)}");
+					}
+					else
+					{
+						return await response.Content.ReadFromJsonAsync<ReadRefResponse>(cancellationToken: cancellationToken);
+					}
+				}
+			}
+		}
+
+		#endregion
+
 		#region Telemetry
 
 		/// <summary>
@@ -422,7 +457,7 @@ namespace EpicGames.Horde
 		/// <param name="createPaused">Whether to create the deployment, but do not start rolling it out yet</param>
 		/// <param name="target">Location of a directory node describing the deployment</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task<ToolDeploymentId> CreateToolDeploymentAsync(ToolId id, string? version, double? duration, bool? createPaused, BlobRefValue target, CancellationToken cancellationToken = default)
+		public async Task<ToolDeploymentId> CreateToolDeploymentAsync(ToolId id, string? version, double? duration, bool? createPaused, HashedBlobRefValue target, CancellationToken cancellationToken = default)
 		{
 			CreateToolDeploymentRequest request = new CreateToolDeploymentRequest(version ?? String.Empty, duration, createPaused, target);
 			CreateToolDeploymentResponse response = await PostAsync<CreateToolDeploymentResponse, CreateToolDeploymentRequest>(_httpClient, $"api/v2/tools/{id}/deployments", request, cancellationToken);
@@ -431,242 +466,77 @@ namespace EpicGames.Horde
 
 		#endregion
 
-		#region Utility Methods
-
+		#region Jobs
 		/// <summary>
-		/// Gets a resource from an HTTP endpoint and parses it as a JSON object
+		/// Gets job information for given job ID. Fail response if jobID does not exist.
 		/// </summary>
-		/// <typeparam name="TResponse">The object type to return</typeparam>
-		/// <param name="httpClient">Http client instance</param>
-		/// <param name="relativePath">The url to retrieve</param>
-		/// <param name="cancellationToken">Cancels the request</param>
-		/// <returns>New instance of the object</returns>
-		internal static async Task<TResponse> GetAsync<TResponse>(HttpClient httpClient, string relativePath, CancellationToken cancellationToken = default)
+		/// <param name="id">Id of the job to get infomation for</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		public Task<GetJobResponse> GetJobAsync(JobId id, CancellationToken cancellationToken = default)
 		{
-			TResponse? response = await httpClient.GetFromJsonAsync<TResponse>(relativePath, s_jsonSerializerOptions, cancellationToken);
-			return response ?? throw new InvalidCastException($"Expected non-null response from GET to {relativePath}");
+			return GetAsync<GetJobResponse>(_httpClient, $"api/v1/jobs/{id}", cancellationToken);
+		}
+		#endregion
+
+		#region Log
+		/// <summary>
+		/// Get the given log file 
+		/// </summary>
+		/// <param name="logId">Id of the log file to retrieve</param>
+		/// <param name="searchText">Text to search for in the log</param>
+		/// <param name="count">Number of lines to return (default 5)</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		public Task<SearchLogResponse> GetSearchLogAsync(LogId logId, string searchText, int count = 5, CancellationToken cancellationToken = default)
+		{
+			return GetAsync<SearchLogResponse>(_httpClient, $"/api/v1/logs/{logId}/search?Text={Uri.EscapeDataString(searchText)}&count={count}", cancellationToken);
 		}
 
 		/// <summary>
-		/// Posts an object to an HTTP endpoint as a JSON object, and parses the response object
+		/// Get the requested number of lines from given logFileId, starting at index
 		/// </summary>
-		/// <typeparam name="TRequest">The object type to post</typeparam>
-		/// <param name="httpClient">Http client instance</param>
-		/// <param name="relativePath">The url to retrieve</param>
-		/// <param name="request">The object to post</param>
-		/// <param name="cancellationToken">Cancels the request</param>
-		/// <returns>The response parsed into the requested type</returns>
-		internal static async Task<HttpResponseMessage> PostAsync<TRequest>(HttpClient httpClient, string relativePath, TRequest request, CancellationToken cancellationToken = default)
+		/// <param name="logId">Id of log file to retrieve lines from</param>
+		/// <param name="startIndex">Start index of lines to retrieve</param>
+		/// <param name="count">Number of lines to retrieve</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		public Task<LogLinesResponse> GetLogLinesAsync(LogId logId, int startIndex, int count, CancellationToken cancellationToken = default)
 		{
-			return await httpClient.PostAsJsonAsync<TRequest>(relativePath, request, s_jsonSerializerOptions, cancellationToken);
-		}
-
-		/// <summary>
-		/// Posts an object to an HTTP endpoint as a JSON object, and parses the response object
-		/// </summary>
-		/// <typeparam name="TResponse">The object type to return</typeparam>
-		/// <typeparam name="TRequest">The object type to post</typeparam>
-		/// <param name="httpClient">Http client instance</param>
-		/// <param name="relativePath">The url to retrieve</param>
-		/// <param name="request">The object to post</param>
-		/// <param name="cancellationToken">Cancels the request</param>
-		/// <returns>The response parsed into the requested type</returns>
-		internal static async Task<TResponse> PostAsync<TResponse, TRequest>(HttpClient httpClient, string relativePath, TRequest request, CancellationToken cancellationToken = default)
-		{
-			using (HttpResponseMessage response = await PostAsync<TRequest>(httpClient, relativePath, request, cancellationToken))
-			{
-				if (!response.IsSuccessStatusCode)
-				{
-					string body = await response.Content.ReadAsStringAsync(cancellationToken);
-					throw new HttpRequestException($"{(int)response.StatusCode} ({response.StatusCode}) posting to {new Uri(httpClient.BaseAddress!, relativePath)}: {body}", null, response.StatusCode);
-				}
-
-				TResponse? responseValue = await response.Content.ReadFromJsonAsync<TResponse>(s_jsonSerializerOptions, cancellationToken);
-				return responseValue ?? throw new InvalidCastException($"Expected non-null response from POST to {relativePath}");
-			}
-		}
-
-		/// <summary>
-		/// Puts an object to an HTTP endpoint as a JSON object
-		/// </summary>
-		/// <typeparam name="TRequest">The object type to post</typeparam>
-		/// <param name="httpClient">Http client instance</param>
-		/// <param name="relativePath">The url to write to</param>
-		/// <param name="request">The object to post</param>
-		/// <param name="cancellationToken">Cancels the request</param>
-		/// <returns>Response message</returns>
-		internal static async Task<HttpResponseMessage> PutAsync<TRequest>(HttpClient httpClient, string relativePath, TRequest request, CancellationToken cancellationToken)
-		{
-			return await httpClient.PutAsJsonAsync<TRequest>(relativePath, request, s_jsonSerializerOptions, cancellationToken);
-		}
-
-		/// <summary>
-		/// Puts an object to an HTTP endpoint as a JSON object
-		/// </summary>
-		/// <typeparam name="TResponse">The object type to return</typeparam>
-		/// <typeparam name="TRequest">The object type to post</typeparam>
-		/// <param name="httpClient">Http client instance</param>
-		/// <param name="relativePath">The url to write to</param>
-		/// <param name="request">The object to post</param>
-		/// <param name="cancellationToken">Cancels the request</param>
-		/// <returns>Response message</returns>
-		internal static async Task<TResponse> PutAsync<TResponse, TRequest>(HttpClient httpClient, string relativePath, TRequest request, CancellationToken cancellationToken)
-		{
-			using (HttpResponseMessage response = await httpClient.PutAsJsonAsync<TRequest>(relativePath, request, s_jsonSerializerOptions, cancellationToken))
-			{
-				if (!response.IsSuccessStatusCode)
-				{
-					string body = await response.Content.ReadAsStringAsync(cancellationToken);
-					throw new HttpRequestException($"{response.StatusCode} put to {new Uri(httpClient.BaseAddress!, relativePath)}: {body}", null, response.StatusCode);
-				}
-
-				TResponse? responseValue = await response.Content.ReadFromJsonAsync<TResponse>(s_jsonSerializerOptions, cancellationToken);
-				return responseValue ?? throw new InvalidCastException($"Expected non-null response from PUT to {relativePath}");
-			}
+			return GetAsync<LogLinesResponse>(_httpClient, $"/api/v1/logs/{logId}/lines?index={startIndex}&count={count}", cancellationToken);
 		}
 
 		#endregion
-	}
 
-	/// <summary>
-	/// Extension methods for Horde HTTP clients
-	/// </summary>
-	public static class HordeHttpClientExtensions
-	{
-		/// <summary>
-		/// Creates a <see cref="HordeHttpClient"/> instance from an http client factory
-		/// </summary>
-		public static HordeHttpClient CreateHordeHttpClient(this IHttpClientFactory factory)
-		{
-			return new HordeHttpClient(factory.CreateClient(HordeHttpClient.HttpClientName));
-		}
+		#region Graph
 
 		/// <summary>
-		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
+		/// Get graph of the given job
 		/// </summary>
-		/// <param name="services">Service collection to add services to</param>
-		public static IHttpClientBuilder AddHordeHttpClient(this IServiceCollection services)
+		/// <param name="jobId"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns>Contains buildgraph information for the job</returns>
+		public Task<GetGraphResponse> GetGraphAsync(JobId jobId, CancellationToken cancellationToken = default)
 		{
-			return services.AddHordeHttpClient((sp, client) => { });
+			return GetAsync<GetGraphResponse>(_httpClient, $"/api/v1/jobs/{jobId}/graph", cancellationToken);
 		}
 
+		#endregion
+
+		#region UGS
 		/// <summary>
-		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
+		/// 
 		/// </summary>
-		/// <param name="services">Service collection to add services to</param>
-		/// <param name="configureClient">Callback to modify options for the http client</param>
-		public static IHttpClientBuilder AddHordeHttpClient(this IServiceCollection services, Action<HttpClient> configureClient)
+		/// <param name="streamId"></param>
+		/// <param name="commitId"></param>
+		/// <param name="projectId"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public Task<GetUgsMetadataResponse> GetUgsMetadataAsync(StreamId streamId, CommitId commitId, ProjectId projectId, CancellationToken cancellationToken = default)
 		{
-			return services.AddHordeHttpClient((sp, client) => configureClient(client));
+			string perforceStream = $"//{streamId.ToString().Replace('-', '/')}";
+			return GetAsync<GetUgsMetadataResponse>(_httpClient, $"/ugs/api/metadata?stream={perforceStream}&change={commitId.GetPerforceChange()}&project={projectId}", cancellationToken);
 		}
-
-		/// <summary>
-		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
-		/// </summary>
-		/// <param name="services">Service collection to add services to</param>
-		/// <param name="configureClient">Callback to modify options for the http client</param>
-		public static IHttpClientBuilder AddHordeHttpClient(this IServiceCollection services, Action<IServiceProvider, HttpClient> configureClient)
-		{
-			// Sets defaults from the environment before calling the user provided configuration method
-			void ConfigureClientFromEnvironment(IServiceProvider serviceProvider, HttpClient httpClient)
-			{
-				IOptions<HordeOptions> options = serviceProvider.GetRequiredService<IOptions<HordeOptions>>();
-				if (options.Value.ServerUrl != null)
-				{
-					httpClient.BaseAddress = options.Value.ServerUrl;
-				}
-
-				httpClient.Timeout = TimeSpan.FromSeconds(240); // Global timeout
-
-				// Run the user callbacks
-				options.Value.ConfigureHttpClient?.Invoke(httpClient);
-				configureClient(serviceProvider, httpClient);
-
-				// If the server URL isn't set, take it from the environment
-				if (httpClient.BaseAddress == null)
-				{
-					string? hordeUrlEnvVar = Environment.GetEnvironmentVariable(HordeHttpClient.HordeUrlEnvVarName);
-					if (!String.IsNullOrEmpty(hordeUrlEnvVar))
-					{
-						httpClient.BaseAddress = new Uri(hordeUrlEnvVar);
-					}
-				}
-
-				// Try to get the default server address from the registry
-				httpClient.BaseAddress ??= HordeOptions.GetDefaultServerUrl();
-
-				// Make sure we have a base URL set
-				if (httpClient.BaseAddress == null)
-				{
-					throw new Exception("No Horde server is configured, or can be detected from the environment. Consider specifying a URL when calling AddHordeHttpClient().");
-				}
-			}
-
-			// Register the HTTP client for handling login requests
-			void ConfigureClientFromOptions(IServiceProvider serviceProvider, HttpClient httpClient)
-			{
-				IOptions<HordeOptions> options = serviceProvider.GetRequiredService<IOptions<HordeOptions>>();
-				if (options.Value.ServerUrl != null)
-				{
-					httpClient.BaseAddress = options.Value.ServerUrl;
-				}
-			}
-			services.AddSingleton<HordeHttpAuthHandlerState>();
-			services.AddTransient<HordeHttpAuthHandler>();
-			services.AddHttpClient(HordeHttpAuthHandlerState.HttpClientName, ConfigureClientFromOptions);
-
-			// Register the HTTP client for processing upload redirects
-			services.AddHttpClient(HordeHttpClient.UploadRedirectHttpClientName)
-				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTimeoutRetryPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()))
-				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTransientErrorPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()));
-
-			// Create the HTTP client for handling Horde requests
-			IHttpClientBuilder builder = services.AddHttpClient<HordeHttpClient>(HordeHttpClient.HttpClientName, ConfigureClientFromEnvironment)
-				.AddHttpMessageHandler<HordeHttpAuthHandler>()
-				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTimeoutRetryPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()))
-				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTransientErrorPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()));
-
-			return builder;
-		}
-
-		/// <summary>
-		/// Create a default timeout retry policy
-		/// </summary>
-		public static IAsyncPolicy<HttpResponseMessage> CreateDefaultTimeoutRetryPolicy(HttpRequestMessage request, ILogger logger)
-		{
-			// Wait 30 seconds for operations to timeout
-			Task OnTimeoutAsync(Context context, TimeSpan timespan, Task timeoutTask)
-			{
-				logger.LogWarning(KnownLogEvents.Systemic_Horde_Http, "{Method} {Url} timed out after {Time}s.", request.Method, request.RequestUri, (int)timespan.TotalSeconds);
-				return Task.CompletedTask;
-			}
-
-			AsyncTimeoutPolicy<HttpResponseMessage> timeoutPolicy = Policy.TimeoutAsync<HttpResponseMessage>(30, OnTimeoutAsync);
-
-			// Retry twice after a timeout
-			void OnRetry(Exception ex, TimeSpan timespan)
-			{
-				logger.LogWarning(KnownLogEvents.Systemic_Horde_Http, ex, "{Method} {Url} retrying after {Time}s.", request.Method, request.RequestUri, timespan.TotalSeconds);
-			}
-
-			TimeSpan[] retryTimes = new[] { TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10.0) };
-			AsyncRetryPolicy retryPolicy = Policy.Handle<TimeoutRejectedException>().WaitAndRetryAsync(retryTimes, OnRetry);
-			return retryPolicy.WrapAsync(timeoutPolicy);
-		}
-
-		/// <summary>
-		/// Create a default timeout retry policy
-		/// </summary>
-		public static IAsyncPolicy<HttpResponseMessage> CreateDefaultTransientErrorPolicy(HttpRequestMessage request, ILogger logger)
-		{
-			Task OnTimeoutAsync(DelegateResult<HttpResponseMessage> outcome, TimeSpan timespan, int retryAttempt, Context context)
-			{
-				logger.LogWarning(KnownLogEvents.Systemic_Horde_Http, "{Method} {Url} failed ({Result}). Delaying for {DelayMs}ms (attempt #{RetryNum}).", request.Method, request.RequestUri, outcome.Result?.StatusCode, timespan.TotalMilliseconds, retryAttempt);
-				return Task.CompletedTask;
-			}
-
-			TimeSpan[] retryTimes = new[] { TimeSpan.FromSeconds(1.0), TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10.0), TimeSpan.FromSeconds(30.0), TimeSpan.FromSeconds(30.0) };
-			return HttpPolicyExtensions.HandleTransientHttpError().WaitAndRetryAsync(retryTimes, OnTimeoutAsync);
-		}
+		#endregion
 	}
 }

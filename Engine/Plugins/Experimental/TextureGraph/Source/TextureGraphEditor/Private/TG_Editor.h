@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AdvancedPreviewSceneModule.h"
 #include "ITG_Editor.h"
 #include "EdGraph/EdGraphPin.h"
 #include "EditorUndoClient.h"
@@ -103,12 +104,11 @@ public:
 	void											RefreshPreviewViewport();
 	
 	/** Called to update the selection view */
-	void											RefreshSelectionPreview(const TSet<class UObject*>& NewSelection, const FInvalidationDetails* Details);
+	void											RefreshNodePreview(const TSet<class UObject*>& NewSelection, const FInvalidationDetails* Details, bool bUpdateOnly);
 
 	void											SetMesh(class UMeshComponent* InPreviewMesh, class UWorld* InWorld) override;
 	bool 											SetPreviewAsset(UObject* InAsset);
-	bool 											SetPreviewAssetByName(const TCHAR* InAssetName);
-
+	
 	/** Force Refresh Details View **/
 	void											RefreshDetailsView() const;
 
@@ -169,7 +169,8 @@ private:
 	bool											GetTabSelected(const FName TabID);
 
 	void											OnRenderingDone(UMixInterface* TextureGraph, const FInvalidationDetails* Details);
-	void											OnViewportSettingsChanged();
+	void											OnPreviewMeshChangedEvent();
+	void											OnViewportMaterialChanged();
 	void											OnMaterialMappingChanged();
 	/** Log Graph in console */
 	void											OnLogGraph_Clicked();
@@ -192,8 +193,8 @@ private:
 
 	FActionMenuContent								OnCreateGraphActionMenu(UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed);
 
-	/** Create Selection view widget */
-	TSharedRef<class STG_SelectionPreview>			CreateSelectionViewWidget();
+	/** Create Node preview widget */
+	TSharedRef<class STG_NodePreviewWidget>			CreateNodePreviewWidget();
 
 	/** Create Texture details widget */
 	TSharedRef<class STG_TextureDetails>			CreateTextureDetailsWidget();
@@ -201,6 +202,9 @@ private:
 	/** Gets the current TG_ Graph's appearance */
 	FGraphAppearanceInfo							GetGraphAppearance() const;
 
+	/** Builds the sub-tools that are a part of the texture graph editor. */
+	void											BuildSubTools();
+	
 	/** Called when the Viewport Layout has changed. */
 	void											OnEditorLayoutChanged();
 
@@ -253,7 +257,7 @@ private:
 	TSharedRef<SDockTab>							SpawnTab_Find(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab>							SpawnTab_PreviewSettings(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab>							SpawnTab_ParameterDefaults(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab>							SpawnTab_SelectionPreview(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab>							SpawnTab_NodePreview(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab>							SpawnTab_Output(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab>							SpawnTab_Settings(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab>							SpawnTab_Errors(const FSpawnTabArgs& Args);
@@ -263,6 +267,7 @@ private:
 	FReply											OnExportClick();
 
 	TSharedPtr<class STG_EditorViewport>			GetEditorViewport() const;	
+	void 											SetViewportPreviewMesh();
 	
 	bool											CanEnableOnRun();
 
@@ -301,10 +306,10 @@ private:
 	/** Graph editor widget being displayed*/
 	TSharedPtr<SGraphEditor>						GraphEditorWidget;
 
-	/** Selection preview widget being displayed*/
-	TSharedPtr<class STG_SelectionPreview>			SelectionPreview;
+	/** Node preview widget being displayed*/
+	TSharedPtr<STG_NodePreviewWidget>				NodePreview;
 
-	/** Selection preview widget being displayed*/
+	/** Texture details widget being displayed*/
 	TSharedPtr<class STG_TextureDetails>			TextureDetails;
 
 	/** Command list for this editor */
@@ -313,6 +318,8 @@ private:
 	/** Storage for our viewport creation function that will be passed to the viewport layout system*/
 	AssetEditorViewportFactoryFunction				MakeViewportFunc;
 
+	FAdvancedPreviewSceneModule::FOnPreviewSceneChanged OnPreviewSceneChangedDelegate;
+
 	// Tracking the active viewports in this editor.
 	TSharedPtr<class FEditorViewportTabContent>		ViewportTabContent;
 
@@ -320,10 +327,14 @@ private:
 	TWeakPtr<SDockTab>								SpawnedDetailsTab;	
 	TWeakPtr<SDockTab>								NodeHistogramTab;	
 	TWeakPtr<SDockTab>								PaletteTab;	
-
+	TWeakPtr<SDockTab>								PreviewSceneSettingsDockTab;
+	
 	/** Stats log, with the log listing that it reflects */
 	TSharedPtr<class SWidget>						ErrorsWidget;
 	TSharedPtr<class IMessageLogListing>			ErrorsListing;
+
+	/** Scene preview settings widget */
+	TSharedPtr<SWidget>								AdvancedPreviewSettingsWidget;
 
 	/** Hashed error code use to refresh the error displaying widget when this will change */
 	FString											ErrorHash;

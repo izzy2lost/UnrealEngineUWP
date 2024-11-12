@@ -3,9 +3,59 @@
 #include "InstancedActorsTypes.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
-
+#include "Engine/World.h"
+#include "InstancedActorsSettings.h"
+#include "ServerInstancedActorsSpawnerSubsystem.h"
+#include "ClientInstancedActorsSpawnerSubsystem.h"
 
 DEFINE_LOG_CATEGORY(LogInstancedActors);
+
+namespace UE::InstancedActors::Utils
+{
+	TSubclassOf<UMassActorSpawnerSubsystem> DetermineActorSpawnerSubsystemClass(const UWorld& World)
+	{
+		// @todo Add support for non-replay NM_Standalone where we should use UServerInstancedActorsSpawnerSubsystem for 
+		// authoritative actor spawning.
+		if (World.GetNetMode() == NM_Client)
+		{
+			return GET_INSTANCEDACTORS_CONFIG_VALUE(GetClientActorSpawnerSubsystemClass());
+		}
+		return GET_INSTANCEDACTORS_CONFIG_VALUE(GetServerActorSpawnerSubsystemClass());
+	}
+
+	UServerInstancedActorsSpawnerSubsystem* GetServerInstancedActorsSpawnerSubsystem(const UWorld& World)
+	{
+		TSubclassOf<UMassActorSpawnerSubsystem> SpawnerSubsystemClass = GET_INSTANCEDACTORS_CONFIG_VALUE(GetServerActorSpawnerSubsystemClass());
+		check(SpawnerSubsystemClass);
+		return Cast<UServerInstancedActorsSpawnerSubsystem>(World.GetSubsystemBase(SpawnerSubsystemClass));
+	}
+
+	UClientInstancedActorsSpawnerSubsystem* GetClientInstancedActorsSpawnerSubsystem(const UWorld& World)
+	{
+		TSubclassOf<UMassActorSpawnerSubsystem> SpawnerSubsystemClass = GET_INSTANCEDACTORS_CONFIG_VALUE(GetClientActorSpawnerSubsystemClass());
+		check(SpawnerSubsystemClass);
+		return Cast<UClientInstancedActorsSpawnerSubsystem>(World.GetSubsystemBase(SpawnerSubsystemClass));
+	}
+
+	UMassActorSpawnerSubsystem* GetActorSpawnerSubsystem(const UWorld& World)
+	{
+		if (World.GetNetMode() == NM_Client)
+		{
+			return GetClientInstancedActorsSpawnerSubsystem(World);
+		}
+		return GetServerInstancedActorsSpawnerSubsystem(World);
+	}
+
+	UInstancedActorsSubsystem* GetInstancedActorsSubsystem(const UWorld& World)
+	{
+		TSubclassOf<UInstancedActorsSubsystem> InstancedActorsSubsystemClass = GET_INSTANCEDACTORS_CONFIG_VALUE(GetInstancedActorsSubsystemClass());
+		check(InstancedActorsSubsystemClass);
+
+		UInstancedActorsSubsystem* InstancedActorSubsystem = Cast<UInstancedActorsSubsystem>(World.GetSubsystemBase(InstancedActorsSubsystemClass));
+
+		return InstancedActorSubsystem;
+	}
+} // namespace UE::InstancedActors::Utils
 
 //-----------------------------------------------------------------------------
 // FInstancedActorsTagSet

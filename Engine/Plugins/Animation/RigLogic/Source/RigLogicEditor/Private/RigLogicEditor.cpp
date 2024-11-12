@@ -5,6 +5,7 @@
 #include "Logging/LogMacros.h"
 #include "DNAImporter.h"
 #include "RigUnit_RigLogic.h"
+#include "EditorFramework/AssetImportData.h"
 #include "IAssetTypeActions.h"
 #include "AssetToolsModule.h"
 #include "Toolkits/AssetEditorToolkit.h"
@@ -96,16 +97,15 @@ void FRigLogicEditor::ExecuteDNAImport(UObject* Mesh)
 
 	FDNAImporter* DNAImporter = FDNAImporter::GetInstance();
 	const TArray<FString> Filenames = { DNAImporter->PromptForDNAImportFile() };
-	UFactory* Factory = Cast<UFactory>(UDNAAssetImportFactory::StaticClass()->GetDefaultObject());
-	FString Path = FPaths::GetPath(Mesh->GetPathName());
+	UDNAAssetImportFactory* Factory = Cast<UDNAAssetImportFactory>(UDNAAssetImportFactory::StaticClass()->GetDefaultObject());
 
-	if ((Mesh->GetFName()).ToString().Compare(Filenames[0]))
+	//Reimport will do the same thing as import we just won't get problems when having the same DNA name as SkeletalMesh, new DNA gets initialized anyway
+	bool bSuccess = FReimportManager::Instance()->Reimport(Mesh, false, true, Filenames[0], Factory);
+
+	if (!bSuccess)
 	{
-		FReimportManager::Instance()->Reimport(Mesh, false, true, Filenames[0]);
-	}
-	else
-	{
-		AssetToolsModule.Get().ImportAssets(Filenames, Path, Factory, true, nullptr, true);
+		const FText Message = LOCTEXT("DNA_ReimportFailedMessage", "Reimporting of DNA failed");
+		UE_LOG(LogRigLogicEditor, Error, TEXT("%s"), *Message.ToString());
 	}
 }
 
@@ -114,29 +114,33 @@ void FRigLogicEditor::ExecuteDNAReimport(class UObject* Mesh)
 	FAssetToolsModule& AssetToolsModule = FModuleManager::Get().LoadModuleChecked<FAssetToolsModule>("AssetTools");
 	USkeletalMesh* SkelMesh = Cast<USkeletalMesh>(Mesh);
 	const TArray<UAssetUserData*>* AssetData = SkelMesh->GetAssetUserDataArray();
+	UDNAAsset* DNAAsset = nullptr;
 
-	if (!AssetData->IsEmpty())
+	for (UAssetUserData* AssetDataElement : *AssetData)
 	{
-		const UDNAAsset* DNAAsset = Cast<UDNAAsset>((*AssetData)[0]);
-		if (DNAAsset)
+		if (Cast<UDNAAsset>(AssetDataElement))
 		{
-			const TArray<FString> Filenames = { DNAAsset->DnaFileName };
-			UFactory* Factory = Cast<UFactory>(UDNAAssetImportFactory::StaticClass()->GetDefaultObject());
-			FString Path = FPaths::GetPath(Mesh->GetPathName());
+			DNAAsset = Cast<UDNAAsset>(AssetDataElement);
+		}
+	}
 
-			if ((Mesh->GetFName()).ToString().Compare(Filenames[0]))
-			{
-				FReimportManager::Instance()->Reimport(Mesh, false, true, Filenames[0]);
-			}
-			else
-			{
-				AssetToolsModule.Get().ImportAssets(Filenames, Path, Factory, true, nullptr, true);
-			}
+	if (!AssetData->IsEmpty() && DNAAsset && DNAAsset->AssetImportData && !DNAAsset->AssetImportData->GetFirstFilename().IsEmpty())
+	{
+		const TArray<FString> Filenames = { DNAAsset->AssetImportData->GetFirstFilename() };
+		UFactory* Factory = Cast<UFactory>(UDNAAssetImportFactory::StaticClass()->GetDefaultObject());
+
+		bool bSuccess = FReimportManager::Instance()->Reimport(Mesh, false, true, Filenames[0]);
+
+		if(!bSuccess)
+		{
+			const FText Message = LOCTEXT("DNA_ReimportFailedMessage", "Reimporting of DNA failed");
+			UE_LOG(LogRigLogicEditor, Error, TEXT("%s"), *Message.ToString());
 		}
 	}
 	else
 	{
-		FNotificationInfo Info(LOCTEXT("DNA_ReimportErrorMessage", "There is no DNA file attached to do Reimport"));
+		const FText Message = LOCTEXT("DNA_ReimportErrorMessage", "There is no DNA file attached to do Reimport");
+		FNotificationInfo Info(Message);
 		Info.ExpireDuration = 3.0f;
 		Info.bUseLargeFont = false;
 		TSharedPtr<SNotificationItem> Notification = FSlateNotificationManager::Get().AddNotification(Info);
@@ -144,6 +148,8 @@ void FRigLogicEditor::ExecuteDNAReimport(class UObject* Mesh)
 		{
 			Notification->SetCompletionState(SNotificationItem::CS_Fail);
 		}
+
+		UE_LOG(LogRigLogicEditor, Error, TEXT("%s"), *Message.ToString());
 	}
 }
 
@@ -161,9 +167,9 @@ void FRigLogicEditor::GetAssetRegistryTagsForDNA(FAssetRegistryTagsContext Conte
 			if (UserData)
 			{
 				const UDNAAsset* DNAAsset = Cast<UDNAAsset>(UserData);
-				if (DNAAsset)
+				if (DNAAsset && DNAAsset->AssetImportData)
 				{
-					DNAname = DNAAsset->DnaFileName;
+					DNAname = DNAAsset->AssetImportData->GetFirstFilename();
 					FPaths::NormalizeFilename(DNAname);
 				}
 			}

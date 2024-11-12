@@ -9,9 +9,9 @@
 #include "Engine/EngineTypes.h"
 #include "EngineDefines.h"
 #include "GameplayTagContainer.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Math/Box.h"
-#include "StructView.h"
+#include "StructUtils/StructView.h"
 #include "SmartObjectTypes.generated.h"
 
 class FDebugRenderSceneProxy;
@@ -20,7 +20,7 @@ class USmartObjectSlotValidationFilter;
 class USmartObjectComponent;
 class UWorld;
 
-#define WITH_SMARTOBJECT_DEBUG (!(UE_BUILD_SHIPPING || UE_BUILD_SHIPPING_WITH_EDITOR || UE_BUILD_TEST) && 1)
+#define WITH_SMARTOBJECT_DEBUG (!(UE_BUILD_SHIPPING || UE_BUILD_SHIPPING_WITH_EDITOR) && 1)
 
 SMARTOBJECTSMODULE_API DECLARE_LOG_CATEGORY_EXTERN(LogSmartObject, Warning, All);
 
@@ -740,7 +740,7 @@ struct SMARTOBJECTSMODULE_API FSmartObjectActorOwnerData
 /**
  * Struct used as a friend to FSmartObjectHandle that is the only caller allowed to create a handle from a uint64.
  */
-struct FSmartObjectHandleFactory
+struct SMARTOBJECTSMODULE_API FSmartObjectHandleFactory
 {
 	static FSmartObjectHandle CreateHandleForDynamicObject();
 	static FSmartObjectHandle CreateHandleForComponent(const UWorld& World, const USmartObjectComponent& Component);

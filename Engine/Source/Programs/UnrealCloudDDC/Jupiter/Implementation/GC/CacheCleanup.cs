@@ -8,8 +8,8 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using Jupiter.Common;
 using Jupiter.Implementation.Blob;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation
@@ -32,8 +32,8 @@ namespace Jupiter.Implementation
 		private readonly Gauge<long> _cleanupRefsConsidered;
 		private readonly IOptionsMonitor<UnrealCloudDDCSettings> _cloudDDCSettings;
 
-		public RefLastAccessCleanup(IOptionsMonitor<GCSettings> settings, IOptionsMonitor<UnrealCloudDDCSettings> cloudDDCSettings, 
-			IReferencesStore referencesStore, IRefService objectService, IBlobIndex blobIndex, 
+		public RefLastAccessCleanup(IOptionsMonitor<GCSettings> settings, IOptionsMonitor<UnrealCloudDDCSettings> cloudDDCSettings,
+			IReferencesStore referencesStore, IRefService objectService, IBlobIndex blobIndex,
 			IReplicationLog replicationLog, INamespacePolicyResolver namespacePolicyResolver, Meter meter, Tracer tracer, ILogger<RefLastAccessCleanup> logger)
 		{
 			_settings = settings;
@@ -84,7 +84,7 @@ namespace Jupiter.Implementation
 				_logger.LogWarning("Unknown namespace {Namespace} when attempting to GC References. To opt in to deleting the old namespace add a policy for it with the GcMethod set to always", ns);
 				return false;
 			}
-			
+
 			return false;
 		}
 
@@ -95,7 +95,7 @@ namespace Jupiter.Implementation
 			long consideredCount = 0;
 			DateTime cleanupStart = DateTime.Now;
 
-			await Parallel.ForEachAsync(_referencesStore.GetRecordsAsync(),
+			await Parallel.ForEachAsync(_referencesStore.GetRecordsAsync(cancellationToken),
 				new ParallelOptions
 				{
 					MaxDegreeOfParallelism = _settings.CurrentValue.OrphanRefMaxParallelOperations,
@@ -112,7 +112,7 @@ namespace Jupiter.Implementation
 					_logger.LogDebug(
 						"Considering object in {Namespace} {Bucket} {Name} for deletion, was last updated {LastAccessTime}",
 						ns, bucket, name, lastAccessTime);
-					
+
 					Interlocked.Increment(ref consideredCount);
 					_cleanupRefsConsidered.Record(consideredCount, Array.Empty<KeyValuePair<string, object?>>());
 
@@ -122,8 +122,8 @@ namespace Jupiter.Implementation
 							"Attempting to delete object {Namespace} {Bucket} {Name} as it was last updated {LastAccessTime} which is older then {CutoffTime}",
 							ns, bucket, name, lastAccessTime, cutoffTime);
 
-						await DeleteRefAsync(ns, bucket, name);
-					
+						await DeleteRefAsync(ns, bucket, name, cancellationToken);
+
 						Interlocked.Increment(ref countOfDeletedRecords);
 
 						return;
@@ -134,12 +134,12 @@ namespace Jupiter.Implementation
 					{
 						try
 						{
-							RefRecord refRecord = await _referencesStore.GetAsync(ns, bucket, name, IReferencesStore.FieldFlags.None, IReferencesStore.OperationFlags.BypassCache);
+							RefRecord refRecord = await _referencesStore.GetAsync(ns, bucket, name, IReferencesStore.FieldFlags.None, IReferencesStore.OperationFlags.BypassCache, cancellationToken);
 							if (!refRecord.IsFinalized)
 							{
 								_logger.LogInformation("Deleting object {Namespace} {Bucket} {Name} as it is not finalized. Was last accessed at {LastAccessTime}", ns, bucket, name, lastAccessTime);
 
-								await DeleteRefAsync(ns, bucket, name);
+								await DeleteRefAsync(ns, bucket, name, cancellationToken);
 								return;
 							}
 						}
@@ -157,7 +157,7 @@ namespace Jupiter.Implementation
 			return countOfDeletedRecords;
 		}
 
-		private async Task<bool> DeleteRefAsync(NamespaceId ns, BucketId bucket, RefId name)
+		private async Task<bool> DeleteRefAsync(NamespaceId ns, BucketId bucket, RefId name, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan scope = _tracer.StartActiveSpan("gc.ref")
 				.SetAttribute("operation.name", "gc.ref")
@@ -168,26 +168,26 @@ namespace Jupiter.Implementation
 			bool storeDelete = false;
 			try
 			{
-				Task? bucketStatsCleanupTask = null;
 				if (_cloudDDCSettings.CurrentValue.EnableBucketStatsTracking)
 				{
-					bucketStatsCleanupTask = Task.Run(async () =>
+					List<BlobId> blobs = new List<BlobId>();
+					try
 					{
-						List<BlobId> blobs = await _objectService.GetReferencedBlobsAsync(ns, bucket, name, ignoreMissingBlobs: true);
-						await _blobIndex.RemoveBlobFromBucketListAsync(ns, bucket, name, blobs);
-					});
+						blobs = await _objectService.GetReferencedBlobsAsync(ns, bucket, name, ignoreMissingBlobs: true, cancellationToken: cancellationToken);
+					}
+					catch (RefNotFoundException)
+					{
+						// if the ref is already deleted its not possible for us to cleanup the bucket list
+						_logger.LogWarning("Ref {Name} {Bucket} {Namespace} not found when cleaning up stats tracking, unable to remove blob tracking thus stats will be incorrect.", name, bucket, ns);
+					}
+					await _blobIndex.RemoveBlobFromBucketListAsync(ns, bucket, name, blobs, cancellationToken);
 				}
 
-				storeDelete = await _referencesStore.DeleteAsync(ns, bucket, name);
+				storeDelete = await _referencesStore.DeleteAsync(ns, bucket, name, cancellationToken);
 				if (storeDelete && _settings.CurrentValue.WriteDeleteToReplicationLog)
 				{
 					// insert a delete event into the transaction log
 					await _replicationLog.InsertDeleteEventAsync(ns, bucket, name, null);
-				}
-
-				if (bucketStatsCleanupTask != null)
-				{
-					await bucketStatsCleanupTask;
 				}
 			}
 			catch (Exception e)

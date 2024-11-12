@@ -13,6 +13,7 @@ public class AvalancheTag : ModuleRules
             {
                 "Core",
                 "CoreUObject",
+                "Engine",
             }
         );
     }

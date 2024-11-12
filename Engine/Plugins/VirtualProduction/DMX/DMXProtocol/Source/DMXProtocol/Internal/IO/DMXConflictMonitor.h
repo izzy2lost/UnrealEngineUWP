@@ -93,6 +93,9 @@ namespace UE::DMX
 		/** Returns current conflicts, locking. */
 		TMap<FName, TArray<TSharedRef<FDMXMonitoredOutboundDMXData>>> GetOutboundConflictsSynchronous() const;
 
+		/** Returns currently monitored data. This contains non-conflicting data as well. */
+		TArray<TSharedRef<FDMXMonitoredOutboundDMXData>> GetMonitoredOutboundData() const { return MonitoredOutboundData; }
+
 		/** Adds a trace to the queue stack. */
 		void TraceUser(const FMinimalName& User);
 
@@ -101,6 +104,9 @@ namespace UE::DMX
 
 		/** Monitors outbound DMX. Can be called from the game thread only. */
 		void MonitorOutboundDMX(const TSharedRef<FDMXOutputPort>& InOutputPort, int32 InLocalUniverseID, const TMap<int32, uint8>& InChannelToValueMap);
+
+		/** Returns the time the monitor consumes on the game thread */
+		double GetTimeGameThread() const { return TimeGameThread; }
 
 	private:
 		/** Removes a user from the monitor. If all user objects left, the monitor is disabled. */
@@ -115,14 +121,14 @@ namespace UE::DMX
 		/** Current outbound data */
 		TArray<TSharedRef<FDMXMonitoredOutboundDMXData>> MonitoredOutboundData;
 
-		/** Traced instigators and the current data as a map */
-		TMap<FName, TArray<TSharedRef<FDMXMonitoredOutboundDMXData>>> Snapshots;
-
 		/** An array of conflicting traces */
 		TMap<FName, TArray<TSharedRef<FDMXMonitoredOutboundDMXData>>>  Conflicts;
 
 		/** The last frame number that was handled on the monitor thread */
 		uint64 FrameNumber = 0;
+
+		/** The time the monitor uses on the game thread */
+		double TimeGameThread = 0.0;
 
 		/** Users of the monitor */
 		static TArray<FName> UserNames;

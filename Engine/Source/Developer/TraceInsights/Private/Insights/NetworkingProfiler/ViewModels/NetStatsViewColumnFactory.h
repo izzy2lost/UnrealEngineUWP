@@ -2,15 +2,19 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+#include "Containers/Array.h"
+#include "Templates/SharedPointer.h"
+#include "UObject/NameTypes.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+namespace UE::Insights { class FTableColumn; }
 
+namespace UE::Insights::NetworkingProfiler
+{
+
+// Column identifiers
 struct FNetStatsViewColumns
 {
-	//////////////////////////////////////////////////
-	// Column identifiers
-
 	static const FName NameColumnID;
 	static const FName TypeColumnID;
 	static const FName LevelColumnID;
@@ -27,36 +31,27 @@ struct FNetStatsViewColumns
 	static const FName AverageExclusiveSizeColumnID;
 };
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-namespace Insights
-{
-	class FTableColumn;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 struct FNetStatsViewColumnFactory
 {
 public:
-	static void CreateNetStatsViewColumns(TArray<TSharedRef<Insights::FTableColumn>>& Columns);
+	static void CreateNetStatsViewColumns(TArray<TSharedRef<FTableColumn>>& Columns);
 
-	static TSharedRef<Insights::FTableColumn> CreateNameColumn();
-	static TSharedRef<Insights::FTableColumn> CreateTypeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateLevelColumn();
-	static TSharedRef<Insights::FTableColumn> CreateInstanceCountColumn();
+	static TSharedRef<FTableColumn> CreateNameColumn();
+	static TSharedRef<FTableColumn> CreateTypeColumn();
+	static TSharedRef<FTableColumn> CreateLevelColumn();
+	static TSharedRef<FTableColumn> CreateInstanceCountColumn();
 
-	static TSharedRef<Insights::FTableColumn> CreateTotalInclusiveSizeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMaxInclusiveSizeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateAverageInclusiveSizeColumn();
+	static TSharedRef<FTableColumn> CreateTotalInclusiveSizeColumn();
+	static TSharedRef<FTableColumn> CreateMaxInclusiveSizeColumn();
+	static TSharedRef<FTableColumn> CreateAverageInclusiveSizeColumn();
 
-	static TSharedRef<Insights::FTableColumn> CreateTotalExclusiveSizeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMaxExclusiveSizeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateAverageExclusiveSizeColumn();
+	static TSharedRef<FTableColumn> CreateTotalExclusiveSizeColumn();
+	static TSharedRef<FTableColumn> CreateMaxExclusiveSizeColumn();
+	static TSharedRef<FTableColumn> CreateAverageExclusiveSizeColumn();
 
 private:
 	static constexpr float TotalSizeColumnInitialWidth = 60.0f;
 	static constexpr float SizeColumnInitialWidth = 50.0f;
 };
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+} // namespace UE::Insights::NetworkingProfiler

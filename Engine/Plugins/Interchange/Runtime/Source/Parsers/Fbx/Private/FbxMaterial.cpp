@@ -93,7 +93,7 @@ namespace UE
 					const UInterchangeBaseNode* ShaderGraphNode = NodeContainer.GetNode(ShaderUniqueID);
 					if(!GIsAutomationTesting)
 					{
-						UInterchangeResultTextureWarning_TextureFileDoNotExist* Message = Parser.AddMessage<UInterchangeResultTextureWarning_TextureFileDoNotExist>();
+						UInterchangeResultTextureDisplay_TextureFileDoNotExist* Message = Parser.AddMessage<UInterchangeResultTextureDisplay_TextureFileDoNotExist>();
 						Message->TextureName = TextureFilename;
 						Message->MaterialName = ShaderGraphNode ? ShaderGraphNode->GetDisplayLabel() : TEXT("Unknown");
 					}
@@ -178,26 +178,25 @@ namespace UE
 
 					if (DefaultValue.IsType<float>())
 					{
-						LerpNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(Lerp::Inputs::B.ToString()), DefaultValue.Get<float>());
+						LerpNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(Lerp::Inputs::A.ToString()), DefaultValue.Get<float>());
 					}
 					else if (DefaultValue.IsType<FLinearColor>())
 					{
-						LerpNode->AddLinearColorAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(Lerp::Inputs::B.ToString()), DefaultValue.Get<FLinearColor>());
+						LerpNode->AddLinearColorAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(Lerp::Inputs::A.ToString()), DefaultValue.Get<FLinearColor>());
 					}
 					
 					const FString WeightNodeName = InputName.ToString() + TEXT("MapWeight");
 					UInterchangeShaderNode* WeightNode = UInterchangeShaderNode::Create(&NodeContainer, WeightNodeName, LerpNode->GetUniqueID());
 					WeightNode->SetCustomShaderType(ScalarParameter::Name.ToString());
-
-					const float InverseFactor = 1.f - Factor; // We lerp from A to B and prefer to put the strongest input in A so we need to flip the lerp factor
-					WeightNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputParameterKey(ScalarParameter::Attributes::DefaultValue.ToString()), InverseFactor);
+										
+					WeightNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputParameterKey(ScalarParameter::Attributes::DefaultValue.ToString()), Factor);
 
 					UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(LerpNode, Lerp::Inputs::Factor.ToString() , WeightNode->GetUniqueID());
 
 					UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(NodeToConnectTo, InputToConnectTo, LerpNode->GetUniqueID());
 
 					NodeToConnectTo = LerpNode;
-					InputToConnectTo = Lerp::Inputs::A.ToString();
+					InputToConnectTo = Lerp::Inputs::B.ToString();
 				}
 
 				// Handles max one texture per property.
@@ -210,7 +209,7 @@ namespace UE
 				{
 					if (!GIsAutomationTesting)
 					{
-						UInterchangeResultTextureWarning_TextureFileDoNotExist* Message = Parser.AddMessage<UInterchangeResultTextureWarning_TextureFileDoNotExist>();
+						UInterchangeResultTextureDisplay_TextureFileDoNotExist* Message = Parser.AddMessage<UInterchangeResultTextureDisplay_TextureFileDoNotExist>();
 						Message->TextureName = FbxTexture ? UTF8_TO_TCHAR(FbxTexture->GetFileName()) : TEXT("Undefined");
 						Message->MaterialName = ShaderGraphNode->GetDisplayLabel();
 					}
@@ -246,8 +245,11 @@ namespace UE
 						
 						UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(ShaderGraphNode, InputName, MultiplyNode->GetUniqueID());
 
-						// Scale texture output from [0-1] to [0-1000]
-						MultiplyNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(Multiply::Inputs::B.ToString()), 1000.0f);
+						UInterchangeShaderNode* WeightNode = UInterchangeShaderNode::Create(&NodeContainer, TEXT("ShininessMapWeight"), MultiplyNode->GetUniqueID());
+						WeightNode->SetCustomShaderType(ScalarParameter::Name.ToString());
+						WeightNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputParameterKey(ScalarParameter::Attributes::DefaultValue.ToString()), 1.f);
+
+						UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(MultiplyNode, Multiply::Inputs::B.ToString(), WeightNode->GetUniqueID());
 
 						UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(MultiplyNode, Multiply::Inputs::A.ToString(), TextureSampleShader->GetUniqueID());
 					}
@@ -289,6 +291,8 @@ namespace UE
 					Message->Text = FText::Format(LOCTEXT("CannotCreateFBXMaterial", "Cannot create FBX material '{MaterialName}'."), Args);
 					return nullptr;
 				}
+
+				ProcessCustomAttributes(Parser, SurfaceMaterial, ShaderGraphNode);
 
 				TFunction<bool(FBXSDK_NAMESPACE::FbxProperty&)> ShouldConvertProperty = [&](FBXSDK_NAMESPACE::FbxProperty& MaterialProperty) -> bool
 				{
@@ -467,7 +471,7 @@ namespace UE
 					{
 						if (!GIsAutomationTesting)
 						{
-							UInterchangeResultTextureWarning_TextureFileDoNotExist* Message = Parser.AddMessage<UInterchangeResultTextureWarning_TextureFileDoNotExist>();
+							UInterchangeResultTextureDisplay_TextureFileDoNotExist* Message = Parser.AddMessage<UInterchangeResultTextureDisplay_TextureFileDoNotExist>();
 							Message->TextureName = TextureFilename;
 							Message->MaterialName.Empty();
 						}

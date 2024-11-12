@@ -251,7 +251,7 @@ FUniqueNetIdPtr FOnlineIdentityNull::CreateUniquePlayerId(uint8* Bytes, int32 Si
 {
 	if (Bytes != NULL && Size > 0)
 	{
-		FString StrId(Size, (TCHAR*)Bytes);
+		FString StrId = FString::ConstructFromPtrSize((TCHAR*)Bytes, Size);
 		return FUniqueNetIdNull::Create(StrId);
 	}
 	return NULL;

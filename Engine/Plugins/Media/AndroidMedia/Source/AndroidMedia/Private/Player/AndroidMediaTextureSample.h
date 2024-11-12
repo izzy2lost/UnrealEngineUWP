@@ -132,7 +132,7 @@ public:
 	 * @note This method must be called on the render thread.
 	 * @see InitializeBuffer
 	 */
-	FRHITexture2D* InitializeTexture(FTimespan InTime)
+	FRHITexture* InitializeTexture(FTimespan InTime)
 	{
 		check(IsInRenderingThread() || IsInRHIThread());
 
@@ -271,7 +271,7 @@ private:
 #if WITH_ENGINE
 
 	/** Texture resource. */
-	TRefCountPtr<FRHITexture2D> Texture;
+	TRefCountPtr<FRHITexture> Texture;
 
 #endif //WITH_ENGINE
 };

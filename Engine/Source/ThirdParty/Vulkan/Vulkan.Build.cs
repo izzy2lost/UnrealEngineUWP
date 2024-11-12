@@ -10,34 +10,10 @@ public class Vulkan : ModuleRules
     {
         Type = ModuleType.External;
 
-        string VulkanSDKPath = Environment.GetEnvironmentVariable("VULKAN_SDK");
-        bool bSDKInstalled = !String.IsNullOrEmpty(VulkanSDKPath);
-        bool bUseThirdParty = true;
-        if (bSDKInstalled)
-        {
-            // Check if the installed SDK is newer or the same than the provided headers distributed with the Engine
-            int ThirdPartyVersion = GetThirdPartyVersion();
-            string VulkanSDKIncludePath = GetSDKIncludePath(VulkanSDKPath);
+        string RootPath = Target.UEThirdPartySourceDirectory + "Vulkan";
 
-            int SDKVersion = GetSDKVersion(VulkanSDKIncludePath);
-            if (SDKVersion >= ThirdPartyVersion)
-            {
-                // If the user has an installed SDK, use that instead
-                PublicSystemIncludePaths.Add(VulkanSDKIncludePath);
-                // Older SDKs have an extra subfolder
-                PublicSystemIncludePaths.Add(VulkanSDKIncludePath + "/vulkan");
-
-                bUseThirdParty = false;
-            }
-        }
-
-        if (bUseThirdParty)
-        {
-            string RootPath = Target.UEThirdPartySourceDirectory + "Vulkan";
-
-            PublicSystemIncludePaths.Add(RootPath + "/Include");
-            PublicSystemIncludePaths.Add(RootPath + "/Include/vulkan");
-        }
+        PublicSystemIncludePaths.Add(RootPath + "/Include");
+        PublicSystemIncludePaths.Add(RootPath + "/Include/vulkan");
 
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {

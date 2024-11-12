@@ -115,38 +115,49 @@ uint2 PackLightTileForLightPass(FLightTileForLightPass Tile)
 	return PackedTile;
 }
 
-float4x4 WorldToClip[LUMEN_MAX_VIEWS]; // LUMEN_LWC_TODO
-float4 PreViewTranslation[LUMEN_MAX_VIEWS]; // LUMEN_LWC_TODO
+float4x4 FrustumTranslatedWorldToClip[LUMEN_MAX_VIEWS];
+float4 PreViewTranslationHigh[LUMEN_MAX_VIEWS];
+float4 PreViewTranslationLow[LUMEN_MAX_VIEWS];
 float2 ViewExposure;
 
-uint GetCardViewIndex(FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, uint NumViews, bool bPrioritizeWhenInFrustum)
+FDFVector3 GetPreViewTranslation(uint ViewIndex)
+{
+	return MakeDFVector3(PreViewTranslationHigh[ViewIndex].xyz, PreViewTranslationLow[ViewIndex].xyz);
+}
+
+uint GetCardViewIndex(FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, float2 CardTileDepthRange, uint NumViews, bool bPrioritizeWhenInFrustum)
 {
 	float3 CardPageLocalCenter;
 	float3 CardPageLocalExtent;
-	GetCardLocalBBox(CardPage, Card, UVMin, UVMax, CardPageLocalCenter, CardPageLocalExtent);
-
-	float3 CardPageWorldCenter = mul(Card.WorldToLocalRotation, CardPageLocalCenter) + Card.Origin;
-	float3 CardPageWorldExtent = mul(abs(Card.WorldToLocalRotation), CardPageLocalExtent);
+	GetCardLocalBBox(CardPage, Card, UVMin, UVMax, CardTileDepthRange, CardPageLocalCenter, CardPageLocalExtent);
 
 	uint ViewIndex = 0;
 	
 	if (NumViews > 1)
 	{
-		float View0Distance = length(CardPageWorldCenter + PreViewTranslation[0].xyz);
-		float View1Distance = length(CardPageWorldCenter + PreViewTranslation[1].xyz);
+		FDFVector3 PreViewTranslation0 = GetPreViewTranslation(0);
+		FDFVector3 PreViewTranslation1 = GetPreViewTranslation(1);
+		float3 CardTranslatedWorldOrigin0 = DFFastToTranslatedWorld(Card.Origin, PreViewTranslation0);
+		float3 CardTranslatedWorldOrigin1 = DFFastToTranslatedWorld(Card.Origin, PreViewTranslation1);
+		float View0Distance = length(CardTranslatedWorldOrigin0);
+		float View1Distance = length(CardTranslatedWorldOrigin1);
 
 #define IN_FRUSTUM_DISTANCE 1
 #if IN_FRUSTUM_DISTANCE
+		float3 CardPageRotated = mul(Card.WorldToLocalRotation, CardPageLocalCenter);
+		float3 CardPageTranslatedWorldCenter0 = CardPageRotated + CardTranslatedWorldOrigin0;
+		float3 CardPageTranslatedWorldCenter1 = CardPageRotated + CardTranslatedWorldOrigin1;
+
 		if (bPrioritizeWhenInFrustum)
 		{
-			float4 CardOriginClipSpace0 = mul(float4(CardPageWorldCenter, 1.0f), WorldToClip[0]);
+			float4 CardOriginClipSpace0 = mul(float4(CardPageTranslatedWorldCenter0, 1.0f), FrustumTranslatedWorldToClip[0]);
 
 			if (all(CardOriginClipSpace0.xy >= CardOriginClipSpace0.w) && all(CardOriginClipSpace0.xy <= CardOriginClipSpace0.w) && CardOriginClipSpace0.z < 1.0f)
 			{
 				View0Distance = .5f * CardOriginClipSpace0.w;
 			}
 
-			float4 CardOriginClipSpace1 = mul(float4(CardPageWorldCenter, 1.0f), WorldToClip[1]);
+			float4 CardOriginClipSpace1 = mul(float4(CardPageTranslatedWorldCenter1, 1.0f), FrustumTranslatedWorldToClip[1]);
 
 			if (all(CardOriginClipSpace1.xy >= CardOriginClipSpace1.w) && all(CardOriginClipSpace1.xy <= CardOriginClipSpace1.w) && CardOriginClipSpace1.z < 1.0f)
 			{

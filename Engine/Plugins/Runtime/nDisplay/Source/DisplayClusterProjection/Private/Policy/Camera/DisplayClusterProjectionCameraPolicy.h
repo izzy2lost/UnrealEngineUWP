@@ -19,9 +19,7 @@ public:
 	FDisplayClusterProjectionCameraPolicy(const FString& ProjectionPolicyId, const FDisplayClusterConfigurationProjection* InConfigurationProjectionPolicy);
 
 public:
-	//////////////////////////////////////////////////////////////////////////////////////////////
-	// IDisplayClusterProjectionPolicy
-	//////////////////////////////////////////////////////////////////////////////////////////////
+	//~ Begin IDisplayClusterProjectionPolicy
 	virtual const FString& GetType() const override;
 
 	virtual bool HandleStartScene(IDisplayClusterViewport* InViewport) override;
@@ -38,14 +36,24 @@ public:
 		return true;
 	}
 
+	virtual bool ShouldUseViewPointComponentPostProcesses(IDisplayClusterViewport* InViewport) const override
+	{
+		// This projection policy uses its own camera with postprocessing.
+		// Disable the use of PP settings from the ViewPoint component.
+		return false;
+	}
+	//~ End IDisplayClusterProjectionPolicy
+
 public:
 	void SetCamera(UCameraComponent* const NewCamera, const FDisplayClusterProjectionCameraPolicySettings& InCameraSettings);
+
+	/** Returns the camera component that is currently in use. */
+	UCameraComponent* GetCameraComponent() const;
 
 private:
 	bool ImplSetupProjectionViewPoint(IDisplayClusterViewport* InViewport, const float InDeltaTime, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr) const;
 
 protected:
-	UCameraComponent* GetCameraComponent() const;
 
 private:
 	// Camera to use for rendering

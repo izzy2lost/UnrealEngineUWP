@@ -24,12 +24,14 @@ public:
 	
 	TArray<FAssetData> AssetDataToAnalyze;
 
-	/** Initializes the variables needed to load and verify the data */
-	FBuildBasicMaterialTreeAsyncTask(TArray<FAnalyzedMaterialNodeRef>& InMaterialTreeRoot, const TArray<FAssetData>& InAssetDataToAnalyze):
-		MaterialTreeRoot(InMaterialTreeRoot),
-		AssetDataToAnalyze(InAssetDataToAnalyze)
-	{
+	FString ParameterFilter;
 
+	/** Initializes the variables needed to load and verify the data */
+	FBuildBasicMaterialTreeAsyncTask(TArray<FAnalyzedMaterialNodeRef>& InMaterialTreeRoot, const TArray<FAssetData>& InAssetDataToAnalyze, const FString& InParameterFilter = TEXT(""))
+		: MaterialTreeRoot(InMaterialTreeRoot)
+		, AssetDataToAnalyze(InAssetDataToAnalyze)
+		, ParameterFilter(InParameterFilter)
+	{
 	}
 
 	FAnalyzedMaterialNodePtr FindOrMakeBranchNode(FAnalyzedMaterialNodePtr ParentNode, const FAssetData* ChildData);
@@ -66,12 +68,15 @@ public:
 	TArray<FMaterialParameterInfo> StaticMaskParameterInfo;
 	TArray<FGuid> StaticMaskGuids;
 
+	FText ParameterFilter;
 
-	FAnalyzeMaterialTreeAsyncTask(FAnalyzedMaterialNodeRef InMaterialTreeRoot, const TArray<FAssetData>& InAssetDataToAnalyze):
+
+	FAnalyzeMaterialTreeAsyncTask(FAnalyzedMaterialNodeRef InMaterialTreeRoot, const TArray<FAssetData>& InAssetDataToAnalyze, const FText& InParameterFilter = FText::GetEmpty()):
 		MaterialTreeRoot(InMaterialTreeRoot),
 		AssetDataToAnalyze(InAssetDataToAnalyze),
 		CurrentMaterialQueueIndex(0),
-		CurrentMaterialNode(InMaterialTreeRoot)
+		CurrentMaterialNode(InMaterialTreeRoot),
+		ParameterFilter(InParameterFilter)
 	{
 		MaterialQueue.Empty(MaterialTreeRoot->TotalNumberOfChildren());
 		MaterialQueue.Add(MaterialTreeRoot);
@@ -236,13 +241,14 @@ protected:
 	FAsyncTask<FAnalyzeMaterialTreeAsyncTask>* AnalyzeTreeTask;
 	FAsyncTask<FAnalyzeForIdenticalPermutationsAsyncTask>* AnalyzeForIdenticalPermutationsTask;
 
-	bool bRequestedTreeRefresh;
-
 	FAssetData CurrentlySelectedAsset;
 
 	bool bWaitingForAssetRegistryLoad;
 
 	void OnAssetSelected(const FAssetData& AssetData);
+	void OnParameterFilterChanged(const FText& Filter, const ETextCommit::Type InTextAction);
+
+	FReply OnExportAnalyzedMaterialToCSV();
 
 	void BuildBasicMaterialTree();
 
@@ -274,11 +280,16 @@ private:
 	 */
 	void HandleReflectorTreeRecursiveExpansion(FAnalyzedMaterialNodeRef InTreeNode, bool bIsItemExpanded);
 
+	void UpdateViewForSelectedAsset();
+
 	bool IsMaterialSelectionAllowed() const
 	{
-		return bAllowMaterialSelection;
+		// Don't allow to change selected material while async work is operating on currently selected asset.
+		return !bIsAsyncWorkInProgress;
 	}
 
 private:
-	bool bAllowMaterialSelection;
+	bool bIsAsyncWorkInProgress = false;
+	FText ParameterFilter;
+	bool bHasParameterFilterChanged = false;
 };

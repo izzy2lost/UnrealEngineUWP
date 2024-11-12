@@ -112,7 +112,7 @@ namespace EpicGames.Perforce.Managed
 	/// <summary>
 	/// Indicates the type of a file
 	/// </summary>
-	public struct FileType : IEquatable<FileType>
+	public readonly struct FileType : IEquatable<FileType>
 	{
 		/// <summary>
 		/// Size of the object when serialized to memory

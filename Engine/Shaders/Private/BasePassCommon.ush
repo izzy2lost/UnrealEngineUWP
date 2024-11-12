@@ -67,13 +67,13 @@
 #endif
 
 // Local fog volumes are always evaluated per vertex for now, even with forward shading. But never for opaque meshes rendered in forward.
-#define LOCAL_FOG_VOLUME_ON_TRANSLUCENT (PROJECT_LOCALFOGVOLUME_APPLYONTRANSLUCENT && ((NEEDS_BASEPASS_VERTEX_FOGGING && !(OPAQUE_NEEDS_BASEPASS_FOGGING && PROJECT_VERTEX_FOGGING_FOR_OPAQUE)) || NEEDS_BASEPASS_PIXEL_FOGGING) && !MATERIAL_IS_SKY)
+#define LOCAL_FOG_VOLUME_ON_TRANSLUCENT (PROJECT_LOCALFOGVOLUME_APPLYONTRANSLUCENT && (NEEDS_BASEPASS_VERTEX_FOGGING && !(OPAQUE_NEEDS_BASEPASS_FOGGING && PROJECT_VERTEX_FOGGING_FOR_OPAQUE)) && !MATERIAL_IS_SKY)
 
 struct FSharedBasePassInterpolants
 {
-	// This is enabled for vertex fogging or for local fog volume that are better evaluated per vertex for now.
+	// This is enabled for vertex fogging.
 	// For texture-lightmapped translucency we can pass the vertex fog in its own interpolator
-#if NEEDS_BASEPASS_VERTEX_FOGGING || LOCAL_FOG_VOLUME_ON_TRANSLUCENT
+#if NEEDS_BASEPASS_VERTEX_FOGGING
 	float4 VertexFog		: TEXCOORD7;
 #endif
 

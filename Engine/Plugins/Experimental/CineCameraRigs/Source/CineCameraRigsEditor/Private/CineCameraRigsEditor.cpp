@@ -82,6 +82,7 @@ private:
 			TEXT("PMCinematic"),
 			25
 		);
+		Info.ShortDisplayName = LOCTEXT("CinematicShortCategoryName", "Cine");
 
 		PlacmentModeModule.RegisterPlacementCategory(Info);
 		return PlacmentModeModule.GetRegisteredPlacementCategory("Cinematic");

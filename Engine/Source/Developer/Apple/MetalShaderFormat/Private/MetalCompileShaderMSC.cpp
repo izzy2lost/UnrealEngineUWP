@@ -15,6 +15,7 @@
 #include "ShaderCompilerDefinitions.h"
 #include "SpirvReflectCommon.h"
 #include "ShaderParameterParser.h"
+#include "Containers/AnsiString.h"
 
 #include <regex>
 
@@ -22,10 +23,13 @@
 
 #if PLATFORM_MAC
 
+THIRD_PARTY_INCLUDES_START
+#include "metal_irconverter.h"
+THIRD_PARTY_INCLUDES_END
+
 extern void BuildMetalShaderOutput(
 	FShaderCompilerOutput& ShaderOutput,
 	const FShaderCompilerInput& ShaderInput,
-	FSHAHash const& GUIDHash,
 	const ANSICHAR* InShaderSource,
 	uint32 SourceLen,
 	uint32 SourceCRCLen,
@@ -48,8 +52,6 @@ extern void BuildMetalShaderOutput(
 );
 
 #include "ShaderConductorContext.h"
-
-#include "metal_irconverter.h"
 
 #include "d3d12shader.h"
 #include "dxc/dxcapi.h"
@@ -273,28 +275,35 @@ static void ProcessReflection(ID3D12ShaderReflection* ShaderReflection, const ui
 				D3D12_SHADER_BUFFER_DESC CBDesc;
 				ConstantBuffer->GetDesc(&CBDesc);
 
-				for (uint32 ConstantIndex = 0; ConstantIndex < CBDesc.Variables; ConstantIndex++)
+				const FString UniformBufferName(BindDesc.Name);
+				const EUniformBufferMemberReflectionReason Reason = ShouldReflectUniformBufferMembers(Input, UniformBufferName);
+				if (Reason != EUniformBufferMemberReflectionReason::None)
 				{
-					ID3D12ShaderReflectionVariable* Variable = ConstantBuffer->GetVariableByIndex(ConstantIndex);
-
-					D3D12_SHADER_VARIABLE_DESC VariableDesc;
-					Variable->GetDesc(&VariableDesc);
-
-					if (VariableDesc.uFlags & D3D_SVF_USED)
+					for (uint32 ConstantIndex = 0; ConstantIndex < CBDesc.Variables; ConstantIndex++)
 					{
-						HandleReflectedUniformBufferConstantBufferMember(
-							BindIndex,
-							FString(VariableDesc.Name),
-							VariableDesc.StartOffset,
-							VariableDesc.Size,
-							Output
-						);
+						ID3D12ShaderReflectionVariable* Variable = ConstantBuffer->GetVariableByIndex(ConstantIndex);
+
+						D3D12_SHADER_VARIABLE_DESC VariableDesc;
+						Variable->GetDesc(&VariableDesc);
+
+						if (VariableDesc.uFlags & D3D_SVF_USED)
+						{
+							HandleReflectedUniformBufferConstantBufferMember(
+								Reason,
+								UniformBufferName,
+								BindIndex,
+								FString(VariableDesc.Name),
+								VariableDesc.StartOffset,
+								VariableDesc.Size,
+								Output
+							);
+						}
 					}
 				}
 				
 				// Regular uniform buffer - we only care about the binding index
-				CCHeaderWriter.WriteUniformBlock(ANSI_TO_TCHAR(BindDesc.Name), BindIndex);
-				HandleReflectedUniformBuffer(ANSI_TO_TCHAR(BindDesc.Name), BindIndex, Output);
+				CCHeaderWriter.WriteUniformBlock(*UniformBufferName, BindIndex);
+				HandleReflectedUniformBuffer(UniformBufferName, BindIndex, Output);
 			}
 			NumCBVs = FMath::Max(NumCBVs, BindIndex + BindDesc.BindCount);
 		}
@@ -411,7 +420,7 @@ struct FMetalShaderParameterParserPlatformConfiguration : public FShaderParamete
 	{
 	}
 
-	virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView ShaderTypeString, FStringView IndexString) const final
+	virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView FullTypeString, FStringView ArrayNameOverride, FStringView IndexString) const final
 	{
 		// GetResourceFromHeap(Type, Index) ResourceDescriptorHeap[Index]
 		// GetSamplerFromHeap(Type, Index)  SamplerDescriptorHeap[Index]
@@ -429,7 +438,6 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 	const FShaderCompilerInput& Input,
 	FShaderCompilerOutput& Output,
 	const FString& InPreprocessedShader,
-	FSHAHash GUIDHash,
 	uint32 VersionEnum,
 	EMetalGPUSemantics Semantics,
 	uint32 MaxUnrollLoops,
@@ -507,19 +515,20 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 			return;
 		}
 		
-		// Load shader source into compiler context
-		CompilerContext.LoadSource(PreprocessedShader, Input.VirtualSourceFilePath, Input.EntryPointName, Frequency);
-
-		// Rewrite HLSL source code to remove unused global resources and variables
-		Options.bRemoveUnusedGlobals = true;
-		if (!CompilerContext.RewriteHlsl(Options, &PreprocessedShader))
+		TArray<FString> ExtraArgs;
+		
+		if (Input.Environment.CompilerFlags.Contains(CFLAG_ExtraShaderData))
 		{
-			CompilerContext.FlushErrors(Output.Errors);
+			ExtraArgs.Add(TEXT("-Zi"));
+			ExtraArgs.Add(TEXT("-Qembed_debug"));
+			ExtraArgs.Add(TEXT("--ignore-line-directives"));
 		}
-		Options.bRemoveUnusedGlobals = false;
+		
+		// Load shader source into compiler context
+		CompilerContext.LoadSource(PreprocessedShader, Input.VirtualSourceFilePath, Input.EntryPointName, Frequency, nullptr, &ExtraArgs);
 
 		// Convert shader source to ANSI string
-		std::string SourceData(CompilerContext.GetSourceString(), static_cast<size_t>(CompilerContext.GetSourceLength()));
+		FAnsiString SourceData = FAnsiString::ConstructFromPtrSize(CompilerContext.GetSourceString(), CompilerContext.GetSourceLength());
 
 		// Replace special case texture "gl_LastFragData" by native subpass fetch operation
 		static const uint32 MaxMetalSubpasses = 8;
@@ -530,12 +539,12 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 		// If source data was modified, reload it into the compiler context
 		if (bSourceDataWasModified)
 		{
-			CompilerContext.LoadSource(FAnsiStringView(SourceData.c_str(), SourceData.length()), Input.VirtualSourceFilePath, Input.EntryPointName, Frequency);
+			CompilerContext.LoadSource(SourceData, Input.VirtualSourceFilePath, Input.EntryPointName, Frequency, nullptr, &ExtraArgs);
 		}
 
 		if (bDumpDebugInfo)
 		{
-			DumpDebugShaderText(Input, &SourceData[0], SourceData.size(), TEXT("rewritten.hlsl"));
+			DumpDebugShaderText(Input, &SourceData[0], SourceData.Len(), TEXT("rewritten.hlsl"));
 		}
 		
 		CrossCompiler::FHlslccHeaderWriter CCHeaderWriter;
@@ -549,6 +558,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 		
 		// Compile HLSL source to DXIL binary
 		TArray<uint32> DxilData;
+		
 		if (!CompilerContext.CompileHlslToDxil(Options, DxilData))
 		{
 			Result = 0;
@@ -612,7 +622,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 		IRRootSignature* RootSignature = IRRootSignatureCreateFromDescriptor(&RootSignatureDesc, &RootSignatureCreationError);
 		if (RootSignature == nullptr || RootSignatureCreationError != nullptr)
 		{
-			FShaderCompilerError Error(FString::Printf(TEXT("Error: MetalShaderConverter failed to create a root signature for '%s' (error code: %u)!"), *Input.EntryPointName, IRErrorGetCode(RootSignatureCreationError)));
+			FShaderCompilerError Error(FString::Printf(TEXT("Error: MetalShaderConverter failed to create a root signature for '%s' (%s)!"), *Input.EntryPointName, ANSI_TO_TCHAR((const char *)IRErrorGetPayload(RootSignatureCreationError))));
 			Output.Errors.Add(Error);
 			Output.bSucceeded = false;
 			
@@ -627,13 +637,15 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 		IRCompilerSetGlobalRootSignature(CompilerInstance, RootSignature);
 		IRCompilerSetStageInGenerationMode(CompilerInstance, IRStageInCodeGenerationModeUseSeparateStageInFunction);
 		IRCompilerSetCompatibilityFlags(CompilerInstance, IRCompatibilityFlagBoundsCheck);
+		IRCompilerSetMinimumGPUFamily(CompilerInstance, IRGPUFamilyMetal3);
+		IRCompilerSetMinimumDeploymentTarget(CompilerInstance, IROperatingSystem_macOS, "15.0.0");
 		
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
 		IRCompilerEnableGeometryAndTessellationEmulation(CompilerInstance, Input.Environment.CompilerFlags.Contains(CFLAG_VertexToGeometryShader));
 #endif
 		 
 		// TODO: Is there a flag we could check to avoid this string lookup?
-		bool bUsesDualSourceBlending = (SourceData.find("vk::location") != std::string::npos);
+		bool bUsesDualSourceBlending = (SourceData.Find("vk::location") != INDEX_NONE);
 		if (bUsesDualSourceBlending)
 		{
 			IRCompilerSetDualSourceBlendingConfiguration(CompilerInstance, IRDualSourceBlendingConfigurationForceEnabled);
@@ -646,7 +658,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 		IRObject* AirBytecode = IRCompilerAllocCompileAndLink(CompilerInstance, nullptr, DXILBytecode, &CompileError);
 		if (!AirBytecode || CompileError != nullptr)
 		{
-			FShaderCompilerError Error(FString::Printf(TEXT("Error: MetalShaderConverter failed to produce air bytecode for '%s' (error code: %u)!"), *Input.EntryPointName, IRErrorGetCode(CompileError)));
+			FShaderCompilerError Error(FString::Printf(TEXT("Error: MetalShaderConverter failed to produce air bytecode for '%s' (%s)!"), *Input.EntryPointName, ANSI_TO_TCHAR((const char *)IRErrorGetPayload(CompileError))));
 			Output.Errors.Add(Error);
 			Output.bSucceeded = false;
 			
@@ -668,7 +680,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 			
 			if(bDumpDebugInfo)
 			{
-				ReflectionJSON = IRShaderReflectionAllocStringAndSerialize(AirReflection);
+				ReflectionJSON = IRShaderReflectionCopyJSONString(AirReflection);
 				FString ReflectionString = ANSI_TO_TCHAR(ReflectionJSON);
 				DumpDebugShaderText(Input, ReflectionString, TEXT("reflection.json"));
 				checkSlow(ReflectionJSON);
@@ -692,7 +704,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 					if(!ReflectionJSON)
 					{
 						// Serialize Reflection for vs (required to generate stage_in functions at PSO creation-time)
-						ReflectionJSON = IRShaderReflectionAllocStringAndSerialize(AirReflection);
+						ReflectionJSON = IRShaderReflectionCopyJSONString(AirReflection);
 						checkSlow(ReflectionJSON);
 					}
 					break;
@@ -806,7 +818,7 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 	if (Result != 0)
 	{
 		Output.Target = Input.Target;
-		BuildMetalShaderOutput(Output, Input, GUIDHash, MetalSource.c_str(), MetalSource.length(), CRCLen, CRC, VersionEnum, *Standard, *MinOSVersion, Output.Errors, OutputData.TypedBuffers, OutputData.InvariantBuffers, OutputData.TypedUAVs, OutputData.ConstantBuffers, bAllowFastIntrinsics
+		BuildMetalShaderOutput(Output, Input, MetalSource.c_str(), MetalSource.length(), CRCLen, CRC, VersionEnum, *Standard, *MinOSVersion, Output.Errors, OutputData.TypedBuffers, OutputData.InvariantBuffers, OutputData.TypedUAVs, OutputData.ConstantBuffers, bAllowFastIntrinsics
 		  , NumCBVs, OutputSizeVS, MaxInputPrimitivesPerMeshThreadgroupGS, bUsesDiscard, ReflectionJSON, MetalBytecode
 		);
 	}
@@ -831,7 +843,6 @@ void FMetalCompileShaderMSC::DoCompileMetalShader(
 	const FShaderCompilerInput& Input,
 	FShaderCompilerOutput& Output,
 	const FString& InPreprocessedShader,
-	FSHAHash GUIDHash,
 	uint32 VersionEnum,
 	EMetalGPUSemantics Semantics,
 	uint32 MaxUnrollLoops,

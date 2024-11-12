@@ -53,7 +53,7 @@ struct FPhysicalCocModel
 	float InFocusRadius;
 
 	/** Radius offset lookup table */
-	FRHITexture2D* DynamicRadiusOffsetLUT;
+	FRHITexture* DynamicRadiusOffsetLUT;
 
 	// Resolution less minimal foreground coc radius < 0.
 	float MinForegroundCocRadius;

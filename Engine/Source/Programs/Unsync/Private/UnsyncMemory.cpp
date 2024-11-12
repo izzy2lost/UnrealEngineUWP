@@ -37,14 +37,19 @@ _mm_malloc(size_t s, size_t a)
 
 struct DebugHeap;
 
-namespace unsync {
-
-#if defined(_DEBUG)
-#	define UNSYNC_OVERRIDE_GLOBAL_NEW_DELETE 0	 // TODO: need to override concurrency runtime allocator for this to work in debug config
-#else
-#	define UNSYNC_OVERRIDE_GLOBAL_NEW_DELETE 1
+#if defined(__has_feature)
+#	if __has_feature(thread_sanitizer)
+#		define UNSYNC_THREAD_SANITIZER 1
+#	endif
 #endif
 
+#ifndef UNSYNC_THREAD_SANITIZER
+#	define UNSYNC_THREAD_SANITIZER 0
+#endif
+
+namespace unsync {
+
+#define UNSYNC_OVERRIDE_GLOBAL_NEW_DELETE	 (!UNSYNC_THREAD_SANITIZER)
 #define UNSYNC_DEBUG_MALLOC_CANARY			 1
 #define UNSYNC_DEBUG_HEAP_MINIMUM_ALLOC_SIZE 4096
 

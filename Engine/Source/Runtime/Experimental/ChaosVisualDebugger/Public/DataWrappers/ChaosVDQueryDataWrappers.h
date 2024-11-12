@@ -18,10 +18,10 @@ enum class EChaosVDSceneQueryType
 UENUM()
 enum class EChaosVDSceneQueryMode
 {
-	Invalid,
 	Single,
 	Multi,
-	Test
+	Test,
+	Invalid
 };
 
 USTRUCT()
@@ -34,12 +34,16 @@ struct FChaosVDCollisionResponseParams : public FChaosVDWrapperDataBase
 	template <typename TOther>
 	void CopyFrom(const TOther& Other)
 	{
-		FlagsPerChannel = TArray(Other.CollisionResponse.EnumArray, UE_ARRAY_COUNT(Other.CollisionResponse.EnumArray));
+		const int32 ArrayNum = UE_ARRAY_COUNT(Other.CollisionResponse.EnumArray);
+		for (int32 ChannelIndex = 0; ChannelIndex < ArrayNum; ++ChannelIndex)
+		{
+			FlagsPerChannel.Add(Other.CollisionResponse.EnumArray[ChannelIndex]);
+		}
+
 		bHasValidData = true;
 	}
-	
-	UPROPERTY(VisibleAnywhere, Category=QueryData)
-	TArray<uint8> FlagsPerChannel;
+
+	TArray<uint8, TInlineAllocator<32>> FlagsPerChannel;
 };
 
 inline FArchive& operator<<(FArchive& Ar, FChaosVDCollisionResponseParams& Data)
@@ -324,6 +328,17 @@ enum class EChaosVDCollisionQueryHitType
 };
 
 UENUM()
+enum class EChaosVDSQVisitRejectReason
+{
+	None = 0,
+	NoHit = 1,
+	PreFilter = 2,
+	PostFilter = 3,
+	ColocatedHitHasWorseNormal = 4,
+	FailedFastBoundTest = 5
+};
+
+UENUM()
 enum class EChaosVDSceneQueryVisitorType
 {
 	Invalid,
@@ -363,9 +378,8 @@ struct FChaosVDQueryVisitStep : public FChaosVDWrapperDataBase
 	UPROPERTY(VisibleAnywhere, Category="SQ Visit Data")
 	FChaosVDQueryHitData HitData;
 
-	// Editor only properties
-
-	bool bIsSelectedInEditor = false;
+	UPROPERTY()
+	EChaosVDSQVisitRejectReason RejectReason = EChaosVDSQVisitRejectReason::None;
 };
 
 inline FArchive& operator<<(FArchive& Ar, FChaosVDQueryVisitStep& Data)
@@ -439,8 +453,6 @@ struct FChaosVDQueryDataWrapper
 	TArray<FChaosVDQueryVisitStep> Hits;
 
 	TArray<int32> SubQueriesIDs;
-
-	bool bIsSelectedInEditor = false;
 
 	int32 CurrentVisitIndex = 0;
 };

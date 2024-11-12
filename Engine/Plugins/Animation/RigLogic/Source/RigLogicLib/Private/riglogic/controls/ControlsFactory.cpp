@@ -19,10 +19,11 @@ static ControlsInputInstance::Factory createInstanceFactory(const Configuration&
                                                             std::uint16_t guiControlCount,
                                                             std::uint16_t rawControlCount,
                                                             std::uint16_t psdControlCount,
-                                                            std::uint16_t mlControlCount) {
+                                                            std::uint16_t mlControlCount,
+                                                            std::uint16_t rbfControlCount) {
     return [ = ](MemoryResource* memRes) {
                auto factory = UniqueInstance<StandardControlsInputInstance, ControlsInputInstance>::with(memRes);
-               return factory.create(guiControlCount, rawControlCount, psdControlCount, mlControlCount, memRes);
+               return factory.create(guiControlCount, rawControlCount, psdControlCount, mlControlCount, rbfControlCount, memRes);
     };
 }
 
@@ -31,7 +32,8 @@ Controls::Pointer ControlsFactory::create(const Configuration& config, const Rig
                                                  metrics.guiControlCount,
                                                  metrics.rawControlCount,
                                                  metrics.psdControlCount,
-                                                 metrics.mlControlCount);
+                                                 metrics.mlControlCount,
+                                                 metrics.rbfControlCount);
     return UniqueInstance<Controls>::with(memRes).create(ConditionalTable{memRes}, PSDMatrix{memRes}, instanceFactory);
 }
 
@@ -82,7 +84,8 @@ Controls::Pointer ControlsFactory::create(const Configuration& config, const dna
                                                  conditionals.getInputCount(),
                                                  conditionals.getOutputCount(),
                                                  psds.getDistinctPSDCount(),
-                                                 reader->getMLControlCount());
+                                                 reader->getMLControlCount(),
+                                                 reader->getRBFPoseControlCount());
 
     return UniqueInstance<Controls>::with(memRes).create(std::move(conditionals), std::move(psds), instanceFactory);
 }

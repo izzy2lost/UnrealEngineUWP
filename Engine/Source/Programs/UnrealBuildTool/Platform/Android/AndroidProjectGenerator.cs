@@ -79,7 +79,6 @@ namespace UnrealBuildTool
 			return AGDEInstalled;
 		}
 
-
 		/// <inheritdoc/>
 		public override string GetVisualStudioPlatformName(VSSettings InVSSettings)
 		{
@@ -163,7 +162,7 @@ namespace UnrealBuildTool
 					Path.Combine(intermediateRootPath, shortAbi, "libs", longAbi),
 					Path.Combine(intermediateRootPath, "LLDBSymbolsLibs", shortAbi) // support bDontBundleLibrariesInAPK
 				};
-				ProjectFileBuilder.AppendLine($"    <AndroidSymbolDirectories>{string.Join(";", symbolLocations)}</AndroidSymbolDirectories>");
+				ProjectFileBuilder.AppendLine($"    <AndroidSymbolDirectories>{String.Join(";", symbolLocations)}</AndroidSymbolDirectories>");
 			}
 			else
 			{
@@ -226,7 +225,7 @@ namespace UnrealBuildTool
 				return Out.ToString();
 			}
 
-			return string.Empty;
+			return String.Empty;
 		}
 	}
 }

@@ -10,6 +10,7 @@ class ASVGShapesParentActor;
 
 DECLARE_DELEGATE_OneParam(FSVGActorComponentsReady, ASVGActor*)
 DECLARE_DELEGATE_OneParam(FOnSVGActorSplit, ASVGShapesParentActor*)
+DECLARE_DELEGATE_OneParam(FOnSVGShapesUpdated, AActor*)
 
 UCLASS()
 class USVGEngineSubsystem : public UEngineSubsystem
@@ -22,9 +23,11 @@ public:
 	FSVGActorComponentsReady& GetSVGActorComponentsReadyDelegate() { return SVGActorComponentsReady; }
 
 	static FOnSVGActorSplit& OnSVGActorSplit() { return OnSVGActorSplitDelegate; }
+	static FOnSVGShapesUpdated& OnSVGShapesUpdated() { return OnSVGShapesUpdatedDelegate; }
 
 protected:
 	SVGIMPORTER_API static FOnSVGActorSplit OnSVGActorSplitDelegate;
+	SVGIMPORTER_API static FOnSVGShapesUpdated OnSVGShapesUpdatedDelegate;
 
 	FSVGActorComponentsReady SVGActorComponentsReady;
 };

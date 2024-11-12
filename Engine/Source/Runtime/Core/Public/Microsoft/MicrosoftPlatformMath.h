@@ -26,6 +26,14 @@ struct FMicrosoftPlatformMathBase : public TUnrealPlatformMathSSE4Base<FGenericP
 		unsigned long BitIndex;
 		return _BitScanReverse(&BitIndex, Value) ? BitIndex : 0;
 	}
+
+	static FORCEINLINE uint32 FloorLog2NonZero(uint32 Value)
+	{
+		unsigned long BitIndex = 0;
+		_BitScanReverse(&BitIndex, Value);
+		return BitIndex;
+	}
+
 	static FORCEINLINE uint8 CountLeadingZeros8(uint8 Value)
 	{
 		unsigned long BitIndex;
@@ -65,6 +73,13 @@ struct FMicrosoftPlatformMathBase : public TUnrealPlatformMathSSE4Base<FGenericP
 	{
 		unsigned long BitIndex;
 		return _BitScanReverse64(&BitIndex, Value) ? BitIndex : 0;
+	}
+
+	static FORCEINLINE uint64 FloorLog2NonZero_64(uint64 Value)
+	{
+		unsigned long BitIndex = 0;
+		_BitScanReverse64(&BitIndex, Value);
+		return BitIndex;
 	}
 
 	static FORCEINLINE uint64 CeilLogTwo64(uint64 Arg)

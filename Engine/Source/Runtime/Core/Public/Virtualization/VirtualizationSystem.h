@@ -46,6 +46,21 @@ struct FPayloadActivityInfo
 	FActivity Cache;
 };
 
+/** Profiling data containing all activity relating to a single backend */
+struct FBackendStats
+{
+	/** Name of the backend as provided by the current VA graph found in ini:Engine */
+	FString ConfigName;
+	/** Full debug name of the backend */
+	FString DebugName;
+	
+	/** The storage type of the backend */
+	EStorageType Type;
+
+	/** Payload activity for the current backend */
+	FPayloadActivityInfo PayloadActivity;
+};
+
 /** Info about a rehydration operation */
 struct FRehydrationInfo
 {
@@ -156,6 +171,12 @@ struct FPushResult
 	bool WasPushed() const
 	{
 		return Status == EStatus::Pushed;
+	}
+
+	/** Returns true if the payload experienced an error during upload */
+	bool WasError() const
+	{
+		return Status < EStatus::Pending;
 	}
 
 	/** Returns true if the payload is stored in the target backend(s) after the operation completed */
@@ -529,6 +550,23 @@ CORE_API bool ShouldInitializePreSlate();
  */
 CORE_API void Shutdown();
 
+/** Used to customize the analytics events being sent via the virtualization system */
+enum class EAnalyticsFlags : uint32
+{
+	None = 0,
+	/** The event needs to be completely handled/flushed by the listening systems before returning.
+		Commonly used when sending events right before terminating the process */
+	Flush = 1 << 0
+};
+
+using FAnalyticsRecordEvent = TTSMulticastDelegate<void(const FString&, const TArray<FAnalyticsEventAttribute>&, EAnalyticsFlags)>;
+
+/** 
+ * This event is used by the virtualization system to send analytics events. Telemetry systems that wish to process asset virtualization
+ * events should register to this. Note that these events could be raised on different threads so the listener will need to be threadsafe.
+ */
+CORE_API FAnalyticsRecordEvent& GetAnalyticsRecordEvent();
+
 /** 
  * The base interface for the virtualization system. An Epic maintained version can be found in the Virtualization module.
  * To implement your own, simply derived from this interface and then use the
@@ -566,6 +604,9 @@ public:
 
 	/** Returns true if a virtualization system has been initialized and false if not */
 	CORE_API static bool IsInitialized();
+
+	/** Returns the name of the currently initialized system, will be NAME_None if initialization failed or the system is not enabled */
+	CORE_API static FName GetSystemName();
 
 	/** 
 	 * Gain access to the current virtualization system active for the project. If the system has not yet been 
@@ -800,11 +841,26 @@ public:
 
 	using GetPayloadActivityInfoFuncRef = TFunctionRef<void(const FString& DebugName, const FString& ConfigName, const FPayloadActivityInfo& PayloadInfo)>;
 
-	/** Access profiling info relating to payload activity per backend. Stats will only be collected if ENABLE_COOK_STATS is enabled.*/
-	virtual void GetPayloadActivityInfo( GetPayloadActivityInfoFuncRef ) const = 0;
+	UE_DEPRECATED(5.5, "Use IVirtualizationSystem::GetBackendStatistics instead")
+	virtual void GetPayloadActivityInfo(GetPayloadActivityInfoFuncRef Func) const
+	{
+		for (const FBackendStats& Stats : GetBackendStatistics())
+		{
+			Func(Stats.DebugName, Stats.ConfigName, Stats.PayloadActivity);
+		}
+	}
 
-	/** Access profiling info relating to accumulated payload activity. Stats will only be collected if ENABLE_COOK_STATS is enabled.*/
-	virtual FPayloadActivityInfo GetAccumualtedPayloadActivityInfo() const = 0;
+	UE_DEPRECATED(5.5, "Use IVirtualizationSystem::GetSystemStatistics instead")
+	virtual FPayloadActivityInfo GetAccumualtedPayloadActivityInfo() const
+	{
+		return GetSystemStatistics();
+	}
+	
+	/** Access profiling info relating to payload activity per backend. Stats will only be collected if ENABLE_COOK_STATS is enabled.*/
+	virtual TArray<FBackendStats> GetBackendStatistics() const = 0;
+	
+	/** Access profiling info for all backends combined. Stats will only be collected if ENABLE_COOK_STATS is enabled.*/
+	virtual FPayloadActivityInfo GetSystemStatistics() const = 0;
 
 	/** Gather analytics data. Stats will only be collected if ENABLE_COOK_STATS is enabled.*/
 	virtual void GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes) const =0;

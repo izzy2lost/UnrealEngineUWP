@@ -364,10 +364,7 @@ struct FGenericPlatformMemory
 	/**
 	* @return memory used for platforms that can do it quickly (without affecting stat unit much)
 	*/
-	static uint64 GetMemoryUsedFast()
-	{
-		return 0;
-	}
+	static CORE_API uint64 GetMemoryUsedFast();
 
 	/**
 	 * Writes all platform specific current memory statistics in the format usable by the malloc profiler.
@@ -757,6 +754,22 @@ public:
 	static CORE_API uint64 GetExtraDevelopmentMemorySize();
 
 	/**
+	* Returns initial program size or 0 if the platform doesn't track initial program size
+	*/
+	static CORE_API uint64 GetProgramSize()
+	{
+		return ProgramSize;
+	}
+
+	/**
+	* Sets the initial program size
+	*/
+	static CORE_API void SetProgramSize(uint64 InProgramSize)
+	{
+		ProgramSize = InProgramSize;
+	}
+
+	/**
 	* This function sets AllocFunction and FreeFunction and returns true, or just returns false.
 	* These functions are the platform dependant low low low level functions that LLM uses to allocate memory.
 	*/
@@ -804,10 +817,37 @@ public:
 		return false; // Most platform do not implement this.
 	}
 
+	/**
+	 * Returns a pretty-string for an amount of memory given in bytes.
+	 *
+	 * @param Memory amount in bytes
+	 * @return Memory in a pretty formatted string
+	 */
+	static CORE_API FString PrettyMemory( uint64 Memory );
+
+	/**
+	* Return true if the platform can allocate a lot more virtual memory than physical memory
+	* It's true for most platforms, but iOS needs a special entitlement and Linux a kernel config for this
+	*/
+	FORCEINLINE static bool CanOverallocateVirtualMemory()
+	{
+		return true;
+	}
+
+	// This bit is always zero in user mode addresses and most likely won't be used by current or future
+	// CPU features like ARM's PAC / Top-Byte Ignore or Intel's Linear Address Masking / 5-Level Paging
+#if defined(__x86_64__) || defined(_M_X64)
+	static constexpr uint32 KernelAddressBit = 63;
+#elif defined(__aarch64__) || defined(_M_ARM64)
+	static constexpr uint32 KernelAddressBit = 55;
+#endif
 
 protected:
 	friend struct FGenericStatsUpdater;
 
 	/** Updates platform specific stats. This method is called through FGenericStatsUpdater from the task graph thread. */
 	static CORE_API void InternalUpdateStats( const FPlatformMemoryStats& MemoryStats );
+
+	/** Program memory allocation in bytes. */
+	static CORE_API uint64 ProgramSize;
 };

@@ -5,7 +5,7 @@
 #include "AvaTransitionEnums.h"
 #include "Containers/ArrayView.h"
 #include "Delegates/Delegate.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "UObject/Interface.h"
 #include "UObject/NameTypes.h"
 #include "UObject/WeakInterfacePtr.h"

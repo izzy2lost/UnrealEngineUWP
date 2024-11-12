@@ -10,18 +10,6 @@
 #include "UObject/ObjectMacros.h"
 #include "Interfaces/Interface_AssetUserData.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Audio.h"
-#include "IAudioExtensionPlugin.h"
-#include "Sound/AudioSettings.h"
-#include "Sound/SoundClass.h"
-#include "SoundModulationDestination.h"
-#include "SoundSourceBusSend.h"
-#include "SoundSubmixSend.h"
-#include "SoundGenerator.h"
-#include "AudioDeviceManager.h"
-#endif
-
 #include "SoundBase.generated.h"
 
 
@@ -174,7 +162,8 @@ public:
 	UPROPERTY(Category = Developer, AssetRegistrySearchable, VisibleAnywhere, BlueprintReadOnly)
 	float Duration;
 
-	/** The max distance of the asset, as determined by attenuation settings. */
+	/** The MaxDistance property is calculated statically on load or at asset edit time, but is not reliable at runtime.
+	  * the GetMaxDistance function should be used to determine the applied max distance based on runtime behavior. */
 	UPROPERTY(Category = Developer, AssetRegistrySearchable, VisibleAnywhere, BlueprintReadOnly)
 	float MaxDistance;
 
@@ -220,10 +209,6 @@ public:
 #if WITH_EDITORONLY_DATA	
 	UPROPERTY(EditAnywhere, Category = AudioProperties)
 	TObjectPtr<UAudioPropertiesSheetAssetBase> AudioPropertiesSheet;
-
-	UPROPERTY(EditAnywhere, Category = AudioProperties)
-	TObjectPtr<UAudioPropertiesBindings> AudioPropertiesBindings;
-
 
 private:
 	UPROPERTY()
@@ -367,4 +352,7 @@ public:
 
 	void InjectPropertySheet();
 #endif //WITH_EDITORONLY_DATA
+
+protected:
+	ENGINE_API virtual float ComputeMaxDistance() const;
 };

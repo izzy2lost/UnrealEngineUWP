@@ -377,11 +377,11 @@ inline void FUniqueRequestList::SortRequests(FVirtualTextureProducerCollection& 
 {
 	struct FPriorityAndIndex
 	{
-		uint32 Priroity;
+		uint32 Priority;
 		uint16 Index;
 
 		// sort from largest to smallest
-		inline bool operator<(const FPriorityAndIndex& Rhs) const { return Priroity > Rhs.Priroity; }
+		inline bool operator<(const FPriorityAndIndex& Rhs) const { return Priority > Rhs.Priority; }
 	};
 
 	if (bUseCombinedLimit)
@@ -409,17 +409,17 @@ inline void FUniqueRequestList::SortRequests(FVirtualTextureProducerCollection& 
 		if (Flags.bLocked)
 		{
 			// Lock request, use max priority
-			SortedKeys[i].Priroity = MAX_uint32;
+			SortedKeys[i].Priority = MAX_uint32;
 			NumNonStreamingLockRequests += (bUseCombinedLimit || !Flags.bStreaming ? 1 : 0);
 			++CheckNumLockRequests;
 		}
 		else if (bUseCombinedLimit || !Flags.bStreaming)
 		{
-			SortedKeys[i].Priroity = 0xd | Priority;
+			SortedKeys[i].Priority = 0xd0000000 | Priority;
 		}
 		else
 		{
-			SortedKeys[i].Priroity = 0xe | Priority;
+			SortedKeys[i].Priority = 0xe0000000 | Priority;
 			++NumStreamingNonLockRequests;
 		}
 	}

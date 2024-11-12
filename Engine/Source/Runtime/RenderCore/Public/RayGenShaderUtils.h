@@ -6,9 +6,13 @@
 
 #pragma once
 
+#include "RHIDefinitions.h"
+
+#if RHI_RAYTRACING
 #include "RenderResource.h"
 #include "RenderGraphUtils.h"
 #include "PipelineStateCache.h"
+#include "ShaderParameters.h"
 
 /** All utils for ray generation shaders. */
 struct FRayGenShaderUtils
@@ -28,9 +32,9 @@ struct FRayGenShaderUtils
 			Forward<FRDGEventName>(PassName),
 			Parameters,
 			ERDGPassFlags::Compute,
-			[RayGenerationShader, Parameters, Resolution](FRHIRayTracingCommandList& RHICmdList)
+			[RayGenerationShader, Parameters, Resolution](FRDGAsyncTask, FRHICommandList& RHICmdList)
 		{
-			FRayTracingShaderBindingsWriter GlobalResources;
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
 
 			FRayTracingPipelineStateInitializer Initializer;
@@ -42,3 +46,4 @@ struct FRayGenShaderUtils
 		});
 	}
 };
+#endif //RHI_RAYTRACINGO

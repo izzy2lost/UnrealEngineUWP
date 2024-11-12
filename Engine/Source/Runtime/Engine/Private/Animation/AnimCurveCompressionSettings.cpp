@@ -2,15 +2,13 @@
 
 #include "Animation/AnimCurveCompressionSettings.h"
 #include "Animation/AnimCompressionTypes.h"
-#include "Animation/AnimCurveCompressionCodec_CompressedRichCurve.h"
+#include "Animation/AnimCurveCompressionCodec.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimCurveCompressionSettings)
 
 UAnimCurveCompressionSettings::UAnimCurveCompressionSettings(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	Codec = CreateDefaultSubobject<UAnimCurveCompressionCodec_CompressedRichCurve>(TEXT("CurveCompressionCodec"));
-	Codec->SetFlags(RF_Transactional);
 }
 
 UAnimCurveCompressionCodec* UAnimCurveCompressionSettings::GetCodec(const FString& Path)

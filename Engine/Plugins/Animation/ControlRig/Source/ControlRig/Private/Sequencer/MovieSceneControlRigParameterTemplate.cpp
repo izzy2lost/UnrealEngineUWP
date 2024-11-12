@@ -25,6 +25,7 @@
 #include "TransformConstraint.h"
 #include "TransformableHandle.h"
 #include "AnimationCoreLibrary.h"
+#include "Constraints/ControlRigTransformableHandle.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneControlRigParameterTemplate)
 
@@ -294,8 +295,6 @@ struct FEvaluatedControlRigParameterSectionChannelMasks : IPersistentEvaluationD
 		TArrayView<const FTransformParameterNameAndCurves> Transforms
 		)
 	{
-		const TArray<bool>& ControlsMask = Section->GetControlsMask();
-
 		const FChannelMapInfo* ChannelInfo = nullptr;
 
 		ScalarCurveMask.Add(false, Scalars.Num());
@@ -311,49 +310,49 @@ struct FEvaluatedControlRigParameterSectionChannelMasks : IPersistentEvaluationD
 		{
 			const FScalarParameterNameAndCurve& Scalar = Scalars[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Scalar.ParameterName);
-			ScalarCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			ScalarCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Scalar.ParameterName));
 		}
 		for (int32 Index = 0; Index < Bools.Num(); ++Index)
 		{
 			const FBoolParameterNameAndCurve& Bool = Bools[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Bool.ParameterName);
-			BoolCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			BoolCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Bool.ParameterName));
 		}
 		for (int32 Index = 0; Index < Integers.Num(); ++Index)
 		{
 			const FIntegerParameterNameAndCurve& Integer = Integers[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Integer.ParameterName);
-			IntegerCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			IntegerCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Integer.ParameterName));
 		}
 		for (int32 Index = 0; Index < Enums.Num(); ++Index)
 		{
 			const FEnumParameterNameAndCurve& Enum = Enums[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Enum.ParameterName);
-			EnumCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->ControlIndex]);
+			EnumCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Enum.ParameterName));
 		}
 		for (int32 Index = 0; Index < Vector2Ds.Num(); ++Index)
 		{
 			const FVector2DParameterNameAndCurves& Vector2D = Vector2Ds[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Vector2D.ParameterName);
-			Vector2DCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			Vector2DCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Vector2D.ParameterName));
 		}
 		for (int32 Index = 0; Index < Vectors.Num(); ++Index)
 		{
 			const FVectorParameterNameAndCurves& Vector = Vectors[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Vector.ParameterName);
-			VectorCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			VectorCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Vector.ParameterName));
 		}
 		for (int32 Index = 0; Index < Colors.Num(); ++Index)
 		{
 			const FColorParameterNameAndCurves& Color = Colors[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Color.ParameterName);
-			ColorCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			ColorCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Color.ParameterName));
 		}
 		for (int32 Index = 0; Index < Transforms.Num(); ++Index)
 		{
 			const FTransformParameterNameAndCurves& Transform = Transforms[Index];
 			ChannelInfo = Section->ControlChannelMap.Find(Transform.ParameterName);
-			TransformCurveMask[Index] = (!ChannelInfo || ControlsMask[ChannelInfo->MaskIndex]);
+			TransformCurveMask[Index] = (!ChannelInfo || Section->GetControlNameMask(Transform.ParameterName));
 		}
 	}
 };
@@ -590,7 +589,10 @@ static void SelectControls(UControlRig* ControlRig, TArray<FName>& SelectedNames
 
 void FControlRigBindingHelper::BindToSequencerInstance(UControlRig* ControlRig)
 {
-	check(ControlRig);
+	if (!ControlRig)
+	{
+		return;
+	}
 	if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(ControlRig->GetObjectBinding()->GetBoundObject()))
 	{
 		if(SkeletalMeshComponent->GetSkeletalMeshAsset())
@@ -913,14 +915,16 @@ struct FControlRigParameterPreAnimatedTokenProducer : IMovieScenePreAnimatedToke
 								// Restore pose after unbinding to force the restored pose
 								SkeletalMeshComponent->SetUpdateAnimationInEditor(true);
 								SkeletalMeshComponent->SetUpdateClothInEditor(true);
-								SkeletalMeshComponent->TickAnimation(0.f, false);
-
-								SkeletalMeshComponent->RefreshBoneTransforms();
-								SkeletalMeshComponent->RefreshFollowerComponents();
-								SkeletalMeshComponent->UpdateComponentToWorld();
-								SkeletalMeshComponent->FinalizeBoneTransform();
-								SkeletalMeshComponent->MarkRenderTransformDirty();
-								SkeletalMeshComponent->MarkRenderDynamicDataDirty();
+								if (!SkeletalMeshComponent->IsPostEvaluatingAnimation())
+								{
+									SkeletalMeshComponent->TickAnimation(0.f, false);
+									SkeletalMeshComponent->RefreshBoneTransforms();
+									SkeletalMeshComponent->RefreshFollowerComponents();
+									SkeletalMeshComponent->UpdateComponentToWorld();
+									SkeletalMeshComponent->FinalizeBoneTransform();
+									SkeletalMeshComponent->MarkRenderTransformDirty();
+									SkeletalMeshComponent->MarkRenderDynamicDataDirty();
+								}
 								SkeletalMeshRestoreState.RestoreState(SkeletalMeshComponent);
 
 								if (SkeletalMeshComponent->GetAnimationMode() != AnimationMode)
@@ -1108,7 +1112,7 @@ static UControlRig* GetControlRig(const UMovieSceneControlRigParameterSection* S
 {
 	UWorld* GameWorld = (BoundObject && BoundObject->GetWorld() && BoundObject->GetWorld()->IsGameWorld()) ? BoundObject->GetWorld() : nullptr;
 	UControlRig* ControlRig =  Section->GetControlRig(GameWorld);
-	if (ControlRig->GetObjectBinding())
+	if (ControlRig && ControlRig->GetObjectBinding())
 	{
 		if (UControlRigComponent* ControlRigComponent = Cast<UControlRigComponent>(ControlRig->GetObjectBinding()->GetBoundObject()))
 		{
@@ -1237,13 +1241,17 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 		
 		FMovieSceneSequenceID SequenceID = Operand.SequenceID;
 		TArrayView<TWeakObjectPtr<>> BoundObjects = Player.FindBoundObjects(Operand);
-			const UMovieSceneSequence* Sequence = Player.State.FindSequence(Operand.SequenceID);
+		const UMovieSceneSequence* Sequence = Player.State.FindSequence(Operand.SequenceID);
 		UControlRig* ControlRig = nullptr;
 		UObject* BoundObject = BoundObjects.Num() > 0 ? BoundObjects[0].Get() : nullptr;
 		if (Sequence && BoundObject)
 		{
 			UWorld* GameWorld = (BoundObject->GetWorld() && BoundObject->GetWorld()->IsGameWorld()) ? BoundObject->GetWorld() : nullptr;
 			ControlRig = Section->GetControlRig(GameWorld);
+			if (!ControlRig)
+			{
+				return;
+			}
 			if (!ControlRig->GetObjectBinding())
 			{
 				ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
@@ -1280,7 +1288,10 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 			// CR component's CR instance for evaluation, see comment in BindToSequencerInstance
 			// i.e. CR component should bind to the instance that it owns itself.
 			ControlRig = GetControlRig(Section, BoundObjects[0].Get());
-				
+			if (!ControlRig)
+			{
+				return;
+			}
 			// ensure that pre animated state is saved, must be done before bind
 			Player.SavePreAnimatedState(*ControlRig, FMovieSceneControlRigParameterTemplate::GetAnimTypeID(), FControlRigParameterPreAnimatedTokenProducer(Operand.SequenceID));
 			if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(FControlRigObjectBinding::GetBindableObject(BoundObject)))
@@ -1321,7 +1332,7 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 		}		
 
 		//Do Bool straight up no blending
-		if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive)
+		if (Section->GetBlendType().IsValid() == false ||  Section->GetBlendType().Get() != EMovieSceneBlendType::Additive)
 		{
 			bool bWasDoNotKey = false;
 
@@ -1402,37 +1413,28 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 				}
 				if (BoundObject)
 				{
+					UWorld* BoundObjectWorld = BoundObject->GetWorld();
+					
+					TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = Player.GetSharedPlaybackState();
 					for (FConstraintAndActiveValue& ConstraintValue : ConstraintsValues)
 					{
 						UMovieSceneControlRigParameterSection* NonConstSection = const_cast<UMovieSceneControlRigParameterSection*>(Section);
-						CreateConstraintIfNeeded(BoundObject->GetWorld(), ConstraintValue, NonConstSection);
+						CreateConstraintIfNeeded(BoundObjectWorld, ConstraintValue, NonConstSection);
 
 						if (ConstraintValue.Constraint.IsValid())
 						{
-							//For Control Rig we may need to explicitly set the control rig
 							if (UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(ConstraintValue.Constraint))
 							{
-								TransformConstraint->InitConstraint(BoundObject->GetWorld());
+								TransformConstraint->InitConstraint(BoundObjectWorld);
 							}
-							ConstraintValue.Constraint->ResolveBoundObjects(Operand.SequenceID, Player, ControlRig);
+							ConstraintValue.Constraint->ResolveBoundObjects(Operand.SequenceID, SharedPlaybackState, ControlRig);
 							ConstraintValue.Constraint->SetActive(ConstraintValue.Value);
 						}
 					}
-					//unfortunately for Constraints with ControlRig we need to resolve all Parents also. Don't need to do children since they wil be handled by
-					//the channel resolve above
-					const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(BoundObject->GetWorld());
-					const TArray< TWeakObjectPtr<UTickableConstraint>> Constraints = Controller.GetAllConstraints();
-					for (const TWeakObjectPtr<UTickableConstraint>& TickConstraint : Constraints)
-					{
-						if (UTickableTransformConstraint* TransformConstraint = Cast< UTickableTransformConstraint>(TickConstraint.Get()))
-						{
-							if (TransformConstraint->ParentTRSHandle)
-							{
-								TransformConstraint->ParentTRSHandle->ResolveBoundObjects(Operand.SequenceID, Player, ControlRig);
-								TransformConstraint->EnsurePrimaryDependency(BoundObject->GetWorld());
-							}
-						}
-					}
+
+					// for Constraints with ControlRig we need to resolve all Parents also
+					// Don't need to do children since they wil be handled by the channel resolve above
+					ResolveParentHandles(BoundObject, ControlRig, Operand, SharedPlaybackState);
 				}
 				else  //no bound object so turn off constraint
 				{
@@ -1450,6 +1452,81 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 
 	}
 
+	void ResolveParentHandles(
+		const UObject* InBoundObject, UControlRig* InControlRigInstance,
+		const FMovieSceneEvaluationOperand& InOperand,
+		const TSharedRef<UE::MovieScene::FSharedPlaybackState>& InSharedPlaybackState) const
+	{
+		if (!InBoundObject)
+		{
+			return;
+		}
+
+		UWorld* BoundObjectWorld = InBoundObject->GetWorld();
+		const bool bIsGameWorld = InBoundObject->GetWorld() ? InBoundObject->GetWorld()->IsGameWorld() : false;
+		
+		UMovieSceneControlRigParameterTrack* ControlRigTrack = Section->GetTypedOuter<UMovieSceneControlRigParameterTrack>();
+
+		// is this control rig a game world instance of this section's rig?
+		auto WasAGameInstance = [ControlRigTrack](const UControlRig* InRigToTest)
+		{
+			return ControlRigTrack ? ControlRigTrack->IsAGameInstance(InRigToTest) : false;
+		};
+
+		// is the parent handle of this constraint related to this section?
+		// this return true if the handle's control rig has been spawned by the ControlRigTrack (whether in Editor or Game)
+		// if false, it means that the handle represents another control on another control rig so we don't need to resolve it here
+		// note that it returns true if ControlRigTrack is null (is this possible?!) or if the ControlRig is null (we can't infer anything from this)
+		auto ShouldResolveParent = [ControlRigTrack](const UTransformableControlHandle* ParentControlHandle)
+		{
+			if (!ParentControlHandle)
+			{
+				return false;
+			}
+
+			if (!ControlRigTrack)
+			{
+				// cf. UObjectBaseUtility::IsInOuter
+				return true;	
+			}
+			
+			return ParentControlHandle->ControlRig ? ParentControlHandle->ControlRig->IsInOuter(ControlRigTrack) : true;
+		};
+
+		// this is the default's section rig. when bIsGameWorld is false, InControlRigInstance should be equal to SectionRig
+		const UControlRig* SectionRig = Section->GetControlRig();
+
+		const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(BoundObjectWorld);
+		const TArray< TWeakObjectPtr<UTickableConstraint>> Constraints = Controller.GetAllConstraints();
+
+		for (const TWeakObjectPtr<UTickableConstraint>& TickConstraint : Constraints)
+		{
+			UTickableTransformConstraint* TransformConstraint = Cast< UTickableTransformConstraint>(TickConstraint.Get());
+			UTransformableControlHandle* ParentControlHandle = TransformConstraint ? Cast<UTransformableControlHandle>(TransformConstraint->ParentTRSHandle) : nullptr;
+			if (ParentControlHandle && ShouldResolveParent(ParentControlHandle))
+			{
+				if (bIsGameWorld)
+				{
+					// switch from section's rig to the game instance
+					if (ParentControlHandle->ControlRig == SectionRig)
+					{
+						ParentControlHandle->ResolveBoundObjects(InOperand.SequenceID, InSharedPlaybackState, InControlRigInstance);
+						TransformConstraint->EnsurePrimaryDependency(BoundObjectWorld);
+					}
+				}
+				else
+				{
+					// switch from the game instance to the section's rig
+					if (WasAGameInstance(ParentControlHandle->ControlRig.Get()))
+					{
+						ParentControlHandle->ResolveBoundObjects(InOperand.SequenceID, InSharedPlaybackState, InControlRigInstance);
+						TransformConstraint->EnsurePrimaryDependency(BoundObjectWorld);
+					}
+				}
+			}
+		}
+	}
+	
 	const UMovieSceneControlRigParameterSection* Section;
 	/** Array of evaluated bool values */
 	TArray<FBoolParameterStringAndValue, TInlineAllocator<2>> BoolValues;
@@ -1801,6 +1878,7 @@ struct TControlRigParameterActuatorTransform : TMovieSceneBlendingActuator<FCont
 						FEulerTransform Transform = InFinalValue.Value;
 						Transform.Rotation = UERotator;
 						ControlRig->SetControlValue<FRigControlValue::FEulerTransform_Float>(ParameterName, Transform, true, EControlRigSetKey::Never, bSetupUndo);	
+						Hierarchy->SetControlSpecifiedEulerAngle(ControlElement, EulerAngle);
 					}
 				}
 			}
@@ -1819,7 +1897,6 @@ struct TControlRigParameterActuatorTransform : TMovieSceneBlendingActuator<FCont
 	TWeakObjectPtr<const UMovieSceneControlRigParameterSection> SectionData;
 
 };
-
 
 void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluationOperand& Operand, const FMovieSceneContext& Context, const FPersistentEvaluationData& PersistentData, FMovieSceneExecutionTokens& ExecutionTokens) const
 {
@@ -1855,6 +1932,7 @@ void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluatio
 			return;
 		}
 
+		int32 BlendingOrder = Section->GetBlendingOrder();
 
 		//Do blended tokens
 		FEvaluatedControlRigParameterSectionValues Values;
@@ -1873,11 +1951,16 @@ void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluatio
 		FControlRigParameterExecutionToken ExecutionToken(Section,Values);
 		ExecutionTokens.Add(MoveTemp(ExecutionToken));
 
+		EMovieSceneBlendType BlendType = Section->GetBlendType().IsValid() ? Section->GetBlendType().Get() : EMovieSceneBlendType::Absolute;
 
 		FControlRigAnimTypeIDsPtr TypeIDs = FControlRigAnimTypeIDs::Get(ControlRig);
 
 		for (const FScalarParameterStringAndValue& ScalarNameAndValue : Values.ScalarValues)
 		{
+			if (Section->GetControlNameMask(ScalarNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindScalar(ScalarNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -1885,12 +1968,16 @@ void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluatio
 			{
 				ExecutionTokens.GetBlendingAccumulator().DefineActuator(ActuatorTypeID, MakeShared <TControlRigParameterActuatorFloat>(AnimTypeID, ScalarNameAndValue.ParameterName, Section));
 			}
-			ExecutionTokens.BlendToken(ActuatorTypeID, TBlendableToken<FControlRigTrackTokenFloat>(ScalarNameAndValue.Value, Section->GetBlendType().Get(), Weight));
+			ExecutionTokens.BlendToken(ActuatorTypeID, TBlendableToken<FControlRigTrackTokenFloat>(ScalarNameAndValue.Value, BlendType, Weight, BlendingOrder));
 		}
 
 		UE::MovieScene::TMultiChannelValue<float, 3> VectorData;
 		for (const FVectorParameterStringAndValue& VectorNameAndValue : Values.VectorValues)
 		{
+			if (Section->GetControlNameMask(VectorNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindVector(VectorNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -1902,12 +1989,16 @@ void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluatio
 			VectorData.Set(1, VectorNameAndValue.Value.Y);
 			VectorData.Set(2, VectorNameAndValue.Value.Z);
 
-			ExecutionTokens.BlendToken(ActuatorTypeID, TBlendableToken<FControlRigTrackTokenVector>(VectorData, Section->GetBlendType().Get(), Weight));
+			ExecutionTokens.BlendToken(ActuatorTypeID, TBlendableToken<FControlRigTrackTokenVector>(VectorData, BlendType, Weight, BlendingOrder));
 		}
 
 		UE::MovieScene::TMultiChannelValue<float, 2> Vector2DData;
 		for (const FVector2DParameterStringAndValue& Vector2DNameAndValue : Values.Vector2DValues)
 		{
+			if (Section->GetControlNameMask(Vector2DNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindVector2D(Vector2DNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -1918,12 +2009,16 @@ void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluatio
 			Vector2DData.Set(0, Vector2DNameAndValue.Value.X);
 			Vector2DData.Set(1, Vector2DNameAndValue.Value.Y);
 
-			ExecutionTokens.BlendToken(ActuatorTypeID, TBlendableToken<FControlRigTrackTokenVector2D>(Vector2DData, Section->GetBlendType().Get(), Weight));
+			ExecutionTokens.BlendToken(ActuatorTypeID, TBlendableToken<FControlRigTrackTokenVector2D>(Vector2DData, BlendType, Weight, BlendingOrder));
 		}
 
 		UE::MovieScene::TMultiChannelValue<float, 9> TransformData;
 		for (const FEulerTransformParameterStringAndValue& TransformNameAndValue : Values.TransformValues)
 		{
+			if (Section->GetControlNameMask(TransformNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindTransform(TransformNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -1945,7 +2040,7 @@ void FMovieSceneControlRigParameterTemplate::Evaluate(const FMovieSceneEvaluatio
 			TransformData.Set(6, Transform.Scale.X);
 			TransformData.Set(7, Transform.Scale.Y);
 			TransformData.Set(8, Transform.Scale.Z);
-			ExecutionTokens.BlendToken(ActuatorTypeID, TBlendableToken<FControlRigTrackTokenTransform>(TransformData, Section->GetBlendType().Get(), Weight));
+			ExecutionTokens.BlendToken(ActuatorTypeID, TBlendableToken<FControlRigTrackTokenTransform>(TransformData, BlendType, Weight, BlendingOrder));
 		}
 
 	}
@@ -1970,6 +2065,9 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 		Values.TransformValues.Reserve(Transforms.Num());
 		Values.ConstraintsValues.Reserve(Constraints.Num());
 
+		const bool bIsAdditive = (Section->GetBlendType().IsValid() && Section->GetBlendType().Get() == EMovieSceneBlendType::Additive);
+		const bool bIsAbsolute = (Section->GetBlendType().IsValid() && Section->GetBlendType().Get() == EMovieSceneBlendType::Absolute);
+
 		// Populate each of the output arrays in turn
 		for (int32 Index = 0; Index < Scalars.Num(); ++Index)
 		{
@@ -1982,7 +2080,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 			}
 			else
 			{
-				Value = (Section->GetBlendType().Get() == EMovieSceneBlendType::Additive
+				Value = (!bIsAbsolute
 					|| Scalar.ParameterCurve.GetDefault().IsSet() == false) ? 0.0f :
 					Scalar.ParameterCurve.GetDefault().GetValue();
 			}
@@ -2023,7 +2121,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 			}
 			else
 			{
-				Value = (Section->GetBlendType().Get() == EMovieSceneBlendType::Additive
+				Value = (!bIsAbsolute
 					|| Bool.ParameterCurve.GetDefault().IsSet() == false) ? false :
 					Bool.ParameterCurve.GetDefault().GetValue();
 			}
@@ -2040,7 +2138,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 			}
 			else
 			{
-				Value = (Section->GetBlendType().Get() == EMovieSceneBlendType::Additive
+				Value = (!bIsAbsolute
 					|| Integer.ParameterCurve.GetDefault().IsSet() == false) ? 0 :
 					Integer.ParameterCurve.GetDefault().GetValue();
 			}
@@ -2057,7 +2155,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 			}
 			else
 			{
-				Value = (Section->GetBlendType().Get() == EMovieSceneBlendType::Additive
+				Value = (!bIsAbsolute
 					|| Enum.ParameterCurve.GetDefault().IsSet() == false) ? 0 :
 					Enum.ParameterCurve.GetDefault().GetValue();
 
@@ -2077,7 +2175,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 			}
 			else
 			{
-				if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive)
+				if (bIsAbsolute)
 				{
 					if (Vector2D.XCurve.GetDefault().IsSet())
 					{
@@ -2106,7 +2204,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 			}
 			else
 			{
-				if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive)
+				if (bIsAbsolute)
 				{
 					if (Vector.XCurve.GetDefault().IsSet())
 					{
@@ -2138,7 +2236,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 			}
 			else
 			{
-				if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive)
+				if (bIsAbsolute)
 				{
 					if (Color.RedCurve.GetDefault().IsSet())
 					{
@@ -2161,12 +2259,11 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 
 			Values.ColorValues.Emplace(Color.ParameterName, ColorValue);
 		}
-
 		EMovieSceneTransformChannel ChannelMask = Section->GetTransformMask().GetChannels();
 		for (int32 Index = 0; Index < Transforms.Num(); ++Index)
 		{
 			FVector3f Translation(ForceInitToZero), Scale(FVector3f::OneVector);
-			if (Section->GetBlendType().Get() == EMovieSceneBlendType::Additive)
+			if (bIsAdditive)
 			{
 				Scale = FVector3f(0.0f, 0.0f, 0.0f);
 			}
@@ -2182,7 +2279,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 				}
 				else
 				{
-					if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive && Transform.Translation[0].GetDefault().IsSet())
+					if (bIsAbsolute && Transform.Translation[0].GetDefault().IsSet())
 					{
 						Translation[0] = Transform.Translation[0].GetDefault().GetValue();
 					}
@@ -2193,7 +2290,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 				}
 				else
 				{
-					if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive && Transform.Translation[1].GetDefault().IsSet())
+					if (bIsAbsolute && Transform.Translation[1].GetDefault().IsSet())
 					{
 						Translation[1] = Transform.Translation[1].GetDefault().GetValue();
 					}
@@ -2204,7 +2301,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 				}
 				else
 				{
-					if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive && Transform.Translation[2].GetDefault().IsSet())
+					if (bIsAbsolute && Transform.Translation[2].GetDefault().IsSet())
 					{
 						Translation[2] = Transform.Translation[2].GetDefault().GetValue();
 					}
@@ -2215,7 +2312,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 				}
 				else
 				{
-					if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive && Transform.Rotation[0].GetDefault().IsSet())
+					if (bIsAbsolute && Transform.Rotation[0].GetDefault().IsSet())
 					{
 						Rotator.Roll = Transform.Rotation[0].GetDefault().GetValue();
 					}
@@ -2226,7 +2323,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 				}
 				else
 				{
-					if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive && Transform.Rotation[1].GetDefault().IsSet())
+					if (bIsAbsolute && Transform.Rotation[1].GetDefault().IsSet())
 					{
 						Rotator.Pitch = Transform.Rotation[1].GetDefault().GetValue();
 					}
@@ -2237,7 +2334,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 				}
 				else
 				{
-					if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive && Transform.Rotation[2].GetDefault().IsSet())
+					if (bIsAbsolute && Transform.Rotation[2].GetDefault().IsSet())
 					{
 						Rotator.Yaw = Transform.Rotation[2].GetDefault().GetValue();
 					}
@@ -2249,7 +2346,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 				}
 				else
 				{
-					if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive && Transform.Scale[0].GetDefault().IsSet())
+					if (bIsAbsolute && Transform.Scale[0].GetDefault().IsSet())
 					{
 						Scale[0] = Transform.Scale[0].GetDefault().GetValue();
 					}
@@ -2260,7 +2357,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 				}
 				else
 				{
-					if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive && Transform.Scale[1].GetDefault().IsSet())
+					if (bIsAbsolute && Transform.Scale[1].GetDefault().IsSet())
 					{
 						Scale[1] = Transform.Scale[1].GetDefault().GetValue();
 					}
@@ -2271,7 +2368,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 				}
 				else
 				{
-					if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive && Transform.Scale[2].GetDefault().IsSet())
+					if (bIsAbsolute && Transform.Scale[2].GetDefault().IsSet())
 					{
 						Scale[2] = Transform.Scale[2].GetDefault().GetValue();
 					}
@@ -2279,7 +2376,7 @@ void FMovieSceneControlRigParameterTemplate::EvaluateCurvesWithMasks(const FMovi
 			}
 			else //completely masked use default or zeroed, which is already set if additive
 			{
-				if (Section->GetBlendType().Get() != EMovieSceneBlendType::Additive)
+				if (bIsAbsolute)
 				{
 
 					if (Transform.Translation[0].GetDefault().IsSet())
@@ -2357,6 +2454,8 @@ void FMovieSceneControlRigParameterTemplate::Interrogate(const FMovieSceneContex
 		EvaluateCurvesWithMasks(Context, ChannelMasks, Values);
 
 		FControlRigAnimTypeIDsPtr TypeIDs = FControlRigAnimTypeIDs::Get(Section->GetControlRig());
+		EMovieSceneBlendType BlendType = Section->GetBlendType().IsValid() ? Section->GetBlendType().Get() : EMovieSceneBlendType::Absolute;
+		int32 BlendingOrder = Section->GetBlendingOrder();
 
 		float Weight = EvaluateEasing(Context.GetTime());
 		if (EnumHasAllFlags(Section->TransformMask.GetChannels(), EMovieSceneTransformChannel::Weight))
@@ -2366,9 +2465,12 @@ void FMovieSceneControlRigParameterTemplate::Interrogate(const FMovieSceneContex
 			Weight *= ManualWeight;
 		}
 
-
 		for (const FScalarParameterStringAndValue& ScalarNameAndValue : Values.ScalarValues)
 		{
+			if (Section->GetControlNameMask(ScalarNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindScalar(ScalarNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -2376,12 +2478,16 @@ void FMovieSceneControlRigParameterTemplate::Interrogate(const FMovieSceneContex
 			{
 				Container.GetAccumulator().DefineActuator(ActuatorTypeID, MakeShared <TControlRigParameterActuatorFloat>(AnimTypeID, ScalarNameAndValue.ParameterName, Section));
 			}
-			Container.GetAccumulator().BlendToken(FMovieSceneEvaluationOperand(), ActuatorTypeID, FMovieSceneEvaluationScope(), Context,TBlendableToken<FControlRigTrackTokenFloat>(ScalarNameAndValue.Value, Section->GetBlendType().Get(), Weight));
+			Container.GetAccumulator().BlendToken(FMovieSceneEvaluationOperand(), ActuatorTypeID, FMovieSceneEvaluationScope(), Context,TBlendableToken<FControlRigTrackTokenFloat>(ScalarNameAndValue.Value, BlendType, Weight, BlendingOrder));
 		}
 
 		UE::MovieScene::TMultiChannelValue<float, 2> Vector2DData;
 		for (const FVector2DParameterStringAndValue& Vector2DNameAndValue : Values.Vector2DValues)
 		{
+			if (Section->GetControlNameMask(Vector2DNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindVector2D(Vector2DNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -2392,12 +2498,16 @@ void FMovieSceneControlRigParameterTemplate::Interrogate(const FMovieSceneContex
 			Vector2DData.Set(0, Vector2DNameAndValue.Value.X);
 			Vector2DData.Set(1, Vector2DNameAndValue.Value.Y);
 
-			Container.GetAccumulator().BlendToken(FMovieSceneEvaluationOperand(), ActuatorTypeID, FMovieSceneEvaluationScope(), Context, TBlendableToken<FControlRigTrackTokenVector2D>(Vector2DData, Section->GetBlendType().Get(), Weight));
+			Container.GetAccumulator().BlendToken(FMovieSceneEvaluationOperand(), ActuatorTypeID, FMovieSceneEvaluationScope(), Context, TBlendableToken<FControlRigTrackTokenVector2D>(Vector2DData, BlendType, Weight, BlendingOrder));
 		}
 
 		UE::MovieScene::TMultiChannelValue<float, 3> VectorData;
 		for (const FVectorParameterStringAndValue& VectorNameAndValue : Values.VectorValues)
 		{
+			if (Section->GetControlNameMask(VectorNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindVector(VectorNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -2409,12 +2519,16 @@ void FMovieSceneControlRigParameterTemplate::Interrogate(const FMovieSceneContex
 			VectorData.Set(1, VectorNameAndValue.Value.Y);
 			VectorData.Set(2, VectorNameAndValue.Value.Z);
 
-			Container.GetAccumulator().BlendToken(FMovieSceneEvaluationOperand(), ActuatorTypeID, FMovieSceneEvaluationScope(),Context,TBlendableToken<FControlRigTrackTokenVector>(VectorData, Section->GetBlendType().Get(), Weight));
+			Container.GetAccumulator().BlendToken(FMovieSceneEvaluationOperand(), ActuatorTypeID, FMovieSceneEvaluationScope(),Context,TBlendableToken<FControlRigTrackTokenVector>(VectorData, BlendType, Weight, BlendingOrder));
 		}
 
 		UE::MovieScene::TMultiChannelValue<float, 9> TransformData;
 		for (const FEulerTransformParameterStringAndValue& TransformNameAndValue : Values.TransformValues)
 		{
+			if (Section->GetControlNameMask(TransformNameAndValue.ParameterName) == false)
+			{
+				continue;
+			}
 			FMovieSceneAnimTypeID AnimTypeID = TypeIDs->FindTransform(TransformNameAndValue.ParameterName);
 			FMovieSceneBlendingActuatorID ActuatorTypeID(AnimTypeID);
 
@@ -2436,7 +2550,7 @@ void FMovieSceneControlRigParameterTemplate::Interrogate(const FMovieSceneContex
 			TransformData.Set(6, Transform.Scale.X);
 			TransformData.Set(7, Transform.Scale.Y);
 			TransformData.Set(8, Transform.Scale.Z);
-			Container.GetAccumulator().BlendToken(FMovieSceneEvaluationOperand(),ActuatorTypeID, FMovieSceneEvaluationScope(), Context, TBlendableToken<FControlRigTrackTokenTransform>(TransformData, Section->GetBlendType().Get(), Weight));
+			Container.GetAccumulator().BlendToken(FMovieSceneEvaluationOperand(),ActuatorTypeID, FMovieSceneEvaluationScope(), Context, TBlendableToken<FControlRigTrackTokenTransform>(TransformData, BlendType, Weight, BlendingOrder));
 		}
 
 	}

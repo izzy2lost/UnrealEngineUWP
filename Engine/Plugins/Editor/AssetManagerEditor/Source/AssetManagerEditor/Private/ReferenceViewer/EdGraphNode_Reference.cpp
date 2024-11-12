@@ -7,8 +7,10 @@
 #include "Misc/PackageName.h"
 #include "SReferenceViewer.h"
 #include "AssetToolsModule.h"
+#include "CollectionManagerModule.h"
 #include "IAssetTools.h"
 #include "IAssetTypeActions.h"
+#include "ICollectionManager.h"
 #include "ReferenceViewer/EdGraph_ReferenceViewer.h"
 #include "Styling/AppStyle.h"
 
@@ -127,7 +129,8 @@ void UEdGraphNode_Reference::SetReferenceNodeCollapsed(const FIntPoint& NodeLoc,
 	bIsOverflow = true;
 	AssetBrush = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.WarningWithColor");
 
-	NodeTitle = FText::Format( LOCTEXT("ReferenceNodeCollapsedTitle", "{0} Collapsed nodes"), FText::AsNumber(InNumReferencesExceedingMax));
+	NodeTitle = FText::Format( LOCTEXT("ReferenceNodeCollapsedTitle", "{0}"), FText::AsNumber(InNumReferencesExceedingMax));
+
 	CacheAssetData(FAssetData());
 	AllocateDefaultPins();
 }
@@ -202,7 +205,17 @@ FLinearColor UEdGraphNode_Reference::GetNodeTitleColor() const
 
 FText UEdGraphNode_Reference::GetTooltipText() const
 {
+	// Showing up to 15 nodes paths, in order to avoid an extremely long tooltip and huge widget
+	constexpr int32 MaxReferenceNum = 15;
+
 	FString TooltipString;
+	int32 ReferenceCount = 0;
+
+	if (IsCollapsed())
+	{
+		TooltipString.Append(GetNodeTitle(ENodeTitleType::FullTitle).ToString() + " collapsed nodes:\n");
+	}
+
 	for (const FAssetIdentifier& AssetId : Identifiers)
 	{
 		if (!TooltipString.IsEmpty())
@@ -210,7 +223,47 @@ FText UEdGraphNode_Reference::GetTooltipText() const
 			TooltipString.Append(TEXT("\n"));
 		}
 		TooltipString.Append(AssetId.ToString());
+
+		ReferenceCount++;
+
+		// Avoiding an extremely long tooltip
+		if (ReferenceCount > MaxReferenceNum)
+		{
+			TooltipString.Append(TEXT("\n..."));
+			break;
+		}
 	}
+
+	if (!IsCollapsed() && !Identifiers.IsEmpty())
+	{
+		const FAssetIdentifier& AssetId = Identifiers[0];
+
+		// Retrieve Collections information
+		TMap<FName, FAssetData> Assets;
+		UE::AssetRegistry::GetAssetForPackages({AssetId.PackageName}, Assets);
+		if (FAssetData* AssetData = Assets.Find(AssetId.PackageName))
+		{
+			ICollectionManager& CollectionManager = FCollectionManagerModule::GetModule().Get();
+
+			TArray<FCollectionNameType> ObjectCollections;
+			CollectionManager.GetCollectionsContainingObject(AssetData->ToSoftObjectPath(), ObjectCollections);
+
+			if (!ObjectCollections.IsEmpty())
+			{
+				TooltipString.Append(TEXT("\n\nCollections:"));
+				for (int32 i = 0; i < ObjectCollections.Num(); i++)
+				{
+					if (i > 0)
+					{
+						TooltipString.Append(TEXT(","));
+					}
+
+					TooltipString.Append(TEXT(" ") + ObjectCollections[i].Name.ToString());
+				}
+			}
+		}
+	}
+
 	return FText::FromString(TooltipString);
 }
 

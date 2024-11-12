@@ -16,6 +16,12 @@ FOperatorStackEditorHeaderBuilder& FOperatorStackEditorHeaderBuilder::SetLabel(c
 	return *this;
 }
 
+FOperatorStackEditorHeaderBuilder& FOperatorStackEditorHeaderBuilder::SetTooltip(const FText& InTooltip)
+{
+	Tooltip = InTooltip;
+	return *this;
+}
+
 FOperatorStackEditorHeaderBuilder& FOperatorStackEditorHeaderBuilder::SetBorderColor(const FLinearColor& InColor)
 {
 	BorderColor = InColor;

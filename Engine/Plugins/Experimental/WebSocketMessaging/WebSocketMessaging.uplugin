@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "1.0",
 	"FriendlyName": "Web Socket Messaging",
-	"Description": "",
+	"Description": "Adds a WebSocket based transport layer to the messaging sub-system for sending and receiving messages between networked computers and devices.",
 	"Category": "Experimental",
 	"CreatedBy": "Epic Games, Inc.",
 	"CreatedByURL": "https://epicgames.com",
@@ -27,6 +27,10 @@
 		}
 	],
 	"Plugins": [
+		{
+			"Name": "DiscoveryBeaconReceiver",
+			"Enabled": true
+		},
 		{
 			"Name": "WebSocketNetworking",
 			"Enabled": true

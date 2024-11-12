@@ -728,6 +728,9 @@ void AChaosCacheManager::OnStartFrameChanged(Chaos::FReal InTime)
 			{
 				if (Observed.BestFitAdapter->ValidForPlayback(Comp, Observed.Cache))
 				{
+					// the init for load is quite lightweight and should be done before each update of time
+					// @todo maybe rename SetRestState to LoadCacheAtTime
+					Observed.BestFitAdapter->InitializeForLoad(Comp, Observed);
 					Observed.BestFitAdapter->SetRestState(Comp, Observed.Cache, GetTransform(), InTime);
 				}
 				Observed.Cache->EndPlayback(Token);
@@ -817,7 +820,8 @@ FObservedComponent* AChaosCacheManager::FindObservedComponent(UPrimitiveComponen
 
 FObservedComponent& AChaosCacheManager::AddNewObservedComponent(UPrimitiveComponent* InComponent)
 {
-	check(InComponent->CreationMethod != EComponentCreationMethod::UserConstructionScript);
+	// this check is preventing components being spawned from CS
+	//check(InComponent->CreationMethod != EComponentCreationMethod::UserConstructionScript);
 	ObservedComponents.AddDefaulted();
 	FObservedComponent& NewEntry = ObservedComponents.Last();
 
@@ -843,10 +847,29 @@ FObservedComponent& AChaosCacheManager::AddNewObservedComponent(UPrimitiveCompon
 	return NewEntry;
 }
 
-FObservedComponent& AChaosCacheManager::FindOrAddObservedComponent(UPrimitiveComponent* InComponent)
+void AChaosCacheManager::FindOrAddObservedComponent(UPrimitiveComponent* InComponent, const FName& CacheName, const bool bTransferSimulation)
 {
-	FObservedComponent* Found = FindObservedComponent(InComponent);
-	return Found ? *Found : AddNewObservedComponent(InComponent);
+	if(InComponent != nullptr)
+	{
+		FObservedComponent* FoundComponent = FindObservedComponent(InComponent);
+		if(FObservedComponent* ObservedComponent = FoundComponent ? FoundComponent : &AddNewObservedComponent(InComponent))
+		{
+			ObservedComponent->bIsSimulating = bTransferSimulation ? InComponent->BodyInstance.bSimulatePhysics : false;
+
+			if(CacheName != TEXT("")) 
+			{
+				ObservedComponent->CacheName = CacheName;
+			}
+		}
+	}
+}
+
+void AChaosCacheManager::RemoveObservedComponent(UPrimitiveComponent* PrimitiveComponent)
+{
+	ObservedComponents.RemoveAll([this, ToTest = PrimitiveComponent](const FObservedComponent& Item)
+	{
+		return Item.GetComponent(this) == ToTest;
+	});
 }
 
 void AChaosCacheManager::ClearObservedComponents()

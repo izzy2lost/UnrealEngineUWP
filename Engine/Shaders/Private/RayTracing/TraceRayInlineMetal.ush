@@ -22,8 +22,6 @@ struct FMetalRayTracingGeometryParameters
 	uint IndexBufferOffsetInBytes;
 	uint FirstPrimitive;
 	uint UserData;
-	uint BaseInstanceIndex;
-	uint Pad0;
 };
 
 // Create a generic alias for the Metal-specific metadata type

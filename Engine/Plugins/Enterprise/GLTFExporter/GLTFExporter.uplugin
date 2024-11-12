@@ -33,6 +33,10 @@
 				"Linux",
 				"Mac"
 			]
+		},
+		{
+			"Name": "InterchangeAssets",
+			"Enabled": true
 		}
 	]
 }

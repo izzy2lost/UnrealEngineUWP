@@ -57,7 +57,7 @@
 #include "K2Node_MacroInstance.h"
 #include "K2Node_CallFunction.h"
 #include "K2Node_Composite.h"
-
+#include "Subsystems/EditorActorSubsystem.h"
 
 /**
 * Change the attributes for a point light in the level.
@@ -461,7 +461,7 @@ bool FConvertToValidation::RunTest(const FString& Parameters)
 		GEditor->SelectNone(bNoteSelectionChange, bDeselectBSPSurfaces);
 		GEditor->GetSelectedActors()->Modify();
 		GEditor->GetSelectedActors()->Select( NewBrush );	
-		GEditor->ConvertSelectedBrushesToVolumes( ABlockingVolume::StaticClass() );
+		UEditorActorSubsystem::ConvertSelectedBrushesToVolumes( ABlockingVolume::StaticClass() );
 		GEditor->RebuildAlteredBSP();
 
 		// During automation we do not actually care about creating a transaction for the user to undo.  
@@ -493,7 +493,7 @@ bool FConvertToValidation::RunTest(const FString& Parameters)
 		FPackageName::RegisterMountPoint(TEXT("/Automation/"), FPaths::AutomationTransientDir());
 		AssetPackageName = TEXT("/Automation/ConvertToBSPToStaticMesh");
 		//Convert brush to specific package name
-		GEditor->DoConvertActors(ToStaticMeshActors, AStaticMeshActor::StaticClass(), TSet<FString>(), true, AssetPackageName);
+		UEditorActorSubsystem::DoConvertActors(ToStaticMeshActors, AStaticMeshActor::StaticClass(), TSet<FString>(), true, AssetPackageName);
 
 		//find the package
 		UPackage* NewPackage = FindPackage(NULL, *AssetPackageName);

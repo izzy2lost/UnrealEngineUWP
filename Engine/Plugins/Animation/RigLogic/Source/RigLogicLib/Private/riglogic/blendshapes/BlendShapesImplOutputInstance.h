@@ -13,6 +13,7 @@ class BlendShapesImplOutputInstance : public BlendShapesOutputInstance {
     public:
         BlendShapesImplOutputInstance(std::uint16_t blendShapeCount, MemoryResource* memRes);
         ArrayView<float> getOutputBuffer() override;
+        void resetOutputBuffer() override;
 
     private:
         Vector<float> outputBuffer;

@@ -27,6 +27,7 @@
 #include "UObject/ObjectVersion.h"
 #include "Widgets/Input/SHyperlink.h"
 #include "UObject/UObjectIterator.h"
+#include "AssetToolsModule.h"
 
 #define LOCTEXT_NAMESPACE "SAnimAssetFindReplace"
 
@@ -35,7 +36,7 @@ FAnimAssetFindReplaceSummoner::FAnimAssetFindReplaceSummoner(TSharedPtr<FAssetEd
 	, Config(InConfig)
 {
 	TabLabel = LOCTEXT("AnimAssetFindReplaceTabLabel", "Find/Replace");
-	TabIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Kismet.Tabs.FindResults");
+	TabIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Persona.Tabs.FindReplace");
 }
 
 TSharedRef<SWidget> FAnimAssetFindReplaceSummoner::CreateTabBody(const FWorkflowTabSpawnInfo& Info) const
@@ -476,6 +477,14 @@ void SAnimAssetFindReplace::RefreshSearchResults()
 
 bool SAnimAssetFindReplace::ShouldFilterOutAsset(const FAssetData& InAssetData, bool& bOutIsOldAsset) const
 {
+	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
+	
+	const bool bIsEditableAsset = AssetToolsModule.Get().GetWritableFolderPermissionList()->PassesStartsWithFilter(InAssetData.PackageName);
+	if (!bIsEditableAsset)
+	{
+		return true;
+	}
+
 	return CurrentProcessor->ShouldFilterOutAsset(InAssetData, bOutIsOldAsset);
 }
 

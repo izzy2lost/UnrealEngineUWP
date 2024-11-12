@@ -300,6 +300,37 @@ void FSbTreeCell::Query(TArray<const FAllocationItem*>& OutAllocs, const IAlloca
 		}
 	}
 	break;
+
+	case IAllocationsProvider::EQueryRule::AoB: // paged out allocs
+	{
+		const double TimeA = Params.TimeA;
+		const double TimeB = Params.TimeB;
+		for (const FAllocationItem* Alloc : Allocs)
+		{
+			if ((Alloc->IsSwap() && Alloc->StartTime >= TimeA && Alloc->StartTime <= TimeB) ||
+				(!Alloc->IsSwap() && Alloc->StartTime <= TimeB && Alloc->EndTime >= TimeA)) // include allocs that were freed between A and B
+			{
+				OutAllocs.Add(Alloc);
+			}
+		}
+	}
+	break;
+
+	case IAllocationsProvider::EQueryRule::AiB: // paged in allocs
+	{
+		const double TimeA = Params.TimeA;
+		const double TimeB = Params.TimeB;
+		for (const FAllocationItem* Alloc : Allocs)
+		{
+			if ((Alloc->IsSwap() && Alloc->EndTime >= TimeA && Alloc->EndTime <= TimeB) ||
+				(!Alloc->IsSwap() && Alloc->StartTime <= TimeB && Alloc->EndTime >= TimeA)) // include allocs that were freed between A and B
+			{
+				OutAllocs.Add(Alloc);
+			}
+		}
+	}
+	break;
+
 	}
 }
 
@@ -622,6 +653,22 @@ void FSbTree::Query(TArray<const FSbTreeCell*>& OutCells, const IAllocationsProv
 			int32 Column2;
 			GetColumnsAtTime(Params.TimeD, nullptr, &Column2);
 			IterateCells(OutCells, Column1, Column2);
+		}
+		break;
+		
+		case IAllocationsProvider::EQueryRule::AoB:
+		{
+			int32 Column1;
+			GetColumnsAtTime(Params.TimeB, nullptr, &Column1); // we care about all allocs up to Time B
+			IterateCells(OutCells, 0, Column1);
+		}
+		break;
+
+		case IAllocationsProvider::EQueryRule::AiB:
+		{
+			int32 Column1;
+			GetColumnsAtTime(Params.TimeB, nullptr, &Column1); // we care about all allocs up to Time B
+			IterateCells(OutCells, 0, Column1);
 		}
 		break;
 	}

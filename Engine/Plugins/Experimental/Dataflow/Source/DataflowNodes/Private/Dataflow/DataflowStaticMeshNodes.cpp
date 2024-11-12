@@ -5,7 +5,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowStaticMeshNodes)
 
-namespace Dataflow
+namespace UE::Dataflow
 {
 	void RegisterStaticMeshNodes()
 	{
@@ -13,7 +13,7 @@ namespace Dataflow
 	}
 }
 
-void FGetStaticMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+void FGetStaticMeshDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
 	typedef TObjectPtr<const UStaticMesh> DataType;
 	if (Out->IsA<DataType>(&StaticMesh))
@@ -24,9 +24,9 @@ void FGetStaticMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const FDa
 		{
 			SetValue(Context, StaticMesh, &StaticMesh);
 		}
-		else if (const Dataflow::FEngineContext* EngineContext = Context.AsType<Dataflow::FEngineContext>())
+		else if (const UE::Dataflow::FEngineContext* EngineContext = Context.AsType<UE::Dataflow::FEngineContext>())
 		{
-			if (const UStaticMesh* StaticMeshFromOwner = Dataflow::Reflection::FindObjectPtrProperty<UStaticMesh>(
+			if (const UStaticMesh* StaticMeshFromOwner = UE::Dataflow::Reflection::FindObjectPtrProperty<UStaticMesh>(
 				EngineContext->Owner, PropertyName))
 			{
 				SetValue(Context, DataType(StaticMeshFromOwner), &StaticMesh);

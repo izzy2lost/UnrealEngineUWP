@@ -6,7 +6,7 @@
 #include "StormSyncTransportSettings.h"
 
 
-BEGIN_DEFINE_SPEC(FStormSyncTransportTcpServerSpec, "StormSync.StormSyncTransportServer.StormSyncTransportTcpServer", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+BEGIN_DEFINE_SPEC(FStormSyncTransportTcpServerSpec, "StormSync.StormSyncTransportServer.StormSyncTransportTcpServer", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 
 	/** Our instance of tcp listener wrapper */
 	TUniquePtr<FStormSyncTransportTcpServer> MockTcpServer;

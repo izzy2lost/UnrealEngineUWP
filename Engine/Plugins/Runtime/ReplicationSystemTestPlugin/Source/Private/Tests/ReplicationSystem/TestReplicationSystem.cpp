@@ -5,8 +5,11 @@
 #include "Iris/Serialization/NetBitStreamWriter.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
-#include "Iris/ReplicationSystem/NetTokenStore.h"
+#include "Net/Core/NetToken/NetToken.h"
 #include "Iris/Core/IrisLog.h"
+#include "Iris/Metrics/NetMetrics.h"
+#include "Misc/ScopeExit.h"
+#include "Logging/LogScopedVerbosityOverride.h"
 
 namespace UE::Net::Private
 {
@@ -490,11 +493,20 @@ public:
 	FStringTokenStore* ClientStringTokenStore = nullptr;
 	FReplicationSystemTestClient* Client = nullptr;
 	const FNetTokenStoreState* ClientRemoteNetTokenState;
+	const FNetTokenStoreState* ServerRemoteNetTokenState;
 
 	FNetToken CreateAndExportNetToken(const FString& TokenString)
 	{
 		FNetToken Token = ServerStringTokenStore->GetOrCreateToken(TokenString);
 		Server->GetConnectionInfo(Client->ConnectionIdOnServer).NetTokenDataStream->AddNetTokenForExplicitExport(Token);
+
+		return Token;
+	}
+
+	FNetToken CreateAndExportNetTokenOnClient(const FString& TokenString)
+	{
+		FNetToken Token = ClientStringTokenStore->GetOrCreateToken(TokenString);
+		Client->GetConnectionInfo(Client->LocalConnectionId).NetTokenDataStream->AddNetTokenForExplicitExport(Token);
 
 		return Token;
 	}
@@ -505,13 +517,12 @@ public:
 
 		Client = CreateClient();
 
-		ServerStringTokenStore = Server->GetReplicationSystem()->GetStringTokenStore();
-		ClientStringTokenStore = Client->GetReplicationSystem()->GetStringTokenStore();
+		ServerStringTokenStore = Server->GetReplicationSystem()->GetNetTokenStore()->GetDataStore<FStringTokenStore>();
+		ServerRemoteNetTokenState = Server->GetConnectionInfo(Client->ConnectionIdOnServer).NetTokenDataStream->GetRemoteNetTokenStoreState();
+		ClientStringTokenStore = Client->GetReplicationSystem()->GetNetTokenStore()->GetDataStore<FStringTokenStore>();
 		ClientRemoteNetTokenState = Client->GetConnectionInfo(Client->LocalConnectionId).NetTokenDataStream->GetRemoteNetTokenStoreState();
 	}
 };
-
-
 
 UE_NET_TEST_FIXTURE(FTestNetTokensFixture, NetToken)
 {
@@ -524,8 +535,12 @@ UE_NET_TEST_FIXTURE(FTestNetTokensFixture, NetToken)
 	Server->SendAndDeliverTo(Client, false);
 	Server->PostSendUpdate();
 
-	// Verify that we cannot resolve the token on the client
-	UE_NET_ASSERT_NE(TokenStringA, FString(ClientStringTokenStore->ResolveRemoteToken(StringTokenA, *ClientRemoteNetTokenState)));
+	{
+		LOG_SCOPE_VERBOSITY_OVERRIDE(LogNetToken, ELogVerbosity::Fatal);
+
+		// Verify that we cannot resolve the token on the client
+		UE_NET_ASSERT_NE(TokenStringA, FString(ClientStringTokenStore->ResolveRemoteToken(StringTokenA, *ClientRemoteNetTokenState)));
+	}
 
 	// Send and deliver packet
 	Server->PreSendUpdate();
@@ -561,7 +576,10 @@ UE_NET_TEST_FIXTURE(FTestNetTokensFixture, NetTokenResendWithFullPacket)
 
 	// Verify that we can resolve the token first token on the client even though second one should not fit
 	UE_NET_ASSERT_EQ(TokenStringA, FString(ClientStringTokenStore->ResolveRemoteToken(StringTokenA, *ClientRemoteNetTokenState)));
-	UE_NET_ASSERT_NE(TokenStringB, FString(ClientStringTokenStore->ResolveRemoteToken(StringTokenB, *ClientRemoteNetTokenState)));
+	{
+		LOG_SCOPE_VERBOSITY_OVERRIDE(LogNetToken, ELogVerbosity::Fatal);
+		UE_NET_ASSERT_NE(TokenStringB, FString(ClientStringTokenStore->ResolveRemoteToken(StringTokenB, *ClientRemoteNetTokenState)));
+	}
 
 	// Restore packet size and make sure that we get the second token through
 	Server->SetMaxSendPacketSize(1024U);
@@ -598,8 +616,12 @@ UE_NET_TEST_FIXTURE(FTestNetTokensFixture, NetTokenResendWithFullPacketAfterFirs
 	Server->DeliverTo(Client, false);
 
 	// Verify that tokens has not been received
-	UE_NET_ASSERT_NE(TestStringA, FString(ClientStringTokenStore->ResolveRemoteToken(StringTokenA, *ClientRemoteNetTokenState)));
-	UE_NET_ASSERT_NE(TestStringB, FString(ClientStringTokenStore->ResolveRemoteToken(StringTokenB, *ClientRemoteNetTokenState)));
+	{
+		LOG_SCOPE_VERBOSITY_OVERRIDE(LogNetToken, ELogVerbosity::Fatal);
+
+		UE_NET_ASSERT_NE(TestStringA, FString(ClientStringTokenStore->ResolveRemoteToken(StringTokenA, *ClientRemoteNetTokenState)));
+		UE_NET_ASSERT_NE(TestStringB, FString(ClientStringTokenStore->ResolveRemoteToken(StringTokenB, *ClientRemoteNetTokenState)));
+	}
 
 	// Send and deliver packet which now should contain two entries in the resend queue
 	Server->SetMaxSendPacketSize(1024);
@@ -700,6 +722,62 @@ UE_NET_TEST_FIXTURE(FTestNetTokensFixture, NetTokenResendAndDataInSamePacketTest
 	UE_NET_ASSERT_EQ(TestStrings[1], FString(ClientStringTokenStore->ResolveRemoteToken(StringTokenB, *ClientRemoteNetTokenState)));
 }
 
+UE_NET_TEST_FIXTURE(FTestNetTokensFixture, NetTokenAuthority)
+{
+	// Create token
+	FString TokenStringA(TEXT("MyStringToken"));
+	FNetToken NonAuthToken = CreateAndExportNetTokenOnClient(TokenStringA);
+
+	UE_NET_ASSERT_EQ(NonAuthToken.IsAssignedByAuthority(), false);
+
+	// Send from server
+	Server->UpdateAndSend({Client});
+
+	// Send from client
+	Client->UpdateAndSend(Server);
+
+	// We should be able to resolve the token on the server using remote
+	UE_NET_ASSERT_EQ(TokenStringA, FString(ServerStringTokenStore->ResolveToken(NonAuthToken, ServerRemoteNetTokenState)));
+
+	// Find server token.
+	FNetToken AuthToken = CreateAndExportNetToken(TokenStringA);
+
+	// It should be a different token as the server is authoriative
+	UE_NET_ASSERT_FALSE(AuthToken == NonAuthToken);
+
+	// Send from server
+	Server->UpdateAndSend({Client});
+
+	// Client should be able to resolve ServerToken
+	UE_NET_ASSERT_EQ(TokenStringA, FString(ClientStringTokenStore->ResolveToken(AuthToken, ClientRemoteNetTokenState)));
+
+	// If we now try to create a token for the string also received from the authority we expect it to give us the server token and allow us to use that instead of the local exported token.
+	FNetToken NewClientToken = ClientStringTokenStore->GetOrCreateToken(TokenStringA);
+
+	// We expect the tokens to be identical.
+	UE_NET_ASSERT_TRUE(AuthToken == NewClientToken);
+}
+
+UE_NET_TEST_FIXTURE(FTestNetTokensFixture, NetTokenAuthTokenIsNotExportedFromClient)
+{
+	// Create token
+	FString TokenStringA(TEXT("MyStringToken"));
+	FNetToken AuthToken = CreateAndExportNetToken(TokenStringA);
+
+	UE_NET_ASSERT_EQ(AuthToken.IsAssignedByAuthority(), true);
+
+	// Send from server
+	Server->UpdateAndSend({Client});
+
+	// Expect to get auth token
+	FNetToken ClientExpectedAuthToken = CreateAndExportNetTokenOnClient(TokenStringA);
+	UE_NET_ASSERT_EQ(ClientExpectedAuthToken.IsAssignedByAuthority(), true);
+
+	// Send from client
+	Client->UpdateAndSend(Server);
+
+	// $TODO: Expose some stats that we can query for exports.
+}
 
 UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, AddRemoveFromConnectionScopeTest)
 {
@@ -712,7 +790,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, AddRemoveFromConn
 	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(0,0);
 
 	// Add to group
-	FNetObjectGroupHandle Group = ReplicationSystem->CreateGroup();
+	FNetObjectGroupHandle Group = ReplicationSystem->CreateGroup(NAME_None);
 	ReplicationSystem->AddToGroup(Group, ServerObject->NetRefHandle);
 
 	ReplicationSystem->AddExclusionFilterGroup(Group);
@@ -973,8 +1051,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestTearOffResend
 	UE_NET_ASSERT_EQ(Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle)), nullptr);
 }
 
-// Test TearOff for new object and resend (should not work or is this what we want?)
-#if 0 // Until we either keep object around but out of scope, or cache creation info + deps
+// Test TearOff for new object and resend, this requires creation info to be cached.
 UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestTearOffImmediateOnNewlyCreatedObjectResend)
 {
 	UReplicationSystem* ReplicationSystem = Server->ReplicationSystem;
@@ -995,14 +1072,10 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestTearOffImmedi
 	Server->ReplicationBridge->EndReplication(ServerObject, EEndReplicationFlags::TearOff);
 
 	// Send and deliver packet
-	Server->PreSendUpdate();
-	Server->SendAndDeliverTo(Client, false);
-	Server->PostSendUpdate();
+	Server->UpdateAndSend({Client}, false);
 
 	// Send and deliver packet
-	Server->PreSendUpdate();
-	Server->SendAndDeliverTo(Client, true);
-	Server->PostSendUpdate();
+	Server->UpdateAndSend({Client});
 
 	// Client should have created a object
 	UE_NET_ASSERT_EQ(NumObjectsCreatedOnClientBeforeReplication + 1, Client->CreatedObjects.Num());
@@ -1015,8 +1088,55 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestTearOffImmedi
 	// Verify that we replicated the expected state
 	UE_NET_ASSERT_EQ(ServerObject->IntA, ClientObjectThatWillBeTornOff->IntA);
 }
-#endif
 
+// Test TearOff for new subobject and resend, this requires creation info to be cached.
+UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestTearOffImmediateOnNewlyCreatedSubObjectResend)
+{
+	UReplicationSystem* ReplicationSystem = Server->ReplicationSystem;
+
+	// Add a client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// We should not have any created objects
+	const int32 NumObjectsCreatedOnClientBeforeReplication = Client->CreatedObjects.Num();
+
+	// Spawn object on server
+	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(0,0);
+
+	// Set state
+	ServerObject->IntA = 1;
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Spawn second object on server as a subobject
+	UTestReplicatedIrisObject* ServerSubObject = Server->CreateSubObject(ServerObject->NetRefHandle, 0, 0);
+
+	// Set state
+	ServerSubObject->IntA = 1;
+
+	// TearOff the subobject before first replication
+	Server->ReplicationBridge->EndReplication(ServerSubObject, EEndReplicationFlags::TearOff);
+
+	// Send and drop
+	Server->UpdateAndSend({Client}, false);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({Client});
+
+	// Client should have created a object + subobject
+	UE_NET_ASSERT_EQ(NumObjectsCreatedOnClientBeforeReplication + 2, Client->CreatedObjects.Num());
+
+	// But as we have torn off the subobject it should no longer be a replicated object
+	UE_NET_ASSERT_TRUE(Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle)) != nullptr);
+	UE_NET_ASSERT_TRUE(Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObject->NetRefHandle)) == nullptr);
+
+	// We should be able to get the object from the created objects array to validate the state
+	UTestReplicatedIrisObject* ClientSubObjectThatWillBeTornOff = Cast<UTestReplicatedIrisObject>(Client->CreatedObjects[NumObjectsCreatedOnClientBeforeReplication + 1].Get());
+
+	// Verify that we replicated the expected state
+	UE_NET_ASSERT_EQ(ServerSubObject->IntA, ClientSubObjectThatWillBeTornOff->IntA);
+}
 
 UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestDefferedTearOffOnNewlyCreatedObjectResend)
 {
@@ -1658,7 +1778,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestObjectPollFra
 	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(0, 0);
 
 	// Spawn second object on server that later will be added as a dependent object
-	UObjectReplicationBridge::FCreateNetRefHandleParams Params = Server->GetReplicationBridge()->DefaultCreateNetRefHandleParams;
+	UObjectReplicationBridge::FRootObjectReplicationParams Params;
 	Params.PollFrequency = Server->ConvertPollPeriodIntoFrequency(1U);
 	UTestReplicatedIrisObject* ServerObjectPolledEveryOtherFrame = Server->CreateObject(Params);
 
@@ -1812,6 +1932,13 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestPartialDequan
 	const bool bForceFullDequantizeAndApply = CVarForceFullDequantizeAndApply->GetBool();
 	CVarForceFullDequantizeAndApply->Set(false, ECVF_SetByCode);
 
+	ON_SCOPE_EXIT
+	{
+		// Restore cvars
+		CVarUsePrevReceivedStateForOnReps->Set(bUsePrevReceivedStateForOnReps, ECVF_SetByCode);
+		CVarForceFullDequantizeAndApply->Set(bForceFullDequantizeAndApply, ECVF_SetByCode);
+	};
+
 	// Add a client
 	FReplicationSystemTestClient* Client = CreateClient();
 
@@ -1893,11 +2020,54 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestPartialDequan
 	UE_NET_ASSERT_EQ(ClientObjectA->PrevIntBStoredInOnRep, 1);
 	UE_NET_ASSERT_EQ(ServerObjectA->IntC, ClientObjectA->IntC);
 
-	// Restore cvars
-	CVarUsePrevReceivedStateForOnReps->Set(bUsePrevReceivedStateForOnReps, ECVF_SetByCode);
-	CVarForceFullDequantizeAndApply->Set(bForceFullDequantizeAndApply, ECVF_SetByCode);
 }
 
+UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestNetMetric)
+{
+	{
+		FNetMetric Metric(50.0);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Double);
+	}
 
+	{
+		FNetMetric Metric(50.f);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Double);
+	}
 
+	{
+		FNetMetric Metric;
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::None);
+		float Value = 100.f;
+		Metric.Set(Value);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Double);
+	}
+
+	{
+		FNetMetric Metric(5U);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Unsigned);
+	}
+
+	{
+		FNetMetric Metric;
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::None);
+		uint32 Value = 100U;
+		Metric.Set(Value);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Unsigned);
+	}
+
+	{
+		FNetMetric Metric(-5);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Signed);
+	}
+
+	{
+		FNetMetric Metric;
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::None);
+		Metric.Set(5);
+		UE_NET_ASSERT_TRUE(Metric.GetDataType() == FNetMetric::EDataType::Signed);
+	}
 }
+
+} // end namespace UE::Net::Private
+
+

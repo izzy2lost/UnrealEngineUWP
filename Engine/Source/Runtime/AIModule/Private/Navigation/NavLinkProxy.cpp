@@ -182,7 +182,7 @@ void ANavLinkProxy::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 		UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
 		if (NavSys)
 		{
-			NavSys->UpdateActorInNavOctree(*this);
+			FNavigationSystem::UpdateActorData(*this);
 		}
 	}
 

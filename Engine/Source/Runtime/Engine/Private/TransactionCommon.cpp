@@ -446,6 +446,12 @@ FSerializedTaggedData& FDiffableObjectDataWriter::FCachedTaggedDataEntry::SyncCa
 
 namespace DiffUtil
 {
+static FArchive* GCurrentDiffableObjectDataWriter = nullptr; // Set before GetDiffableObject calls its serialize impl
+	
+bool IsGeneratingDiffableObject(const FArchive& Ar)
+{
+	return GCurrentDiffableObjectDataWriter == &Ar;
+}
 
 FDiffableObject GetDiffableObject(const UObject* Object, const FGetDiffableObjectOptions& Options)
 {
@@ -455,6 +461,8 @@ FDiffableObject GetDiffableObject(const UObject* Object, const FGetDiffableObjec
 	if (Options.bSerializeEvenIfPendingKill || !DiffableObject.ObjectInfo.bIsPendingKill)
 	{
 		FDiffableObjectDataWriter DiffWriter(DiffableObject, Options.PropertiesToSerialize);
+		TGuardValue<FArchive*> GuardGCurrentDiffableObjectDataWriter(GCurrentDiffableObjectDataWriter, &DiffWriter);
+		
 		switch (Options.ObjectSerializationMode)
 		{
 		case EGetDiffableObjectMode::SerializeObject:

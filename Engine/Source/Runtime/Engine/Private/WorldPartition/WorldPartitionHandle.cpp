@@ -10,6 +10,7 @@
 #include "WorldPartition/ActorDescContainerInstanceCollection.h"
 #include "WorldPartition/ActorDescContainerInstance.h"
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
+#include "Templates/GuardValueAccessors.h"
 
 /**
 * FWorldPartitionImplBase
@@ -92,7 +93,7 @@ FWorldPartitionLoadingContext::IContext::~IContext()
 void FWorldPartitionLoadingContext::FImmediate::RegisterActor(FWorldPartitionActorDescInstance* InActorDescInstance)
 {
 	// Set GIsEditorLoadingPackage to avoid dirtying the Actor package if Modify() is called during the load sequence
-	TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+	TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 
 	if (InActorDescInstance->StartAsyncLoad())
 	{
@@ -115,7 +116,7 @@ void FWorldPartitionLoadingContext::FImmediate::RegisterActor(FWorldPartitionAct
 void FWorldPartitionLoadingContext::FImmediate::UnregisterActor(FWorldPartitionActorDescInstance* InActorDescInstance)
 {
 	// Set GIsEditorLoadingPackage to avoid dirtying the Actor package if Modify() is called during the unload sequence
-	TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+	TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 
 	// When cleaning up worlds, actors are already marked as garbage at this point, so no need to remove them from the world
 	if (AActor* Actor = InActorDescInstance->GetActor(); IsValid(Actor))
@@ -174,7 +175,7 @@ FWorldPartitionLoadingContext::FDeferred::~FDeferred()
 			if (ContainerOp.Registrations.Num())
 			{
 				// Set GIsEditorLoadingPackage to avoid dirtying the Actor package if Modify() is called during the load sequence
-				TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+				TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 
 				TArray<AActor*> ActorList;
 				if (ULevel* Level = CreateActorList(ActorList, ContainerOp.Registrations))
@@ -192,7 +193,7 @@ FWorldPartitionLoadingContext::FDeferred::~FDeferred()
 			if (ContainerOp.Unregistrations.Num())
 			{
 				// Set GIsEditorLoadingPackage to avoid dirtying the Actor package if Modify() is called during the unload sequence
-				TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+				TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 
 				TArray<AActor*> ActorList;
 				if (ULevel* Level = CreateActorList(ActorList, ContainerOp.Unregistrations))
@@ -216,7 +217,7 @@ FWorldPartitionLoadingContext::FDeferred::~FDeferred()
 
 void FWorldPartitionLoadingContext::FDeferred::RegisterActor(FWorldPartitionActorDescInstance* InActorDescInstance)
 {
-	TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+	TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 
 	check(InActorDescInstance);
 	if (InActorDescInstance->StartAsyncLoad())

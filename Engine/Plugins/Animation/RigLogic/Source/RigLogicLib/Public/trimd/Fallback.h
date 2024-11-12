@@ -2,6 +2,15 @@
 
 #pragma once
 
+#ifdef _MSC_VER
+    #pragma warning(push)
+    #pragma warning(disable : 4365 4987)
+#endif
+#include <utility>
+#ifdef _MSC_VER
+    #pragma warning(pop)
+#endif
+
 namespace trimd {
 
 namespace fallback {
@@ -236,6 +245,11 @@ inline T256<T128> abs(const T256<T128>& rhs) {
 template<typename T128>
 inline T256<T128> andnot(const T256<T128>& lhs, const T256<T128>& rhs) {
     return T256<T128>{andnot(lhs.data1, rhs.data1), andnot(lhs.data2, rhs.data2)};
+}
+
+template<typename T128>
+inline T256<T128> rsqrt(const T256<T128>& rhs) {
+    return T256<T128>{rsqrt(rhs.data1), rsqrt(rhs.data2)};
 }
 
 }  // namespace fallback

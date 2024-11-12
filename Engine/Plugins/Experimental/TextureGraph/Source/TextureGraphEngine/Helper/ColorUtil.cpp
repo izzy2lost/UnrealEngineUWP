@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "ColorUtil.h"
+#include "TextureGraphEngine/Helper/MathUtils.h"
 
 const FLinearColor ColorUtil::DefaultColor(TextureType Type)
 {
@@ -159,6 +160,47 @@ bool ColorUtil::IsColorNear(const FLinearColor& Color, const FLinearColor& Ref, 
 {
 	FLinearColor Diff = Color - Ref;
 	return IsColorBlack(Diff, IgnoreAlpha);
+}
+
+FLinearColor ColorUtil::HSV2RGB(FLinearColor C)
+{
+	FVector4f K = FVector4f(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+	FVector3f Kx(K.X, K.X, K.X);
+	FVector3f P;
+	P.X = FMath::Abs(FMath::Frac(C.R + K.X) * 6.0 - K.W);
+	P.Y = FMath::Abs(FMath::Frac(C.R + K.Y) * 6.0 - K.W);
+	P.Z = FMath::Abs(FMath::Frac(C.R + K.Z) * 6.0 - K.W);
+
+	FVector3f D = P - Kx;
+	D.X = FMath::Clamp(D.X, 0.0f, 1.0f);
+	D.Y = FMath::Clamp(D.Y, 0.0f, 1.0f);
+	D.Z = FMath::Clamp(D.Z, 0.0f, 1.0f);
+
+	FVector3f RGB = C.B * FMath::Lerp(Kx, D, C.G);
+
+	return FLinearColor(RGB.X, RGB.Y, RGB.Z, 1.0f);
+}
+
+FLinearColor ColorUtil::RGB2HSV(FLinearColor C)
+{
+	FVector4f K = FVector4f(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+	FLinearColor P = FMath::Lerp(FLinearColor(C.B, C.G, K.W, K.Z), FLinearColor(C.G, C.B, K.X, K.Y), MathUtils::Step(C.B, C.G));
+	FLinearColor Q = FMath::Lerp(FLinearColor(P.R, P.G, P.B, C.R), FLinearColor(C.R, P.G, P.B, P.R), MathUtils::Step(P.R, C.R));
+	float D = Q.R - FMath::Min(Q.A, Q.G);
+	float E = 1.0e-10;
+	FVector3f HSV(FMath::Abs(Q.B + (Q.A - Q.G) / (6.0 * D + E)), D / (Q.R + E), Q.R);
+
+	return FLinearColor(HSV.X, HSV.Y, HSV.Z, 1.0f);
+}
+
+FLinearColor ColorUtil::HSVTweak(FLinearColor C, float H, float S, float V)
+{
+	FLinearColor ClrHSV = RGB2HSV(C);
+	ClrHSV *= FLinearColor(H, S, V, 1.0f);
+	FLinearColor Result = HSV2RGB(ClrHSV);
+	Result.A = C.A;
+
+	return Result;
 }
 
 bool ColorUtil::IsColorWhite(const FLinearColor& Color, bool IgnoreAlpha) { return IsColorNear(Color, FLinearColor::White, IgnoreAlpha); }

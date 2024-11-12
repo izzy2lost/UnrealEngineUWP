@@ -29,6 +29,8 @@ namespace Metasound::Frontend
 		TUniquePtr<FInterfaceTransactionStream> CreateTransactionStream();
 
 	private:
+		bool IsInterfaceVertexNameValid(FName InterfaceNamespace, FName FullVertexName, FName* VertexNamespace) const;
+
 		using FInterfaceTransactionBuffer = TTransactionBuffer<FInterfaceRegistryTransaction>;
 
 		TMap<FInterfaceRegistryKey, TUniquePtr<IInterfaceRegistryEntry>> Entries;

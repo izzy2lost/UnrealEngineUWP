@@ -5,6 +5,11 @@
 #include "ODSCLog.h"
 #include "HAL/FileManager.h"
 #include "Modules/ModuleManager.h"
+#include "MaterialShared.h"
+#include "Materials/MaterialInterface.h"
+#include "UObject/UObjectIterator.h"
+#include "PrimitiveSceneInfo.h"
+#include "Components/PrimitiveComponent.h"
 
 FODSCRequestPayload::FODSCRequestPayload(
 	EShaderPlatform InShaderPlatform,
@@ -28,6 +33,32 @@ FODSCRequestPayload::FODSCRequestPayload(
 , RequestHash(InRequestHash)
 {
 
+}
+
+FArchive& operator<<(FArchive& Ar, FODSCRequestPayload& Payload)
+{
+	int32 iShaderPlatform = static_cast<int32>(Payload.ShaderPlatform);
+	int32 iFeatureLevel = static_cast<int32>(Payload.FeatureLevel);
+	int32 iQualityLevel = static_cast<int32>(Payload.QualityLevel);
+
+	Ar << iShaderPlatform;
+	Ar << iFeatureLevel;
+	Ar << iQualityLevel;
+	Ar << Payload.MaterialName;
+	Ar << Payload.VertexFactoryName;
+	Ar << Payload.PipelineName;
+	Ar << Payload.ShaderTypeNames;
+	Ar << Payload.PermutationId;
+	Ar << Payload.RequestHash;
+
+	if (Ar.IsLoading())
+	{
+		Payload.ShaderPlatform = static_cast<EShaderPlatform>(iShaderPlatform);
+		Payload.FeatureLevel = static_cast<ERHIFeatureLevel::Type>(iFeatureLevel);
+		Payload.QualityLevel = static_cast<EMaterialQualityLevel::Type>(iQualityLevel);
+	}
+
+	return Ar;
 }
 
 FODSCMessageHandler::FODSCMessageHandler(EShaderPlatform InShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel, EMaterialQualityLevel::Type InQualityLevel, ODSCRecompileCommand InRecompileCommandType)
@@ -101,23 +132,17 @@ bool FODSCMessageHandler::ReloadGlobalShaders() const
 }
 
 FODSCThread::FODSCThread(const FString& HostIP)
-	: Thread(nullptr),
-	  WakeupEvent(FPlatformProcess::GetSynchEventFromPool(true))
+	: Thread(nullptr)
+	, WakeupEvent(FPlatformProcess::GetSynchEventFromPool(true))
+	, AllRequestsDoneEvent(FPlatformProcess::GetSynchEventFromPool(true))
+	, ODSCHostIP(HostIP)
 {
 	UE_LOG(LogODSC, Log, TEXT("ODSC Thread active."));
 
-	// Attempt to get a default connection to the COTF server (which cooks assets).
-	UE::Cook::ICookOnTheFlyModule& CookOnTheFlyModule = FModuleManager::LoadModuleChecked<UE::Cook::ICookOnTheFlyModule>(TEXT("CookOnTheFly"));
-	if (!CookOnTheFlyModule.GetDefaultServerConnection())
+	bHasDefaultConnection = (FModuleManager::LoadModuleChecked<UE::Cook::ICookOnTheFlyModule>(TEXT("CookOnTheFly")).GetDefaultServerConnection() != nullptr);
+	if (!bHasDefaultConnection)
 	{
-		// If we don't have a default connection make a specific connection to the HostIP provided.
-		UE::Cook::FCookOnTheFlyHostOptions CookOnTheFlyHostOptions;
-		CookOnTheFlyHostOptions.Hosts.Add(HostIP);
-		CookOnTheFlyServerConnection = CookOnTheFlyModule.ConnectToServer(CookOnTheFlyHostOptions);
-		if (!CookOnTheFlyServerConnection)
-		{
-			UE_LOG(LogODSC, Warning, TEXT("Failed to connect to cook on the fly server."));
-		}
+		ConnectToODSCHost();
 	}
 }
 
@@ -125,8 +150,44 @@ FODSCThread::~FODSCThread()
 {
 	StopThread();
 
+	FPlatformProcess::ReturnSynchEventToPool(AllRequestsDoneEvent);
+	AllRequestsDoneEvent = nullptr;
 	FPlatformProcess::ReturnSynchEventToPool(WakeupEvent);
 	WakeupEvent = nullptr;
+}
+
+bool FODSCThread::ConnectToODSCHost()
+{
+	// If we don't have a default connection make a specific connection to the HostIP provided.
+	UE::Cook::FCookOnTheFlyHostOptions CookOnTheFlyHostOptions;
+	CookOnTheFlyHostOptions.Hosts.Add(ODSCHostIP);
+	CookOnTheFlyServerConnection = FModuleManager::LoadModuleChecked<UE::Cook::ICookOnTheFlyModule>(TEXT("CookOnTheFly")).ConnectToServer(CookOnTheFlyHostOptions);
+	if (!CookOnTheFlyServerConnection)
+	{
+		UE_LOG(LogODSC, Warning, TEXT("Failed to connect to cook on the fly server."));
+		return false;
+	}
+	return CookOnTheFlyServerConnection != nullptr && CookOnTheFlyServerConnection->IsConnected();
+}
+
+bool FODSCThread::CheckODSCConnection()
+{
+	// If we have a default connection that already exists, send directly to that.
+	if ((CookOnTheFlyServerConnection == nullptr) || (!CookOnTheFlyServerConnection->IsConnected()))
+	{
+		// Losing connection when exit is requested is expected, do not try to reconnect
+		if (ExitRequest.GetValue())
+		{
+			return false;
+		}
+
+		UE_LOG(LogODSC, Display, TEXT("Detected that CookOnTheFlyServerConnection has been lost, trying again"));
+		if (!ConnectToODSCHost())
+		{
+			return false;
+		}
+	}
+	return CookOnTheFlyServerConnection != nullptr && CookOnTheFlyServerConnection->IsConnected();
 }
 
 void FODSCThread::StartThread()
@@ -149,6 +210,146 @@ void FODSCThread::Tick()
 	Process();
 }
 
+void FODSCThread::ResetMaterialsODSCData(ERHIFeatureLevel::Type FeatureLevel)
+{
+#if WITH_ODSC
+	FlushRenderingCommands();
+
+	{
+		FWriteScopeLock WriteLock(RequestHashesRWLock);
+
+		// this will stop the rendering thread, and reattach components, in the destructor
+		FMaterialUpdateContext UpdateContext(FMaterialUpdateContext::EOptions::Default);
+		RequestHashes.Empty();
+
+		for (TObjectIterator<UMaterialInterface> It; It; ++It)
+		{ 
+			UMaterialInterface* Material = *It;
+			if (Material)
+			{
+				const FMaterialResource* MaterialResource = Material->GetMaterialResource((ERHIFeatureLevel::Type)FeatureLevel);
+				if (MaterialResource && MaterialResource->GetGameThreadShaderMap())
+				{
+					MaterialResource->GetGameThreadShaderMap()->SetIsFromODSC(false);
+#if WITH_ODSC
+					MaterialResource->SetODSCMetaData((uint8)0);
+#endif
+				}
+				UpdateContext.AddMaterialInterface(Material);
+			}
+		}
+	}
+#endif
+}
+
+FODSCThread::FODSCShaderId::FODSCShaderId(const FShaderId& ShaderId)
+: ShaderTypeHashedName(ShaderId.Type ? ShaderId.Type->GetHashedName() : 0)
+, VFTypeHashedName(ShaderId.VFType ? ShaderId.VFType->GetHashedName() : 0)
+, ShaderPipelineName(ShaderId.ShaderPipelineName)
+, PermutationId(ShaderId.PermutationId)
+, Platform(ShaderId.Platform)
+{}
+
+bool FODSCThread::CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FMaterial* Material) const
+{
+	FReadScopeLock ReadLock(RequestHashesRWLock);
+	const FName* CachedMaterialName = ODSCPointerToNames.Find((UPTRINT)Material);
+	if (CachedMaterialName == nullptr)
+	{
+		return false;
+	}
+
+	const FODSCShaderMapData* ODSCShaderMapData = RequestHashes.Find(*CachedMaterialName);
+	if (ODSCShaderMapData == nullptr)
+	{
+		return false;
+	}
+
+	for (const FShaderId& ShaderId : RequestShaderIds)
+	{
+		if (!ODSCShaderMapData->CurrentRequests.Contains(ShaderId))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void FODSCThread::UnregisterMaterialName(const FMaterial* Material)
+{
+	FWriteScopeLock WriteLock(RequestHashesRWLock);
+	ODSCPointerToNames.Remove((UPTRINT)Material);
+}
+
+void FODSCThread::RegisterMaterialShaderMaps(const FString& MaterialName, const TArray<TRefCountPtr<FMaterialShaderMap>>& LoadedShaderMaps)
+{
+	FWriteScopeLock WriteLock(RequestHashesRWLock);
+
+	FODSCShaderMapData& ODSCShaderMapData = RequestHashes.FindOrAdd(FName(MaterialName));
+
+	ODSCShaderMapData.MaterialShaderMaps = LoadedShaderMaps;
+
+	for (FMaterialShaderMap* MaterialShaderMap : LoadedShaderMaps)
+	{
+		TMap<FShaderId, TShaderRef<FShader>> ShadersInMap;
+		MaterialShaderMap->GetShaderList(ShadersInMap);
+		for (auto Iter : ShadersInMap)
+		{
+			// The shadermap we receive contains all the requests the client sent until now, so it's possible they already got removed
+			if (ODSCShaderMapData.CurrentRequests.Find(Iter.Key))
+			{
+				ODSCShaderMapData.CurrentRequests.Remove(Iter.Key);
+			}
+		}
+	}
+
+}
+
+FMaterialShaderMap* FODSCThread::FindMaterialShaderMap(const FString& MaterialName, const FMaterialShaderMapId& ShaderMapId) const
+{
+	FReadScopeLock ReadLock(RequestHashesRWLock);
+	const FODSCShaderMapData* ODSCShaderMapData = RequestHashes.Find(FName(MaterialName));
+	if (ODSCShaderMapData == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (FMaterialShaderMap* MaterialShaderMap : ODSCShaderMapData->MaterialShaderMaps)
+	{
+		const FMaterialShaderMapId& ExistingShaderMapId = MaterialShaderMap->GetShaderMapId();
+		bool bFeatureLevelMatch = (ExistingShaderMapId.FeatureLevel == ShaderMapId.FeatureLevel);
+		bool bQualityLevelMatch = (ShaderMapId.QualityLevel == EMaterialQualityLevel::Num || ExistingShaderMapId.QualityLevel == EMaterialQualityLevel::Num
+								   || ShaderMapId.QualityLevel == ExistingShaderMapId.QualityLevel);
+
+		if (bFeatureLevelMatch && bQualityLevelMatch)
+		{
+			return MaterialShaderMap;
+		}
+	}
+
+	return nullptr;
+}
+
+void FODSCThread::RetrieveMissedMaterials(TArray<FString>& OutMaterialPaths) const
+{
+	FReadScopeLock ReadLock(RequestHashesRWLock);
+	for (auto Iter = RequestHashes.CreateConstIterator(); Iter; ++Iter)
+	{
+		const FODSCShaderMapData& ODSCShaderMapData = Iter.Value();
+		if (!ODSCShaderMapData.CurrentRequests.IsEmpty())
+		{
+			FString MaterialKey(Iter.Key().ToString());
+			if (ODSCShaderMapData.ActorPath.IsValid())
+			{
+				MaterialKey += ":::";
+				MaterialKey += ODSCShaderMapData.ActorPath.ToString();
+			}
+			OutMaterialPaths.Add(MaterialKey);
+		}
+	}
+}
+
 void FODSCThread::AddRequest(const TArray<FString>& MaterialsToCompile, const FString& ShaderTypesToLoad, EShaderPlatform ShaderPlatform, ERHIFeatureLevel::Type FeatureLevel, EMaterialQualityLevel::Type QualityLevel, ODSCRecompileCommand RecompileCommandType)
 {
 	PendingMaterialThreadedRequests.Enqueue(new FODSCMessageHandler(MaterialsToCompile, ShaderTypesToLoad, ShaderPlatform, FeatureLevel, QualityLevel, RecompileCommandType));
@@ -158,29 +359,96 @@ void FODSCThread::AddShaderPipelineRequest(
 	EShaderPlatform ShaderPlatform,
 	ERHIFeatureLevel::Type FeatureLevel,
 	EMaterialQualityLevel::Type QualityLevel,
-	const FString& MaterialName,
+	const FMaterial* Material,
+	const FPrimitiveSceneInfo* PrimitiveSceneInfo,
 	const FString& VertexFactoryName,
 	const FString& PipelineName,
 	const TArray<FString>& ShaderTypeNames,
-	int32 PermutationId
+	int32 PermutationId,
+	const TArray<FShaderId>& RequestShaderIds
 )
 {
-	// TODO: Requests for individual permutations come in here, but a single coalesced payload is submitted to the server since 
-	// we compile all material shader permutations encountered for the moment. Consider batching up requested permutations and 
-	// have the server skip compiling those not in the list. Ensure that DDC key and shader map assumptions are correct!
+	bool bShouldAddRequest = false;
+	bool bDefaultMaterial = false;
 
-	FString RequestString = (MaterialName + VertexFactoryName + PipelineName);
-	for (const auto& ShaderTypeName : ShaderTypeNames)
+	FString ActorPath;
 	{
-		RequestString += ShaderTypeName;
+		FWriteScopeLock WriteLock(RequestHashesRWLock);
+
+		FName& CachedMaterialName = ODSCPointerToNames.FindOrAdd((UPTRINT)Material);
+		if (CachedMaterialName.IsNone())
+		{
+			CachedMaterialName = FName(Material->GetFullPath());
+		}
+		
+		bDefaultMaterial = Material->IsDefaultMaterial();
+
+		FODSCShaderMapData& ODSCShaderMapData = RequestHashes.FindOrAdd(CachedMaterialName);
+
+		for (const FShaderId& ShaderId : RequestShaderIds)
+		{
+			bool bAlreadyInSet = false;
+			ODSCShaderMapData.CurrentRequests.Add(ShaderId, &bAlreadyInSet);
+			if (!bAlreadyInSet)
+			{
+				bShouldAddRequest = true;
+			}
+		}
+
+		// for default materials, we request all the permutations anyway
+		if (bDefaultMaterial && ODSCShaderMapData.CurrentRequests.Num() > 1)
+		{
+			bShouldAddRequest = false;
+		}
+
+		if (bShouldAddRequest)
+		{
+#if WITH_ODSC && IS_MONOLITHIC
+			if (PrimitiveSceneInfo)
+			{
+				AActor* OwningActor = PrimitiveSceneInfo->GetComponentForDebugOnly() ? PrimitiveSceneInfo->GetComponentForDebugOnly()->GetOwner() : nullptr;
+				if (OwningActor)
+				{
+					ActorPath = OwningActor->GetPathName();
+				}
+			}
+#endif
+		}
+
+		if (!ActorPath.IsEmpty())
+		{
+			ODSCShaderMapData.ActorPath = FName(ActorPath);
+		}
 	}
-	const FString RequestHash = FMD5::HashAnsiString(*RequestString);
 
-	FScopeLock Lock(&RequestHashCriticalSection);
-	if (!RequestHashes.Contains(RequestHash))
+	if (bShouldAddRequest)
 	{
-		PendingMeshMaterialThreadedRequests.Enqueue(FODSCRequestPayload(ShaderPlatform, FeatureLevel, QualityLevel, MaterialName, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId, RequestHash));
-		RequestHashes.Add(RequestHash);
+		SCOPED_NAMED_EVENT(AddShaderPipelineRequest_AddRequest, FColor::Emerald);
+
+		FString MaterialName = Material->GetFullPath();
+
+		if (!bDefaultMaterial && !ActorPath.IsEmpty())
+		{
+			MaterialName += ":::";
+			MaterialName += ActorPath;
+		}
+
+		FString RequestString = (MaterialName + VertexFactoryName + PipelineName);
+		for (const auto& ShaderTypeName : ShaderTypeNames)
+		{
+			RequestString += ShaderTypeName;
+		}
+		const FString RequestHash = FMD5::HashAnsiString(*RequestString);
+		if (bDefaultMaterial)
+		{
+			TArray<FString> MaterialsToCompile = {MaterialName};
+			FString ShaderTypesToLoad;
+			PendingMaterialThreadedRequests.Enqueue(new FODSCMessageHandler(MaterialsToCompile, ShaderTypesToLoad, ShaderPlatform, FeatureLevel, QualityLevel, ODSCRecompileCommand::Material));
+		}
+		else
+		{
+			PendingMeshMaterialThreadedRequests.Enqueue(FODSCRequestPayload(ShaderPlatform, FeatureLevel, QualityLevel, MaterialName, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId, RequestHash));
+		}
 	}
 }
 
@@ -196,7 +464,13 @@ void FODSCThread::GetCompletedRequests(TArray<FODSCMessageHandler*>& OutComplete
 
 void FODSCThread::Wakeup()
 {
+	AllRequestsDoneEvent->Reset();
 	WakeupEvent->Trigger();
+}
+
+void FODSCThread::WaitUntilAllRequestsDone()
+{
+	AllRequestsDoneEvent->Wait();
 }
 
 bool FODSCThread::Init()
@@ -229,64 +503,133 @@ void FODSCThread::Exit()
 
 void FODSCThread::Process()
 {
-	// cache all pending requests.
-	FODSCRequestPayload Payload;
-	TArray<FODSCRequestPayload> PayloadsToAggregate;
+	// cache all pending pipeline requests
 	{
-		FScopeLock Lock(&RequestHashCriticalSection);
+		TArray<FODSCRequestPayload> PayloadsToAggregate;
+		FODSCRequestPayload Payload;
 		while (PendingMeshMaterialThreadedRequests.Dequeue(Payload))
 		{
 			PayloadsToAggregate.Add(Payload);
-			int FoundIndex = INDEX_NONE;
-			if (RequestHashes.Find(Payload.RequestHash, FoundIndex))
+		}
+
+		if (PayloadsToAggregate.Num())
+		{
+			FODSCMessageHandler* RequestHandler = new FODSCMessageHandler(PayloadsToAggregate[0].ShaderPlatform, PayloadsToAggregate[0].FeatureLevel, PayloadsToAggregate[0].QualityLevel, ODSCRecompileCommand::Material);
+			for (const FODSCRequestPayload& payload : PayloadsToAggregate)
 			{
-				RequestHashes.RemoveAt(FoundIndex);
+				RequestHandler->AddPayload(payload);
 			}
+			PendingRequestsPipeline.Add(RequestHandler);
 		}
 	}
 
-	// cache material requests.
-	FODSCMessageHandler* Request = nullptr;
-	TArray<FODSCMessageHandler*> RequestsToStart;
-	while (PendingMaterialThreadedRequests.Dequeue(Request))
+	// cache all pending material/global requests
 	{
-		RequestsToStart.Add(Request);
+		FODSCMessageHandler* Request = nullptr;
+		while (PendingMaterialThreadedRequests.Dequeue(Request))
+		{
+			PendingRequestsMaterialAndGlobal.Add(Request);
+		}
 	}
+
+	if (bHasDefaultConnection)
+	{
+		bIsConnectedToODSCServer = true;
+	}
+	else
+	{
+		bIsConnectedToODSCServer = CheckODSCConnection();
+	}
+
+	ON_SCOPE_EXIT
+	{
+		// SendMessageToServer is synchronous, so when we're here, we know we've processed all the requests
+		WakeupEvent->Reset();
+		AllRequestsDoneEvent->Trigger();
+	};
+
+	// Early out to avoid trying to connect (and most likely fail) for every compilation request
+	if (!bIsConnectedToODSCServer)
+	{
+		return;
+	}
+
+	// cache material requests.
+	TArray<FODSCMessageHandler*> RequestsToStart = MoveTemp(PendingRequestsMaterialAndGlobal);
+	bool bHasGlobalShaders = false;
+	uint32 NumMaterials = 0;
+
+	for (FODSCMessageHandler* NextRequest : RequestsToStart)
+	{
+		if (NextRequest->GetRecompileCommandType() != ODSCRecompileCommand::Material)
+		{
+			bHasGlobalShaders = true;
+		}
+		else
+		{
+			NumMaterials += NextRequest->GetMaterialsToLoad().Num();
+		}
+	}
+
+	bHasPendingGlobalShaders.store(bHasGlobalShaders, std::memory_order_release);
+	NumPendingMaterialsRecompile.store(NumMaterials, std::memory_order_release);
 
 	// process any material or recompile change shader requests or global shader compile requests.
 	for (FODSCMessageHandler* NextRequest : RequestsToStart)
 	{
 		// send the info, the handler will process the response (and update shaders, etc)
-		SendMessageToServer(NextRequest);
-
-		CompletedThreadedRequests.Enqueue(NextRequest);
-	}
-
-	// process any specific mesh material shader requests.
-	if (PayloadsToAggregate.Num())
-	{
-		FODSCMessageHandler* RequestHandler = new FODSCMessageHandler(PayloadsToAggregate[0].ShaderPlatform, PayloadsToAggregate[0].FeatureLevel, PayloadsToAggregate[0].QualityLevel, ODSCRecompileCommand::Material);
-		for (const FODSCRequestPayload& payload : PayloadsToAggregate)
+		if (SendMessageToServer(NextRequest))
 		{
-			RequestHandler->AddPayload(payload);
+			CompletedThreadedRequests.Enqueue(NextRequest);
+		}
+		else
+		{
+			PendingRequestsMaterialAndGlobal.Add(NextRequest);
 		}
 
-		// send the info, the handler will process the response (and update shaders, etc)
-		SendMessageToServer(RequestHandler);
-
-		CompletedThreadedRequests.Enqueue(RequestHandler);
 	}
 
-	WakeupEvent->Reset();
+	bHasPendingGlobalShaders.store(false, std::memory_order_release);
+	NumPendingMaterialsRecompile.store(0, std::memory_order_release);
+
+	RequestsToStart = MoveTemp(PendingRequestsPipeline);
+
+	uint32 NumPipelines = 0;
+	for (FODSCMessageHandler* NextRequest : RequestsToStart)
+	{
+		NumPipelines += NextRequest->NumPayloads();
+	}
+
+	NumPendingMaterialsShaders.store(NumPipelines, std::memory_order_release);
+
+	// process any specific mesh material shader requests.
+	for (FODSCMessageHandler* NextRequest : RequestsToStart)
+	{
+		if (SendMessageToServer(NextRequest))
+		{
+			CompletedThreadedRequests.Enqueue(NextRequest);
+		}
+		else
+		{
+			PendingRequestsPipeline.Add(NextRequest);
+		}
+		NumPendingMaterialsShaders -= NextRequest->NumPayloads();
+	}
+
+	NumPendingMaterialsShaders.store(0, std::memory_order_release);
 }
 
-void FODSCThread::SendMessageToServer(IPlatformFile::IFileServerMessageHandler* Handler)
+bool FODSCThread::SendMessageToServer(IPlatformFile::IFileServerMessageHandler* Handler)
 {
-	// If we have a default connection that already exists, send directly to that.
-	if ((CookOnTheFlyServerConnection == nullptr) || (!CookOnTheFlyServerConnection->IsConnected()))
+	if (bHasDefaultConnection)
 	{
 		IFileManager::Get().SendMessageToServer(TEXT("RecompileShaders"), Handler);
-		return;
+		return true;
+	}
+
+	if (!CheckODSCConnection())
+	{
+		return false;
 	}
 
 	// We don't have a default COTF connection so use our specific connection to send our command.
@@ -301,7 +644,21 @@ void FODSCThread::SendMessageToServer(IPlatformFile::IFileServerMessageHandler* 
 	{
 		TUniquePtr<FArchive> Ar = Response.ReadBody();
 		Handler->ProcessResponse(*Ar);
+		return true;
 	}
+	else
+	{
+		UE_LOG(LogODSC, Display, TEXT("Received error response from CookOnTheFlyServerConnection; disconnecting"));
+		CookOnTheFlyServerConnection.Reset();
+		return false;
+	}
+}
 
-	check(Response.IsOk());
+bool FODSCThread::GetPendingShaderData(bool& bOutIsConnectedToODSCServer, bool& bOutHasPendingGlobalShaders, uint32& OutNumPendingMaterialsRecompile, uint32& OutNumPendingMaterialsShaders) const
+{
+	bOutIsConnectedToODSCServer = bIsConnectedToODSCServer.load(std::memory_order_acquire);
+	bOutHasPendingGlobalShaders = bHasPendingGlobalShaders.load(std::memory_order_acquire);
+	OutNumPendingMaterialsRecompile = NumPendingMaterialsRecompile.load(std::memory_order_acquire);
+	OutNumPendingMaterialsShaders = NumPendingMaterialsShaders.load(std::memory_order_acquire);
+	return bOutHasPendingGlobalShaders || OutNumPendingMaterialsRecompile > 0 || OutNumPendingMaterialsShaders > 0;
 }

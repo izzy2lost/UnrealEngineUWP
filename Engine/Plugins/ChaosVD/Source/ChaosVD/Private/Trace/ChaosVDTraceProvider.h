@@ -12,6 +12,8 @@
 #include "Templates/SharedPointer.h"
 #include "TraceServices/Model/AnalysisSession.h"
 
+class FChaosVDDataProcessorBase;
+
 namespace Chaos::VisualDebugger
 {
 	class FChaosVDSerializableNameTable;
@@ -45,6 +47,16 @@ struct FChaosVDTraceSessionData
 	TMap<int32, TSharedPtr<FChaosVDBinaryDataContainer>> UnprocessedDataByID;
 };
 
+enum class EChaosVDSolverStageAccessorFlags : uint8
+{
+	None = 0,
+	/* If the solver frame has valid stage data but the last stage is closed, create a new stage which will be labeled as non-staged data */
+	CreateNewIfClosed = 1 << 0,
+	/* If the solver frame does not have any solver stage data, create a new stage which will be labeled as non-staged data */
+	CreateNewIfEmpty = 1 << 1 
+};
+ENUM_CLASS_FLAGS(EChaosVDSolverStageAccessorFlags);
+
 /** Provider class for Chaos VD trace recordings.
  * It stores and handles rebuilt recorded frame data from Trace events
  * dispatched by the Chaos VD Trace analyzer
@@ -73,7 +85,14 @@ public:
 
 	TSharedPtr<FChaosVDRecording> GetRecordingForSession() const;
 
-	void RegisterDataProcessor(TSharedPtr<IChaosVDDataProcessor> InDataProcessor);
+	void RegisterDataProcessor(TSharedPtr<FChaosVDDataProcessorBase> InDataProcessor);
+
+	void HandleAnalysisComplete();
+
+	TMap<int32,int32>& GetCurrentTickOffsetsBySolverID() { return CurrentNetworkTickOffsets; };
+
+
+	FChaosVDStepData* GetCurrentSolverStageDataForCurrentFrame(int32 SolverID, EChaosVDSolverStageAccessorFlags Flags);
 
 private:
 
@@ -81,6 +100,9 @@ private:
 
 	void EnqueueGameFrameForProcessing(const TSharedPtr<FChaosVDGameFrameData>& FrameData);
 	void DeQueueGameFrameForProcessing(TSharedPtr<FChaosVDGameFrameData>& OutFrameData);
+
+	/** Gathers any solver id from solver data that is not fully processed yet but that will be valid for the provided game frame data later on */
+	void GetAvailablePendingSolverIDsAtGameFrame(const TSharedRef<FChaosVDGameFrameData>& InProcessedGameFrameData, TArray<int32, TInlineAllocator<16>>& OutSolverIDs);
 	
 	TraceServices::IAnalysisSession& Session;
 
@@ -88,7 +110,7 @@ private:
 
 	TMap<int32, TSharedPtr<FChaosVDBinaryDataContainer>> UnprocessedDataByID;
 
-	TMap<FStringView, TSharedPtr<IChaosVDDataProcessor>> RegisteredDataProcessors;
+	TMap<FStringView, TSharedPtr<FChaosVDDataProcessorBase>> RegisteredDataProcessors;
 
 	TMap<int32, FChaosVDSolverFrameData> CurrentSolverFramesByID;
 
@@ -101,4 +123,8 @@ private:
 	int32 CurrentGameFrameQueueSize = 0;
 
 	bool bDefaultDataProcessorsRegistered = false;
+
+	double StartLastCommitedFrameTimeSeconds = 0.0;
+
+	TMap<int32, int32> CurrentNetworkTickOffsets;
 };

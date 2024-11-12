@@ -47,10 +47,6 @@ public:
 	SLATECORE_API bool SetHittestArea(const UE::Slate::FDeprecateVector2DParameter& HittestPositionInDesktop, const UE::Slate::FDeprecateVector2DParameter& HittestDimensions, const UE::Slate::FDeprecateVector2DParameter& HitestOffsetInWindow = FVector2f::ZeroVector);
 
 	/** Insert custom hit test data for a widget already in the grid */
-	UE_DEPRECATED(5.0, "Deprecated. Use the InsertCustomHitTestPath with a pointer.")
-	SLATECORE_API void InsertCustomHitTestPath(const TSharedRef<SWidget> InWidget, TSharedRef<ICustomHitTestPath> CustomHitTestPath);
-
-	/** Insert custom hit test data for a widget already in the grid */
 	SLATECORE_API void InsertCustomHitTestPath(const SWidget* InWidget, const TSharedRef<ICustomHitTestPath>& CustomHitTestPath);
 
 	/** Sets the current slate user index that should be associated with any added widgets */
@@ -83,36 +79,16 @@ public:
 	SLATECORE_API void Clear();
 
 	/** Add SWidget from the HitTest Grid */
-	UE_DEPRECATED(4.27, "Deprecated. Use the AddWidget with the FSlateInvalidationWidgetSortOrder type parameters instead. Passing FSlateInvalidationWidgetSortOrder()")
-	SLATECORE_API void AddWidget(const TSharedRef<SWidget>& InWidget, int32 InBatchPriorityGroup, int32 InLayerId, int32 InSecondarySort);
-
-	/** Add SWidget from the HitTest Grid */
-	UE_DEPRECATED(5.0, "Deprecated. Use the AddWidget with a pointer.")
-	SLATECORE_API void AddWidget(const TSharedRef<SWidget>& InWidget, int32 InBatchPriorityGroup, int32 InLayerId, FSlateInvalidationWidgetSortOrder InSecondarySort);
-
-	/** Add SWidget from the HitTest Grid */
 	SLATECORE_API void AddWidget(const SWidget* InWidget, int32 InBatchPriorityGroup, int32 InLayerId, FSlateInvalidationWidgetSortOrder InSecondarySort);
 
 	/** Remove SWidget from the HitTest Grid */
-	UE_DEPRECATED(5.0, "Deprecated. Use the RemoveWidget with a pointer.")
-	SLATECORE_API void RemoveWidget(const TSharedRef<SWidget>& InWidget);
-
-	/** Remove SWidget from the HitTest Grid */
 	SLATECORE_API void RemoveWidget(const SWidget* InWidget);
-
-	/** Update the widget SecondarySort without removing it and readding it again. */
-	UE_DEPRECATED(5.0, "Deprecated. Use the UpdateWidget with a pointer.")
-	SLATECORE_API void UpdateWidget(const TSharedRef<SWidget>& InWidget, FSlateInvalidationWidgetSortOrder InSecondarySort);
 	
 	/** Update the widget SecondarySort without removing it and readding it again. */
 	SLATECORE_API void UpdateWidget(const SWidget* InWidget, FSlateInvalidationWidgetSortOrder InSecondarySort);
 
 	/** Check if SWidget is contained within the HitTest Grid */
 	SLATECORE_API bool ContainsWidget(const SWidget* InWidget) const;
-
-	/** Append an already existing grid that occupy the same space. */
-	UE_DEPRECATED(4.26, "Deprecated. Use the FHittestGrid::AddGrid method instead")
-	void AppendGrid(FHittestGrid& OtherGrid) {}
 
 	/**
 	 * Add an already existing grid that occupy the same space.

@@ -2,9 +2,15 @@
 
 #pragma once
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "UObject/ObjectMacros.h"
 #include "AI/Navigation/NavigationTypes.h"
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+
 #include "AI/NavigationModifier.h"
+#include "NavigationDirtyArea.h"
+
+struct FNavigationElement;
 
 struct FNavigationRelevantDataFilter 
 {
@@ -63,8 +69,14 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 	/** additional modifiers: areas and external links */
 	FCompositeNavModifier Modifiers;
 
+#if WITH_EDITORONLY_DATA
 	/** UObject these data represents */
+	UE_DEPRECATED(5.5, "Use SourceElement instead.")
 	TWeakObjectPtr<UObject> SourceObject;
+#endif // WITH_EDITORONLY_DATA
+
+	/** Navigation element this data represents */
+	TSharedRef<const FNavigationElement> SourceElement;
 
 	/** get set to true when lazy navigation exporting is enabled and this navigation data has "potential" of
 	*	containing geometry data. First access will result in gathering the data and setting this flag back to false.
@@ -81,8 +93,13 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 	/** From level loading (only valid in WP dynamic mode) */
 	uint32 bLoadedData : 1;
 
-	FNavigationRelevantData(UObject& Source)
-		: SourceObject(&Source)
+	FNavigationRelevantData() = delete;
+
+	UE_DEPRECATED(5.5, "Use the constructor using FNavigationElement instead.")
+	ENGINE_API FNavigationRelevantData(UObject& Source);
+
+	explicit FNavigationRelevantData(const TSharedRef<const FNavigationElement>& Source)
+		: SourceElement(Source)
 		, bPendingLazyGeometryGathering(false)
 		, bPendingLazyModifiersGathering(false)
 		, bPendingChildLazyModifiersGathering(false)
@@ -90,6 +107,12 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 		, bShouldSkipDirtyAreaOnAddOrRemove(false)
 		, bLoadedData(false)
 	{}
+
+	ENGINE_API FNavigationRelevantData(const FNavigationRelevantData& Other);
+	ENGINE_API FNavigationRelevantData(FNavigationRelevantData&& Other);
+
+	ENGINE_API FNavigationRelevantData& operator=(FNavigationRelevantData&& Other);
+	ENGINE_API FNavigationRelevantData& operator=(const FNavigationRelevantData& Other);
 
 	FORCEINLINE bool HasGeometry() const { return VoxelData.Num() || CollisionData.Num(); }
 	FORCEINLINE bool HasModifiers() const { return !Modifiers.IsEmpty(); }
@@ -109,21 +132,24 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 	FORCEINLINE bool IsEmpty() const { return !HasGeometry() && !HasModifiers(); }
 	FORCEINLINE SIZE_T GetAllocatedSize() const { return CollisionData.GetAllocatedSize() + VoxelData.GetAllocatedSize() + Modifiers.GetAllocatedSize(); }
 	FORCEINLINE SIZE_T GetGeometryAllocatedSize() const { return CollisionData.GetAllocatedSize() + VoxelData.GetAllocatedSize(); }
-	FORCEINLINE int32 GetDirtyFlag() const
+	FORCEINLINE ENavigationDirtyFlag GetDirtyFlag() const
 	{
 		const bool bSetGeometryFlag = HasGeometry() || IsPendingLazyGeometryGathering() ||
 			Modifiers.GetFillCollisionUnderneathForNavmesh() || Modifiers.GetMaskFillCollisionUnderneathForNavmesh() ||
 			(Modifiers.GetNavMeshResolution() != ENavigationDataResolution::Invalid);
 		
-		return (bSetGeometryFlag ? ENavigationDirtyFlag::Geometry : 0) |
-			((HasDynamicModifiers() || NeedAnyPendingLazyModifiersGathering()) ? ENavigationDirtyFlag::DynamicModifier : 0) |
-			(Modifiers.HasAgentHeightAdjust() ? ENavigationDirtyFlag::UseAgentHeight : 0);
+		return (bSetGeometryFlag
+				? ENavigationDirtyFlag::Geometry
+				: ENavigationDirtyFlag::None)
+			| ((HasDynamicModifiers() || NeedAnyPendingLazyModifiersGathering())
+				? ENavigationDirtyFlag::DynamicModifier
+				: ENavigationDirtyFlag::None)
+			| (Modifiers.HasAgentHeightAdjust()
+				? ENavigationDirtyFlag::UseAgentHeight
+				: ENavigationDirtyFlag::None);
 	}
 
-	FORCEINLINE FCompositeNavModifier GetModifierForAgent(const struct FNavAgentProperties* NavAgent = nullptr) const
-	{
-		return Modifiers.HasMetaAreas() ? Modifiers.GetInstantiatedMetaModifier(NavAgent, SourceObject) : Modifiers;
-	}
+	ENGINE_API FCompositeNavModifier GetModifierForAgent(const FNavAgentProperties* NavAgent = nullptr) const;
 
 	ENGINE_API bool HasPerInstanceTransforms() const;
 	ENGINE_API bool IsMatchingFilter(const FNavigationRelevantDataFilter& Filter) const;
@@ -142,6 +168,9 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 		}
 	}
 
-	FORCEINLINE UObject* GetOwner() const { return SourceObject.Get(); }
-	ENGINE_API FORCEINLINE decltype(SourceObject)& GetOwnerPtr() { return SourceObject; }
+	UE_DEPRECATED(5.5, "Use SourceElement instead.")
+	ENGINE_API const UObject* GetOwner() const;
+
+	UE_DEPRECATED(5.5, "Use SourceElement instead.")
+	ENGINE_API TWeakObjectPtr<UObject> GetOwnerPtr() const;
 };

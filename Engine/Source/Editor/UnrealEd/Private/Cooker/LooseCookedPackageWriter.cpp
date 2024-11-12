@@ -21,10 +21,11 @@
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformString.h"
 #include "Hash/Blake3.h"
-#include "IO/IoHash.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "IO/IoHash.h"
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
+#include "LooseFilesCookArtifactReader.h"
 #include "Misc/App.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/CString.h"
@@ -33,8 +34,8 @@
 #include "Misc/Optional.h"
 #include "Misc/PackageName.h"
 #include "Misc/PackagePath.h"
-#include "Misc/PathViews.h"
 #include "Misc/Paths.h"
+#include "Misc/PathViews.h"
 #include "Misc/ScopeLock.h"
 #include "Misc/SecureHash.h"
 #include "Misc/StringBuilder.h"
@@ -59,13 +60,17 @@ LLM_DEFINE_TAG(Cooker_PackageStoreManifest);
 
 FLooseCookedPackageWriter::FLooseCookedPackageWriter(const FString& InOutputPath,
 	const FString& InMetadataDirectoryPath, const ITargetPlatform* InTargetPlatform, FAsyncIODelete& InAsyncIODelete,
-	UE::Cook::FCookSandbox& InSandboxFile, FBeginCacheCallback&& InBeginCacheCallback)
-	: OutputPath(InOutputPath)
+	UE::Cook::FCookSandbox& InSandboxFile, FBeginCacheCallback&& InBeginCacheCallback,
+	FRegisterDeterminismHelperCallback&& InRegisterDeterminismHelperCallback,
+	TSharedRef<FLooseFilesCookArtifactReader> InCookArtifactReader)
+	: CookArtifactReader(InCookArtifactReader)
+	, OutputPath(InOutputPath)
 	, MetadataDirectoryPath(InMetadataDirectoryPath)
 	, TargetPlatform(*InTargetPlatform)
 	, SandboxFile(InSandboxFile)
 	, AsyncIODelete(InAsyncIODelete)
 	, BeginCacheCallback(MoveTemp(InBeginCacheCallback))
+	, RegisterDeterminismHelperCallback(MoveTemp(InRegisterDeterminismHelperCallback))
 {
 }
 
@@ -538,6 +543,15 @@ FDateTime FLooseCookedPackageWriter::GetPreviousCookTime() const
 	return IFileManager::Get().GetTimeStamp(*PreviousAssetRegistry);
 }
 
+void FLooseCookedPackageWriter::RegisterDeterminismHelper(UObject* SourceObject,
+	const TRefCountPtr<UE::Cook::IDeterminismHelper>& DeterminismHelper)
+{
+	if (RegisterDeterminismHelperCallback)
+	{
+		RegisterDeterminismHelperCallback(SourceObject, DeterminismHelper);
+	}
+}
+
 void FLooseCookedPackageWriter::Initialize(const FCookInfo& Info)
 {
 	bIterateSharedBuild = Info.bIterateSharedBuild;
@@ -718,15 +732,15 @@ TUniquePtr<FAssetRegistryState> FLooseCookedPackageWriter::LoadPreviousAssetRegi
 
 	PackageNameToCookedFiles.Reset();
 
-	FArrayReader SerializedAssetData;
-	if (!IFileManager::Get().FileExists(*PreviousAssetRegistryFile) || !FFileHelper::LoadFileToArray(SerializedAssetData, *PreviousAssetRegistryFile))
+	TUniquePtr<FArchive> Reader(CookArtifactReader->CreateFileReader(*PreviousAssetRegistryFile));
+	if (!Reader)
 	{ 
 		RemoveCookedPackages();
 		return TUniquePtr<FAssetRegistryState>();
 	}
 
 	TUniquePtr<FAssetRegistryState> PreviousState = MakeUnique<FAssetRegistryState>();
-	PreviousState->Load(SerializedAssetData);
+	PreviousState->Load(*Reader);
 
 	// If we are iterating from a shared build the cooked files do not exist in the local cooked directory;
 	// we assume they are packaged in the pak file (which we don't want to extract to confirm) and keep them all.
@@ -758,10 +772,11 @@ TUniquePtr<FAssetRegistryState> FLooseCookedPackageWriter::LoadPreviousAssetRegi
 				bool bIsCookedOnly = bIsScriptPackage;
 				if (!bIsCookedOnly)
 				{
-					for (const FAssetData* AssetData : PreviousState->GetAssetsByPackageName(PackageName))
-					{
-						bIsCookedOnly |= !!(AssetData->PackageFlags & PKG_CookGenerated);
-					}
+					PreviousState->EnumerateAssetsByPackageName(PackageName, [&bIsCookedOnly](const FAssetData* AssetData)
+						{
+							bIsCookedOnly |= !!(AssetData->PackageFlags & PKG_CookGenerated);
+							return true; // Keep iterating
+						});
 				}
 				bNoLongerExistsInEditor = !bIsCookedOnly;
 			}

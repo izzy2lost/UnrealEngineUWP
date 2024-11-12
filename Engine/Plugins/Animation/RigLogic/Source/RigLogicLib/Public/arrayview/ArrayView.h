@@ -79,9 +79,6 @@ class ArrayView {
             sz{size} {
         }
 
-        ArrayView(std::nullptr_t  /*unused*/, size_type  /*unused*/) : ArrayView{nullptr, {}} {
-        }
-
         template<typename U, typename std::enable_if<IsCompatible<T, U>::value, int>::type = 0>
         ArrayView(ArrayView<U>& src) : ArrayView{src.data(), src.size()} {
         }

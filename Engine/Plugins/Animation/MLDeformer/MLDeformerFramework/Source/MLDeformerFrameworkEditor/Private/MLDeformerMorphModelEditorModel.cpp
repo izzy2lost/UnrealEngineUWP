@@ -22,6 +22,8 @@
 #include "Engine/SkeletalMesh.h"
 #include "Misc/ScopedSlowTask.h"
 #include "BoneWeights.h"
+#include "MeshAttributeArray.h"
+#include "Async/ParallelFor.h"
 
 #define LOCTEXT_NAMESPACE "MLDeformerMorphModelEditorModel"
 
@@ -30,6 +32,25 @@ namespace UE::MLDeformer
 	FMLDeformerEditorModel* FMLDeformerMorphModelEditorModel::MakeInstance()
 	{
 		return new FMLDeformerMorphModelEditorModel();
+	}
+
+	void FMLDeformerMorphModelEditorModel::CopyBaseSettingsFromModel(const FMLDeformerEditorModel* SourceEditorModel)
+	{
+		// Copy the morph related settings.
+		const UMLDeformerMorphModel* SourceMorphModel = Cast<UMLDeformerMorphModel>(SourceEditorModel->GetModel());
+		if (SourceMorphModel)
+		{
+			UMLDeformerMorphModel* TargetModel = Cast<UMLDeformerMorphModel>(GetModel());
+			check(TargetModel);
+			TargetModel->SetMorphCompressionLevel(SourceMorphModel->GetMorphCompressionLevel());
+			TargetModel->SetMorphDeltaZeroThreshold(SourceMorphModel->GetMorphDeltaZeroThreshold());
+			TargetModel->SetIncludeMorphTargetNormals(SourceMorphModel->GetIncludeMorphTargetNormals());
+			TargetModel->SetMaskChannel(SourceMorphModel->GetMaskChannel());
+			TargetModel->SetInvertMaskChannel(SourceMorphModel->GetInvertMaskChannel());
+		}
+
+		// Copy all base class settings.
+		FMLDeformerGeomCacheEditorModel::CopyBaseSettingsFromModel(SourceEditorModel);
 	}
 
 	bool FMLDeformerMorphModelEditorModel::IsInputMaskingSupported() const
@@ -60,13 +81,20 @@ namespace UE::MLDeformer
 			Property->GetFName() == UMLDeformerMorphModel::GetMorphCompressionLevelPropertyName() ||
 			Property->GetFName() == UMLDeformerMorphModel::GetIncludeMorphTargetNormalsPropertyName() ||
 			Property->GetFName() == UMLDeformerMorphModel::GetMaskChannelPropertyName() ||
-			Property->GetFName() == UMLDeformerMorphModel::GetInvertMaskChannelPropertyName())
+			Property->GetFName() == UMLDeformerMorphModel::GetInvertMaskChannelPropertyName() ||
+			Property->GetFName() == UMLDeformerMorphModel::GetGlobalMaskAttributePropertyName() ||
+			Property->GetFName() == UMLDeformerMorphModel::GetSkeletalMeshPropertyName())
 		{
 			if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
 			{
 				if (GetMorphModel()->CanDynamicallyUpdateMorphTargets())
 				{
 					InitEngineMorphTargets(GetMorphModel()->GetMorphTargetDeltas());
+				}
+
+				if (Property->GetFName() == UMLDeformerMorphModel::GetGlobalMaskAttributePropertyName() || Property->GetFName() == UMLDeformerMorphModel::GetMaskChannelPropertyName())
+				{
+					GetEditor()->GetModelDetailsView()->ForceRefresh();
 				}
 			}
 		}
@@ -293,6 +321,9 @@ namespace UE::MLDeformer
 		const int32 NumRenderVertices = RenderData->LODRenderData[LOD].GetNumVertices();
 		const FColorVertexBuffer& ColorBuffer = RenderData->LODRenderData[LOD].StaticVertexBuffers.ColorVertexBuffer;
 
+		const TArray<int32>& VertexMap = Model->GetVertexMap();
+		TArray<float> GlobalMaskWeights = CalcGlobalMaskWeights(VertexMap, ColorBuffer, EMLDeformerMaskChannel::Disabled, false);
+
 		CalcMorphTargetNormals(
 			LOD,
 			SkelMesh,
@@ -304,6 +335,7 @@ namespace UE::MLDeformer
 			ColorBuffer,
 			EMLDeformerMaskChannel::Disabled,
 			false,
+			GlobalMaskWeights,
 			OutDeltaNormals);
 	}
 
@@ -318,6 +350,27 @@ namespace UE::MLDeformer
 		const FColorVertexBuffer& ColorBuffer,
 		EMLDeformerMaskChannel MaskChannel,
 		bool bInvertGlobalMaskChannel,
+		TArray<FVector3f>& OutDeltaNormals)
+	{
+		const TArray<int32>& VertexMap = Model->GetVertexMap();
+		TArray<float> GlobalMaskWeights = CalcGlobalMaskWeights(VertexMap, ColorBuffer, MaskChannel, bInvertGlobalMaskChannel);
+
+		CalcMorphTargetNormals(LOD, SkelMesh, MorphTargetIndex, Deltas, BaseVertexPositions, BaseNormals, 
+			ImportedVertexToRenderVertexMapping, ColorBuffer, MaskChannel, bInvertGlobalMaskChannel, GlobalMaskWeights, OutDeltaNormals);
+	}
+
+	void FMLDeformerMorphModelEditorModel::CalcMorphTargetNormals(
+		int32 LOD,
+		const USkeletalMesh* SkelMesh,
+		int32 MorphTargetIndex,
+		const TArrayView<const FVector3f> Deltas,
+		const TArrayView<const FVector3f> BaseVertexPositions,
+		const TArrayView<const FVector3f> BaseNormals,
+		const TArrayView<const int32> ImportedVertexToRenderVertexMapping,
+		const FColorVertexBuffer& ColorBuffer,
+		EMLDeformerMaskChannel MaskChannel,
+		bool bInvertGlobalMaskChannel,
+		const TArray<float>& GlobalMaskWeights,
 		TArray<FVector3f>& OutDeltaNormals)
 	{
 		const FSkeletalMeshModel* ImportedModel = SkelMesh->GetImportedModel();
@@ -343,7 +396,7 @@ namespace UE::MLDeformer
 			const int32 DeltaIndex = (MorphTargetIndex * NumBaseMeshVerts) + VertexIndex;
 			const FVector3f RawDelta = Deltas[DeltaIndex];
 			const float MorphMaskWeight = MorphMask.IsEmpty() ? 1.0f : MorphMask[VertexIndex];
-			const float GlobalMaskWeight = (RenderVertexIndex != INDEX_NONE) ? CalcGlobalMaskWeight(RenderVertexIndex, ColorBuffer, MaskChannel, bInvertGlobalMaskChannel) : 1.0f;
+			const float GlobalMaskWeight = (RenderVertexIndex != INDEX_NONE) ? GlobalMaskWeights[RenderVertexIndex] : 1.0f;
 			FVector3f ScaledDelta;
 			FVector3f DummyNormal;
 			ProcessVertexDelta(ScaledDelta, DummyNormal, RawDelta, FVector3f::ZeroVector, 0.0f, MorphMaskWeight, GlobalMaskWeight);
@@ -374,18 +427,103 @@ namespace UE::MLDeformer
 		return (OutScaledDelta.Length() >= DeltaThreshold);
 	}
 
+	TArray<float> FMLDeformerMorphModelEditorModel::CalcGlobalMaskWeights(const TArray<int32>& VertexMap, const FColorVertexBuffer& ColorBuffer, EMLDeformerMaskChannel MaskChannel, bool bInvertMaskChannel) const
+	{
+		TArray<float> OutWeights;
+		OutWeights.SetNumUninitialized(VertexMap.Num());
+
+		const int32 NumRenderVertices = VertexMap.Num();
+
+		// If we use vertex colors.
+		if (MaskChannel == EMLDeformerMaskChannel::VertexColorRed || 
+			MaskChannel == EMLDeformerMaskChannel::VertexColorGreen || 
+			MaskChannel == EMLDeformerMaskChannel::VertexColorBlue || 
+			MaskChannel == EMLDeformerMaskChannel::VertexColorAlpha)
+		{
+			const int32 NumColorVerts = ColorBuffer.GetNumVertices();
+			for (int32 RenderVertexIndex = 0; RenderVertexIndex < NumRenderVertices; ++RenderVertexIndex)
+			{
+				float OutWeight = 1.0f;
+				if (RenderVertexIndex != INDEX_NONE && NumColorVerts > 0)
+				{
+					const int32 ImportedVertexNumber = VertexMap[RenderVertexIndex];
+					if (ImportedVertexNumber != INDEX_NONE)
+					{
+						const FLinearColor VertexColor = ColorBuffer.VertexColor(RenderVertexIndex);
+						switch (MaskChannel)
+						{
+							case EMLDeformerMaskChannel::VertexColorRed:	{ OutWeight = VertexColor.R; break; }
+							case EMLDeformerMaskChannel::VertexColorGreen:	{ OutWeight = VertexColor.G; break; }
+							case EMLDeformerMaskChannel::VertexColorBlue:	{ OutWeight = VertexColor.B; break; }
+							case EMLDeformerMaskChannel::VertexColorAlpha:	{ OutWeight = VertexColor.A; break; }
+							default: 
+								checkf(false, TEXT("Unexpected mask channel value."));
+								break;
+						};
+					}
+				}
+
+				OutWeights[RenderVertexIndex] = OutWeight;
+			}
+
+		}
+		else if (MaskChannel == EMLDeformerMaskChannel::VertexAttribute)	// Using a weight map as setup inside the skeletal mesh editor.
+		{
+			TVertexAttributesConstRef<float> WeightMapAttributes = FindVertexAttributes(GetMorphModel()->GetGlobalMaskAttributeName());
+			if (WeightMapAttributes.IsValid())
+			{
+				for (int32 RenderVertexIndex = 0; RenderVertexIndex < NumRenderVertices; ++RenderVertexIndex)
+				{
+					const float VertexWeight = (VertexMap[RenderVertexIndex] != INDEX_NONE) ? WeightMapAttributes.Get(VertexMap[RenderVertexIndex]) : 1.0f;
+					OutWeights[RenderVertexIndex] = FMath::Clamp(VertexWeight, 0.0f, 1.0f);
+				}
+			}
+			else
+			{
+				for (int32 RenderVertexIndex = 0; RenderVertexIndex < NumRenderVertices; ++RenderVertexIndex)
+				{
+					OutWeights[RenderVertexIndex] = 1.0f;
+				}
+			}
+		}
+		else if (MaskChannel == EMLDeformerMaskChannel::Disabled)	// We disabled the mask, fill with 1.
+		{
+			for (int32 RenderVertexIndex = 0; RenderVertexIndex < NumRenderVertices; ++RenderVertexIndex)
+			{
+				OutWeights[RenderVertexIndex] = 1.0f;
+			}
+		}
+
+		// Invert the weights if desired.
+		if (bInvertMaskChannel)
+		{
+			for (int32 Index = 0; Index < OutWeights.Num(); ++Index)
+			{
+				const float Weight = OutWeights[Index];
+				OutWeights[Index] = FMath::Clamp<float>(1.0f - Weight, 0.0f, 1.0f);
+			}
+		}
+
+		return MoveTemp(OutWeights);
+	}
+
 	float FMLDeformerMorphModelEditorModel::CalcGlobalMaskWeight(int32 RenderVertexIndex, const FColorVertexBuffer& ColorBuffer, EMLDeformerMaskChannel MaskChannel, bool bInvertMaskChannel) const
 	{
 		float VertexWeight = 1.0f;
 		if (ColorBuffer.GetNumVertices() != 0 && MaskChannel != EMLDeformerMaskChannel::Disabled && RenderVertexIndex != INDEX_NONE)
 		{
-			const FLinearColor& VertexColor = ColorBuffer.VertexColor(RenderVertexIndex);
+			const FLinearColor VertexColor = ColorBuffer.VertexColor(RenderVertexIndex);
 			switch (MaskChannel)
 			{
 				case EMLDeformerMaskChannel::VertexColorRed:	{ VertexWeight = VertexColor.R; break; }
 				case EMLDeformerMaskChannel::VertexColorGreen:	{ VertexWeight = VertexColor.G; break; }
 				case EMLDeformerMaskChannel::VertexColorBlue:	{ VertexWeight = VertexColor.B; break; }
 				case EMLDeformerMaskChannel::VertexColorAlpha:	{ VertexWeight = VertexColor.A; break; }
+				case EMLDeformerMaskChannel::VertexAttribute:
+				{ 
+					VertexWeight = 1.0f;
+					break; 
+				}
 				default: 
 					checkf(false, TEXT("Unexpected mask channel value."));
 					break;
@@ -422,8 +560,17 @@ namespace UE::MLDeformer
 			return;
 		}
 
+		if (Sampler->GetSkeletalMeshComponent()->GetSkeletalMeshAsset() != Model->GetSkeletalMesh())
+		{
+			return;
+		}
+
 		const int32 NumBaseMeshVerts = Model->GetNumBaseMeshVerts();
-		check(Deltas.Num() % NumBaseMeshVerts == 0);
+		if (Deltas.Num() % NumBaseMeshVerts != 0)
+		{
+			return;
+		}
+
 		const int32 NumMorphTargets = Deltas.Num() / NumBaseMeshVerts;
 		check((Deltas.Num() / NumMorphTargets) == NumBaseMeshVerts);
 		check(!Model->GetVertexMap().IsEmpty());
@@ -440,17 +587,29 @@ namespace UE::MLDeformer
 		// Calculate the normals for the base mesh.
 		const FSkeletalMeshModel* ImportedModel = SkelMesh->GetImportedModel();
 		const TArrayView<const uint32> IndexArray = ImportedModel->LODModels[LOD].IndexBuffer;
-		const TArrayView<const int32> VertexMap = ImportedModel->LODModels[LOD].MeshToImportVertexMap;
+		const TArray<int32>& VertexMap = ImportedModel->LODModels[LOD].MeshToImportVertexMap;
 		const TArrayView<const FVector3f> BaseVertexPositions = Sampler->GetUnskinnedVertexPositions();
 		const FColorVertexBuffer& ColorBuffer = RenderData->LODRenderData[LOD].StaticVertexBuffers.ColorVertexBuffer;
 
 		// Precalc an array that maps imported vertices to a render vertex.
 		TArray<int32> ImportedVertexToRenderVertexMapping;
 		ImportedVertexToRenderVertexMapping.SetNumUninitialized(NumBaseMeshVerts);
-		for (int32 Index = 0; Index < NumBaseMeshVerts; ++Index)
+		const int32 BatchSize = 500;
+		const int32 NumBatches = (NumBaseMeshVerts / BatchSize) + 1;
+		ParallelFor(NumBatches, [&](int32 BatchIndex)
 		{
-			ImportedVertexToRenderVertexMapping[Index] = VertexMap.Find(Index);
-		}
+			const int32 StartVertex = BatchIndex * BatchSize;
+			if (StartVertex >= NumBaseMeshVerts)
+			{
+				return;
+			}
+
+			const int32 NumVertsInBatch = (StartVertex + BatchSize) < NumBaseMeshVerts ? BatchSize : FMath::Max(NumBaseMeshVerts - StartVertex, 0);
+			for (int32 VertexIndex = StartVertex; VertexIndex < StartVertex + NumVertsInBatch; ++VertexIndex)
+			{
+				ImportedVertexToRenderVertexMapping[VertexIndex] = VertexMap.Find(VertexIndex);
+			}
+		});
 
 		TArray<FVector3f> BaseNormals;
 		if (bIncludeNormals)
@@ -458,14 +617,19 @@ namespace UE::MLDeformer
 			CalcVertexNormals(BaseVertexPositions, IndexArray, VertexMap, BaseNormals);
 		}
 
+		// Calculate the global mask weights.
+		const TArray<float> GlobalMaskWeights = CalcGlobalMaskWeights(VertexMap, ColorBuffer, MaskChannel, bInvertMaskChannel);
+
 		// Initialize an engine morph target for each model morph target.
+		bool bHasOnlyEmptyMorphs = true;
 		UE_LOG(LogMLDeformer, Display, TEXT("Initializing %d engine morph targets of %d vertices each"), NumMorphTargets, Deltas.Num() / NumMorphTargets);
 		TArray<FVector3f> DeltaNormals;
 		for (int32 MorphTargetIndex = 0; MorphTargetIndex < NumMorphTargets; ++MorphTargetIndex)
 		{
 			if (bIncludeNormals)
 			{
-				CalcMorphTargetNormals(LOD, SkelMesh, MorphTargetIndex, Deltas, BaseVertexPositions, BaseNormals, ImportedVertexToRenderVertexMapping, ColorBuffer, MaskChannel, bInvertMaskChannel, DeltaNormals);
+				CalcMorphTargetNormals(LOD, SkelMesh, MorphTargetIndex, Deltas, BaseVertexPositions, BaseNormals, ImportedVertexToRenderVertexMapping, 
+					ColorBuffer, MaskChannel, bInvertMaskChannel, GlobalMaskWeights, DeltaNormals);
 			}
 
 			const FName MorphName = *FString::Printf(TEXT("%s%.3d"), *NamePrefix, MorphTargetIndex);
@@ -494,7 +658,7 @@ namespace UE::MLDeformer
 				const int32 ImportedVertexNumber = VertexMap[VertexIndex];
 				if (ImportedVertexNumber != INDEX_NONE)
 				{
-					const float GlobalMaskWeight = CalcGlobalMaskWeight(VertexIndex, ColorBuffer, MaskChannel, bInvertMaskChannel);
+					const float GlobalMaskWeight = GlobalMaskWeights[VertexIndex];
 					const float MorphMaskWeight = MorphMask.IsEmpty() ? 1.0f : MorphMask[ImportedVertexNumber];
 					const FVector3f RawDelta = Deltas[ImportedVertexNumber + MorphTargetIndex * NumBaseMeshVerts];
 					const FVector3f RawDeltaNormal = !DeltaNormals.IsEmpty() ? DeltaNormals[ImportedVertexNumber] : FVector3f::ZeroVector;
@@ -521,8 +685,11 @@ namespace UE::MLDeformer
 			}	// for all morph targets
 
 			MorphLODModel.Vertices.Shrink();
+			bHasOnlyEmptyMorphs &= MorphLODModel.Vertices.IsEmpty();
 			Task.EnterProgressFrame();
-		}
+		} // For all morph targets.
+
+		GetMorphModel()->SetHasOnlyEmptyMorphs(bHasOnlyEmptyMorphs);
 	}
 
 	void FMLDeformerMorphModelEditorModel::CompressMorphTargets(FMorphTargetVertexInfoBuffers& OutMorphBuffers, const TArray<UMorphTarget*>& MorphTargets, int32 LOD, float MorphErrorTolerance)
@@ -810,6 +977,98 @@ namespace UE::MLDeformer
 		}
 	}
 
+	void FMLDeformerMorphModelEditorModel::ApplyMaskInfoToBuffer(const USkeletalMesh* SkeletalMesh, const FMLDeformerMaskInfo& MaskInfo, TArrayView<float> ItemMaskBuffer)
+	{
+		// Apply the bones to the mask buffer.
+		if (MaskInfo.MaskMode == EMLDeformerMaskingMode::Generated)
+		{
+			const FReferenceSkeleton& RefSkel = SkeletalMesh->GetRefSkeleton();
+			for (const FName MaskBoneName : MaskInfo.BoneNames)
+			{
+				const int32 MaskBoneIndex = RefSkel.FindBoneIndex(MaskBoneName);
+				if (MaskBoneIndex != INDEX_NONE)
+				{
+					ApplyBoneToMask(MaskBoneIndex, ItemMaskBuffer);
+				}
+				else
+				{
+					UE_LOG(LogMLDeformer, Warning, TEXT("Mask contains a bone named '%s', which cannot be found in the ref skeleton of skeletal mesh '%s'."),
+						*MaskBoneName.ToString(),
+						*SkeletalMesh->GetName());
+				}
+			}
+		}
+		else // We're using a painted mask.
+		{
+			check(MaskInfo.MaskMode == EMLDeformerMaskingMode::VertexAttribute);
+			const FName VertexAttributeName = MaskInfo.VertexAttributeName;
+			if (!VertexAttributeName.IsNone())
+			{
+				TVertexAttributesConstRef<float> AttributeValues = FindVertexAttributes(VertexAttributeName);
+				if (AttributeValues.IsValid())
+				{
+					const int32 NumAttributes = AttributeValues.GetNumElements();
+					check(NumAttributes == ItemMaskBuffer.Num());
+					for (int32 Index = 0; Index < NumAttributes; ++Index)
+					{
+						ItemMaskBuffer[Index] = AttributeValues.Get(Index);
+					}
+				}
+				else
+				{
+					UE_LOG(LogMLDeformer, Warning, TEXT("Mask references a vertex attribute '%s' which doesn't exist on skeletal mesh %s."), *VertexAttributeName.ToString(), *SkeletalMesh->GetName());
+					FillMaskValues(ItemMaskBuffer, 1.0f);
+				}
+			}
+			else
+			{
+				UE_LOG(LogMLDeformer, Warning, TEXT("Mask is set to use a vertex attribute, but none is specified."));
+				FillMaskValues(ItemMaskBuffer, 1.0f);
+			}
+		}
+	}
+
+	void FMLDeformerMorphModelEditorModel::ApplyGeneratedMaskToVertexAttributes(USkeletalMesh* SkeletalMesh, FMLDeformerMaskInfo& MaskInfo, TVertexAttributesRef<float> AttributeRef)
+	{
+		// Output some buffer with the generated mask.
+		TArray<float> GeneratedBuffer;
+		const int32 NumVerts = GetModel()->GetNumBaseMeshVerts();
+		GeneratedBuffer.SetNumZeroed(NumVerts);
+		EMLDeformerMaskingMode ModeBackup = MaskInfo.MaskMode;
+		MaskInfo.MaskMode = EMLDeformerMaskingMode::Generated;	// Force generating.
+		ApplyMaskInfoToBuffer(SkeletalMesh, MaskInfo, GeneratedBuffer);
+		MaskInfo.MaskMode = ModeBackup;
+
+		check(NumVerts == GeneratedBuffer.Num());
+
+		// Calculate the average to scale the weights.
+		// Normalizing the values doesn't really work well, as many values will have quite tiny weights then.
+		// We tried normalizing, median the average, and the average seems to give the best vertex attribute weights.
+		float AverageValue = 0.0f;
+		for (int32 Index = 0; Index < NumVerts; ++Index)
+		{
+			AverageValue += GeneratedBuffer[Index];
+		}
+
+		if (NumVerts > 0)
+		{
+			AverageValue /= static_cast<float>(NumVerts);
+			AverageValue *= 4.0f;	// Scale it a bit, to have slightly smoother edges.
+		}
+
+		if (FMath::IsNearlyZero(AverageValue))
+		{
+			AverageValue = 1.0f;
+		}
+
+		// Now apply this to the vertex attributes.
+		for (int32 Index = 0; Index < NumVerts; ++Index)
+		{
+			const float Weight = FMath::Clamp(GeneratedBuffer[Index] / AverageValue, 0.0f, 1.0f);
+			AttributeRef.Set(Index, Weight);
+		}
+	}
+
 	void FMLDeformerMorphModelEditorModel::ApplyBoneToMask(int32 SkeletonBoneIndex, TArrayView<float> MaskBuffer)
 	{
 		const int32 LOD = 0;
@@ -970,6 +1229,19 @@ namespace UE::MLDeformer
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
+	void FMLDeformerMorphModelEditorModel::OnObjectModified(UObject* Object)
+	{
+		if (Model->GetSkeletalMesh() == Object || Model->GetInputInfo()->GetSkeletalMesh() == Object)
+		{
+			if (GetMorphModel()->CanDynamicallyUpdateMorphTargets())
+			{
+				InitEngineMorphTargets(GetMorphModel()->GetMorphTargetDeltas());
+			}
+			bNeedsAssetReinit = true;
+		}
+
+		FMLDeformerGeomCacheEditorModel::OnObjectModified(Object);
+	}
 }	// namespace UE::MLDeformer
 
 #undef LOCTEXT_NAMESPACE

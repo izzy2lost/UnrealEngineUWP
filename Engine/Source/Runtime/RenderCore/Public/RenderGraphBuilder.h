@@ -45,10 +45,12 @@ struct TStatId;
  *  destruction.
  */
 class FRDGBuilder
+	: public FRDGScopeState
 {
 	struct FAsyncDeleter
 	{
 		TUniqueFunction<void()> Function;
+		UE::Tasks::FTask Prerequisites;
 		static UE::Tasks::FTask LastTask;
 
 		RENDERCORE_API ~FAsyncDeleter();
@@ -176,6 +178,10 @@ public:
 	template <typename PODType>
 	PODType* AllocPODArray(uint32 Count);
 
+	/** Allocates POD memory using an allocator tied to the lifetime of the graph. Does not construct / destruct. */
+	template <typename PODType>
+	TArrayView<PODType> AllocPODArrayView(uint32 Count);
+
 	/** Allocates a C++ object using an allocator tied to the lifetime of the graph. Will destruct the object. */
 	template <typename ObjectType, typename... TArgs>
 	ObjectType* AllocObject(TArgs&&... Args);
@@ -190,7 +196,7 @@ public:
 
 	/** Allocates a parameter struct with a lifetime tied to graph execution, and copies contents from an existing parameters struct. */
 	template <typename ParameterStructType>
-	ParameterStructType* AllocParameters(ParameterStructType* StructToCopy);
+	ParameterStructType* AllocParameters(const ParameterStructType* StructToCopy);
 
 	/** Allocates a data-driven parameter struct with a lifetime tied to graph execution. */
 	template <typename BaseParameterStructType>
@@ -201,6 +207,13 @@ public:
 	TStridedView<BaseParameterStructType> AllocParameters(const FShaderParametersMetadata* ParametersMetadata, uint32 NumStructs);
 
 	//////////////////////////////////////////////////////////////////////////
+
+	/** Adds a callback that is called after pass execution is complete. */
+	void AddPostExecuteCallback(TUniqueFunction<void()>&& Callback)
+	{
+		check(Callback);
+		PostExecuteCallbacks.Emplace(Forward<TUniqueFunction<void()>&&>(Callback));
+	}
 
 	/** Adds a lambda pass to the graph with an accompanied pass parameter struct.
 	 *
@@ -234,6 +247,13 @@ public:
 	template <typename ExecuteLambdaType>
 	FRDGPassRef AddPass(FRDGEventName&& Name, ERDGPassFlags Flags, ExecuteLambdaType&& ExecuteLambda);
 
+	/** Adds a pass that takes a FRDGDispatchPassBuilder instead of a RHI command list. The lambda should create command lists
+     *  and launch tasks to record commands into them. Each task should call EndRenderPass() (if raster) and FinishRecording()
+     *  to complete each command list. The user is responsible for task management of dispatched command lists.
+	 */
+	template <typename ParameterStructType, typename LaunchLambdaType>
+	FRDGPassRef AddDispatchPass(FRDGEventName&& Name, const ParameterStructType* ParameterStruct, ERDGPassFlags Flags, LaunchLambdaType&& LaunchLambda);
+
 	/** Sets the expected workload of the pass execution lambda. The default workload is 1 and is more or less the 'average cost' of a pass.
 	 *  Recommended usage is to set a workload equal to the number of complex draw / dispatch calls (each with its own parameters, etc), and
 	 *  only as a performance tweak if a particular pass is very expensive relative to other passes.
@@ -244,42 +264,43 @@ public:
 	RENDERCORE_API void AddPassDependency(FRDGPass* Producer, FRDGPass* Consumer);
 
 	/** Sets the current command list stat for all subsequent passes. */
-	RENDERCORE_API void SetCommandListStat(TStatId StatId);
+	UE_DEPRECATED(5.5, "SetCommandListStat is deprecated. The underlying stats have been removed. Consider marking up rendering code with RDG event scopes.")
+	inline void SetCommandListStat(TStatId StatId) {}
 
 	/** A hint to the builder to flush work to the RHI thread after the last queued pass on the execution timeline. */
 	RENDERCORE_API void AddDispatchHint();
 
 	/** Launches a task that is synced prior to graph execution. If parallel execution is not enabled, the lambda is run immediately. */
 	template <typename TaskLambda>
-	UE::Tasks::FTask AddSetupTask(TaskLambda&& Task, bool bCondition = true);
+	UE::Tasks::FTask AddSetupTask(TaskLambda&& Task, bool bCondition = true, ERDGSetupTaskWaitPoint WaitPoint = ERDGSetupTaskWaitPoint::Compile);
 
 	template <typename TaskLambda>
-	UE::Tasks::FTask AddSetupTask(TaskLambda&& Task, UE::Tasks::ETaskPriority Priority, bool bCondition = true);
+	UE::Tasks::FTask AddSetupTask(TaskLambda&& Task, UE::Tasks::ETaskPriority Priority, bool bCondition = true, ERDGSetupTaskWaitPoint WaitPoint = ERDGSetupTaskWaitPoint::Compile);
 
 	template <typename TaskLambda>
-	UE::Tasks::FTask AddSetupTask(TaskLambda&& Task, UE::Tasks::FPipe* Pipe, UE::Tasks::ETaskPriority Priority = UE::Tasks::ETaskPriority::Normal, bool bCondition = true);
+	UE::Tasks::FTask AddSetupTask(TaskLambda&& Task, UE::Tasks::FPipe* Pipe, UE::Tasks::ETaskPriority Priority = UE::Tasks::ETaskPriority::Normal, bool bCondition = true, ERDGSetupTaskWaitPoint WaitPoint = ERDGSetupTaskWaitPoint::Compile);
 
 	template <typename TaskLambda, typename PrerequisitesCollectionType>
-	UE::Tasks::FTask AddSetupTask(TaskLambda&& Task, PrerequisitesCollectionType&& Prerequisites, UE::Tasks::ETaskPriority Priority = UE::Tasks::ETaskPriority::Normal, bool bCondition = true);
+	UE::Tasks::FTask AddSetupTask(TaskLambda&& Task, PrerequisitesCollectionType&& Prerequisites, UE::Tasks::ETaskPriority Priority = UE::Tasks::ETaskPriority::Normal, bool bCondition = true, ERDGSetupTaskWaitPoint WaitPoint = ERDGSetupTaskWaitPoint::Compile);
 
 	template <typename TaskLambda, typename PrerequisitesCollectionType>
-	UE::Tasks::FTask AddSetupTask(TaskLambda&& Task, UE::Tasks::FPipe* Pipe, PrerequisitesCollectionType&& Prerequisites, UE::Tasks::ETaskPriority Priority = UE::Tasks::ETaskPriority::Normal, bool bCondition = true);
+	UE::Tasks::FTask AddSetupTask(TaskLambda&& Task, UE::Tasks::FPipe* Pipe, PrerequisitesCollectionType&& Prerequisites, UE::Tasks::ETaskPriority Priority = UE::Tasks::ETaskPriority::Normal, bool bCondition = true, ERDGSetupTaskWaitPoint WaitPoint = ERDGSetupTaskWaitPoint::Compile);
 
 	/** Launches a task that is synced prior to graph execution. If parallel execution is not enabled, the lambda is run immediately. */
 	template <typename TaskLambda>
-	UE::Tasks::FTask AddCommandListSetupTask(TaskLambda&& Task, bool bCondition = true);
+	UE::Tasks::FTask AddCommandListSetupTask(TaskLambda&& Task, bool bCondition = true, ERDGSetupTaskWaitPoint WaitPoint = ERDGSetupTaskWaitPoint::Compile);
 
 	template <typename TaskLambda>
-	UE::Tasks::FTask AddCommandListSetupTask(TaskLambda&& Task, UE::Tasks::ETaskPriority Priority, bool bCondition = true);
+	UE::Tasks::FTask AddCommandListSetupTask(TaskLambda&& Task, UE::Tasks::ETaskPriority Priority, bool bCondition = true, ERDGSetupTaskWaitPoint WaitPoint = ERDGSetupTaskWaitPoint::Compile);
 
 	template <typename TaskLambda>
-	UE::Tasks::FTask AddCommandListSetupTask(TaskLambda&& Task, UE::Tasks::FPipe* Pipe, UE::Tasks::ETaskPriority Priority = UE::Tasks::ETaskPriority::Normal, bool bCondition = true);
+	UE::Tasks::FTask AddCommandListSetupTask(TaskLambda&& Task, UE::Tasks::FPipe* Pipe, UE::Tasks::ETaskPriority Priority = UE::Tasks::ETaskPriority::Normal, bool bCondition = true, ERDGSetupTaskWaitPoint WaitPoint = ERDGSetupTaskWaitPoint::Compile);
 
 	template <typename TaskLambda, typename PrerequisitesCollectionType>
-	UE::Tasks::FTask AddCommandListSetupTask(TaskLambda&& Task, PrerequisitesCollectionType&& Prerequisites, UE::Tasks::ETaskPriority Priority = UE::Tasks::ETaskPriority::Normal, bool bCondition = true);
+	UE::Tasks::FTask AddCommandListSetupTask(TaskLambda&& Task, PrerequisitesCollectionType&& Prerequisites, UE::Tasks::ETaskPriority Priority = UE::Tasks::ETaskPriority::Normal, bool bCondition = true, ERDGSetupTaskWaitPoint WaitPoint = ERDGSetupTaskWaitPoint::Compile);
 
 	template <typename TaskLambda, typename PrerequisitesCollectionType>
-	UE::Tasks::FTask AddCommandListSetupTask(TaskLambda&& Task, UE::Tasks::FPipe* Pipe, PrerequisitesCollectionType&& Prerequisites, UE::Tasks::ETaskPriority Priority = UE::Tasks::ETaskPriority::Normal, bool bCondition = true);
+	UE::Tasks::FTask AddCommandListSetupTask(TaskLambda&& Task, UE::Tasks::FPipe* Pipe, PrerequisitesCollectionType&& Prerequisites, UE::Tasks::ETaskPriority Priority = UE::Tasks::ETaskPriority::Normal, bool bCondition = true, ERDGSetupTaskWaitPoint WaitPoint = ERDGSetupTaskWaitPoint::Compile);
 
 	/** Whether RDG will launch async tasks when AddSetup{CommandList}Task is called. */
 	inline bool IsParallelSetupEnabled() const
@@ -397,12 +418,6 @@ public:
 	RENDERCORE_API void RemoveUnusedTextureWarning(FRDGTextureRef Texture);
 	RENDERCORE_API void RemoveUnusedBufferWarning(FRDGBufferRef Buffer);
 
-	/** Manually begins a new GPU event scope. */
-	RENDERCORE_API void BeginEventScope(FRDGEventName&& Name);
-
-	/** Manually ends the current GPU event scope. */
-	RENDERCORE_API void EndEventScope();
-
 	/** Flushes all queued passes to an async task to perform setup work. */
 	RENDERCORE_API void FlushSetupQueue();
 
@@ -415,11 +430,14 @@ public:
 	/** Whether RDG is running in immediate mode. */
 	static RENDERCORE_API bool IsImmediateMode();
 
-	/** Waits for the last RDG async delete task that was launched. */
+	/** Waits for the last RDG async delete task that was launched. If the event is valid it is consumed. Thus, it is not thread safe to wait from multiple threads at once. */
 	static RENDERCORE_API void WaitForAsyncDeleteTask();
 
-	/** The RHI command list used for the render graph. */
-	FRHICommandListImmediate& RHICmdList;
+	/** Waits for the last RDG chained execution task that was launched. */
+	static RENDERCORE_API void WaitForAsyncExecuteTask();
+
+	/** Returns the last RDG chained execution task that was launched. */
+	static RENDERCORE_API const UE::Tasks::FTask& GetAsyncExecuteTask();
 
 	/** The blackboard used to hold common data tied to the graph lifetime. */
 	FRDGBlackboard Blackboard;
@@ -431,15 +449,11 @@ public:
 	static bool IsDumpingFrame() { return false; }
 #endif
 
-#if RDG_DUMP_RESOURCES_AT_EACH_DRAW
-	static RENDERCORE_API void DumpDraw(const FRDGEventName& DrawEventName);
-	static RENDERCORE_API bool IsDumpingDraws();
-#else
-	static inline bool IsDumpingDraws()
-	{
-		return false;
-	}
-#endif
+	UE_DEPRECATED(5.5, "This path is no longer supported.")
+	static void DumpDraw(const FRDGEventName& DrawEventName) {}
+
+	UE_DEPRECATED(5.5, "This path is no longer supported.")
+	static bool IsDumpingDraws() { return false; }
 
 #if WITH_MGPU
 	/** Copy all cross GPU external resources (not marked MultiGPUGraphIgnore) at the end of execution (bad for perf, but useful for debugging). */
@@ -469,16 +483,8 @@ private:
 	uint32 AsyncComputePassCount = 0;
 	uint32 RasterPassCount = 0;
 
-	/** Current scope's async compute budget. This is passed on to every pass created. */
-	EAsyncComputeBudget AsyncComputeBudgetScope = EAsyncComputeBudget::EAll_4;
-	EAsyncComputeBudget AsyncComputeBudgetState = EAsyncComputeBudget(~0u);
-
-	IF_RDG_CMDLIST_STATS(TStatId CommandListStatScope);
-	IF_RDG_CMDLIST_STATS(TStatId CommandListStatState);
-
-	IF_RDG_CPU_SCOPES(FRDGCPUScopeStacks CPUScopeStacks);
-	FRDGGPUScopeStacksByPipeline GPUScopeStacks;
-	IF_RHI_WANT_BREADCRUMB_EVENTS(FRDGBreadcrumbState* BreadcrumbState{});
+	/** Tracks dispatch passes that need to launch tasks. */
+	TArray<FRDGDispatchPass*, FRDGArrayAllocator> DispatchPasses;
 
 	static RENDERCORE_API ERDGPassFlags OverridePassFlags(const TCHAR* PassName, ERDGPassFlags Flags);
 
@@ -503,7 +509,7 @@ private:
 	FRHIRenderPassInfo GetRenderPassInfo(const FRDGPass* Pass) const;
 
 	template <typename ParameterStructType, typename ExecuteLambdaType>
-	FRDGPassRef AddPassInternal(
+	FRDGPass* AddPassInternal(
 		FRDGEventName&& Name,
 		const FShaderParametersMetadata* ParametersMetadata,
 		const ParameterStructType* ParameterStruct,
@@ -521,11 +527,17 @@ private:
 
 	void Compile();
 	void CompilePassOps(FRDGPass* Pass);
-	void ExecutePass(FRDGPass* Pass, FRHIComputeCommandList& RHICmdListPass);
 
-	void ExecutePassPrologue(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
-	void ExecutePassEpilogue(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+	void ExecuteSerialPass(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
 
+	static void ExecutePass(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+	static void ExecutePassPrologue(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+	static void ExecutePassEpilogue(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+
+	static void PushPreScopes (FRHIComputeCommandList& RHICmdListPass, FRDGPass* FirstPass);
+	static void PushPassScopes(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+	static void PopPassScopes (FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+	static void PopPreScopes  (FRHIComputeCommandList& RHICmdListPass, FRDGPass* LastPass);
 	//////////////////////////////////////////////////////////////////////////////
 	// Resource Registries
 
@@ -592,38 +604,58 @@ private:
 			Deallocate
 		};
 
-		static FCollectResourceOp Allocate(FRDGPassHandle PassHandle, FRDGBufferHandle BufferHandle)
+		static FCollectResourceOp Allocate(FRDGBufferHandle BufferHandle)
 		{
-			return FCollectResourceOp(PassHandle, BufferHandle.GetIndex(), ERDGViewableResourceType::Buffer, EOp::Allocate);
+			return FCollectResourceOp(BufferHandle.GetIndex(), ERDGViewableResourceType::Buffer, EOp::Allocate);
 		}
 
-		static FCollectResourceOp Allocate(FRDGPassHandle PassHandle, FRDGTextureHandle TextureHandle)
+		static FCollectResourceOp Allocate(FRDGTextureHandle TextureHandle)
 		{
-			return FCollectResourceOp(PassHandle, TextureHandle.GetIndex(), ERDGViewableResourceType::Texture, EOp::Allocate);
+			return FCollectResourceOp(TextureHandle.GetIndex(), ERDGViewableResourceType::Texture, EOp::Allocate);
 		}
 
-		static FCollectResourceOp Deallocate(FRDGPassHandle PassHandle, FRDGBufferHandle BufferHandle)
+		static FCollectResourceOp Deallocate(FRDGBufferHandle BufferHandle)
 		{
-			return FCollectResourceOp(PassHandle, BufferHandle.GetIndex(), ERDGViewableResourceType::Buffer, EOp::Deallocate);
+			return FCollectResourceOp(BufferHandle.GetIndex(), ERDGViewableResourceType::Buffer, EOp::Deallocate);
 		}
 
-		static FCollectResourceOp Deallocate(FRDGPassHandle PassHandle, FRDGTextureHandle TextureHandle)
+		static FCollectResourceOp Deallocate(FRDGTextureHandle TextureHandle)
 		{
-			return FCollectResourceOp(PassHandle, TextureHandle.GetIndex(), ERDGViewableResourceType::Texture, EOp::Deallocate);
+			return FCollectResourceOp(TextureHandle.GetIndex(), ERDGViewableResourceType::Texture, EOp::Deallocate);
 		}
 
 		FCollectResourceOp() = default;
-		FCollectResourceOp(FRDGPassHandle InPassHandle, uint16 InResourceIndex, ERDGViewableResourceType InResourceType, EOp InOp)
-			: PassHandle(InPassHandle)
-			, ResourceIndex(InResourceIndex)
-			, ResourceType(InResourceType)
-			, Op(InOp)
+		FCollectResourceOp(uint32 InResourceIndex, ERDGViewableResourceType InResourceType, EOp InOp)
+			: ResourceIndex(InResourceIndex)
+			, ResourceType(static_cast<uint32>(InResourceType))
+			, Op(static_cast<uint32>(InOp))
 		{}
 
-		FRDGPassHandle PassHandle;
-		uint16 ResourceIndex;
-		ERDGViewableResourceType ResourceType;
-		EOp Op;
+		EOp GetOp() const
+		{
+			return static_cast<EOp>(Op);
+		}
+
+		ERDGViewableResourceType GetResourceType() const
+		{
+			return static_cast<ERDGViewableResourceType>(ResourceType);
+		}
+
+		FRDGTextureHandle GetTextureHandle() const
+		{
+			check(GetResourceType() == ERDGViewableResourceType::Texture);
+			return FRDGTextureHandle(ResourceIndex);
+		}
+
+		FRDGBufferHandle GetBufferHandle() const
+		{
+			check(GetResourceType() == ERDGViewableResourceType::Buffer);
+			return FRDGBufferHandle(ResourceIndex);
+		}
+
+		uint32 ResourceIndex : 30;
+		uint32 ResourceType : 1;
+		uint32 Op : 1;
 	};
 
 	using FCollectResourceOpArray = TArray<FCollectResourceOp, FRDGArrayAllocator>;
@@ -646,13 +678,13 @@ private:
 
 	/** Collects new resource allocations for the pass into the provided context. */
 	void CollectAllocations(FCollectResourceContext& Context, FRDGPass* Pass);
-	void CollectAllocateTexture(FCollectResourceContext& Context, FRDGPassHandle PassHandle, FRDGTexture* Texture);
-	void CollectAllocateBuffer(FCollectResourceContext& Context, FRDGPassHandle PassHandle, FRDGBuffer* Buffer);
+	void CollectAllocateTexture(FCollectResourceContext& Context, ERHIPipeline PassPipeline, FRDGPassHandle PassHandle, FRDGTexture* Texture);
+	void CollectAllocateBuffer(FCollectResourceContext& Context, ERHIPipeline PassPipeline, FRDGPassHandle PassHandle, FRDGBuffer* Buffer);
 
 	/** Collects new resource deallocations for the pass into the provided context. */
 	void CollectDeallocations(FCollectResourceContext& Context, FRDGPass* Pass);
-	void CollectDeallocateTexture(FCollectResourceContext& Context, FRDGPassHandle PassHandle, FRDGTexture* Texture, uint32 ReferenceCount);
-	void CollectDeallocateBuffer(FCollectResourceContext& Context, FRDGPassHandle PassHandle, FRDGBuffer* Buffer, uint32 ReferenceCount);
+	void CollectDeallocateTexture(FCollectResourceContext& Context, ERHIPipeline PassPipeline, FRDGPassHandle PassHandle, FRDGTexture* Texture, uint32 ReferenceCount);
+	void CollectDeallocateBuffer(FCollectResourceContext& Context, ERHIPipeline PassPipeline, FRDGPassHandle PassHandle, FRDGBuffer* Buffer, uint32 ReferenceCount);
 
 	/** Allocates resources using the provided lifetime op arrays. */
 	void AllocateTransientResources(TConstArrayView<FCollectResourceOp> Ops);
@@ -668,9 +700,11 @@ private:
 	TRefCountPtr<FRDGPooledBuffer> AllocatePooledBufferRHI(FRHICommandListBase& RHICmdList, FRDGBufferRef Buffer);
 
 	/** Assigns an underlying RHI resource to an RDG resource. */
-	void SetPooledRenderTargetRHI(FRDGTexture* Texture, IPooledRenderTarget* RenderTarget);
+	void SetExternalPooledRenderTargetRHI(FRDGTexture* Texture, IPooledRenderTarget* RenderTarget);
 	void SetPooledTextureRHI(FRDGTexture* Texture, FRDGPooledTexture* PooledTexture);
 	void SetTransientTextureRHI(FRDGTexture* Texture, FRHITransientTexture* TransientTexture);
+	void SetDiscardPass(FRDGTexture* Texture, FRHITransientTexture* TransientTexture);
+	void SetExternalPooledBufferRHI(FRDGBuffer* Buffer, const TRefCountPtr<FRDGPooledBuffer>& PooledBuffer);
 	void SetPooledBufferRHI(FRDGBuffer* Buffer, FRDGPooledBuffer* PooledBuffer);
 	void SetTransientBufferRHI(FRDGBuffer* Buffer, FRHITransientBuffer* TransientBuffer);
 
@@ -817,6 +851,17 @@ private:
 		Pass->GetEpilogueBarriersToEnd(Allocators.Transition).AddDependency(&BarriersToBegin);
 	}
 
+	// Returns fences representing an allocation event, which can only happen on one pipeline at a time.
+	FRHITransientAllocationFences GetAllocateFences(FRDGViewableResource* Resource) const;
+
+	// Returns fences representing a deallocation event, which can happen on multiple pipes.
+	FRHITransientAllocationFences GetDeallocateFences(FRDGViewableResource* Resource) const;
+
+	inline ERHIPipeline GetPassPipeline(FRDGPassHandle PassHandle) const
+	{
+		return Passes[PassHandle]->Pipeline;
+	}
+
 	FRDGSubresourceState* AllocSubresource(const FRDGSubresourceState& Other);
 	FRDGSubresourceState* AllocSubresource();
 
@@ -825,38 +870,56 @@ private:
 
 	struct FAsyncSetupOp
 	{
-		enum class EType
+		enum class EType : uint8
 		{
 			SetupPassResources,
 			CullRootBuffer,
-			CullRootTexture
+			CullRootTexture,
+			ReservedBufferCommit
 		};
 
 		static FAsyncSetupOp SetupPassResources(FRDGPass* Pass)
 		{
-			FAsyncSetupOp Op;
-			Op.Type = EType::SetupPassResources;
+			FAsyncSetupOp Op(EType::SetupPassResources);
 			Op.Pass = Pass;
 			return Op;
 		}
 
 		static FAsyncSetupOp CullRootBuffer(FRDGBuffer* Buffer)
 		{
-			FAsyncSetupOp Op;
-			Op.Type = EType::CullRootBuffer;
+			FAsyncSetupOp Op(EType::CullRootBuffer);
 			Op.Buffer = Buffer;
 			return Op;
 		}
 
 		static FAsyncSetupOp CullRootTexture(FRDGTexture* Texture)
 		{
-			FAsyncSetupOp Op;
-			Op.Type = EType::CullRootTexture;
+			FAsyncSetupOp Op(EType::CullRootTexture);
 			Op.Texture = Texture;
 			return Op;
 		}
 
-		EType Type;
+		static FAsyncSetupOp ReservedBufferCommit(FRDGBuffer* Buffer, uint64 CommitSizeInBytes)
+		{
+			FAsyncSetupOp Op(EType::ReservedBufferCommit, CommitSizeInBytes);
+			Op.Buffer = Buffer;
+			return Op;
+		}
+
+		EType GetType() const
+		{
+			return (EType)Type;
+		}
+
+		uint64 Type : 8;
+		uint64 Payload : 48;
+
+		FAsyncSetupOp(EType InType, uint64 InPayload = 0)
+			: Type((uint8)InType)
+			, Payload(InPayload)
+		{
+			check(InPayload < (1ull << 48ull));
+		}
 
 		union
 		{
@@ -876,13 +939,36 @@ private:
 
 		UE::FMutex Mutex;
 		TArray<FAsyncSetupOp, FRDGArrayAllocator> Ops;
-		UE::Tasks::FTask LastTask;
 		UE::Tasks::FPipe Pipe{ TEXT("FRDGBuilder::AsyncSetupQueue") };
 
 	} AsyncSetupQueue;
 
 	void LaunchAsyncSetupQueueTask();
 	void ProcessAsyncSetupQueue();
+
+	//////////////////////////////////////////////////////////////////////////////
+	// Reserved Buffer Commits
+
+	FRDGBufferReservedCommitHandle AcquireReservedCommitHandle(FRDGBuffer* Buffer)
+	{
+		FRDGBufferReservedCommitHandle Handle;
+
+		if (Buffer->PendingCommitSize > 0)
+		{
+			Handle = FRDGBufferReservedCommitHandle(ReservedBufferCommitSizes.Num());
+			ReservedBufferCommitSizes.Emplace(Buffer->PendingCommitSize);
+			Buffer->PendingCommitSize = 0;
+		}
+
+		return Handle;
+	}
+
+	uint64 GetReservedCommitSize(FRDGBufferReservedCommitHandle Handle)
+	{
+		return Handle.IsValid() ? ReservedBufferCommitSizes[Handle.GetIndex()] : 0;
+	}
+
+	TArray<uint64, FRDGArrayAllocator> ReservedBufferCommitSizes;
 
 	//////////////////////////////////////////////////////////////////////////////
 	// Culling
@@ -901,31 +987,36 @@ private:
 	struct
 	{
 		/** Array of all tasks for variants of AddSetupTask. */
-		TArray<UE::Tasks::FTask, FRDGArrayAllocator> Tasks;
-
-		/** Array of all command lists to submit for AddCommandListSetupTask. */
-		TArray<FRHICommandListImmediate::FQueuedCommandList, FConcurrentLinearArrayAllocator> CommandLists;
+		TStaticArray<TArray<UE::Tasks::FTask, FRDGArrayAllocator>, (int32)ERDGSetupTaskWaitPoint::MAX> Tasks;
 
 		bool bEnabled = false;
 
 	} ParallelSetup;
 
-	void WaitForParallelSetupTasks();
-	void SubmitParallelSetupTasks();
+	void WaitForParallelSetupTasks(ERDGSetupTaskWaitPoint WaitPoint);
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Parallel Execution
 
-	struct
+	bool bParallelCompileEnabled = false;
+
+	struct FParallelExecute
 	{
 		TArray<FParallelPassSet, FRDGArrayAllocator> ParallelPassSets;
-		TArray<UE::Tasks::FTask, FRDGArrayAllocator> Tasks;
-		TOptional<UE::Tasks::FTaskEvent> DispatchTaskEvent;
-		bool bEnabled = false;
+		TOptional<UE::Tasks::FTaskEvent> TasksAwait;
+		TOptional<UE::Tasks::FTaskEvent> TasksAsync;
+		TOptional<UE::Tasks::FTaskEvent> DispatchTaskEventAwait;
+		TOptional<UE::Tasks::FTaskEvent> DispatchTaskEventAsync;
+		ERDGPassTaskMode TaskMode = ERDGPassTaskMode::Inline;
+
+		bool IsEnabled() const { return TaskMode != ERDGPassTaskMode::Inline; }
+
+		static UE::Tasks::FTask LastAsyncExecuteTask;
 
 	} ParallelExecute;
 
-	void SetupParallelExecute();
+	void SetupParallelExecute(TStaticArray<void*, MAX_NUM_GPUS> const& QueryBatchData);
+	void SetupDispatchPassExecute();
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Buffer Uploads
@@ -998,8 +1089,14 @@ private:
 	RENDERCORE_API void FlushAccessModeQueue();
 
 	/////////////////////////////////////////////////////////////////////////////
+	// Post-Execution Callbacks
+
+	TArray<TUniqueFunction<void()>, FRDGArrayAllocator> PostExecuteCallbacks;
+
+	/////////////////////////////////////////////////////////////////////////////
 	// Resource Deletion Flushing
 
+	FGraphEventArray WaitOutstandingTasks;
 	bool bFlushResourcesRHI = false;
 	FRHICommandListScopedExtendResourceLifetime ExtendResourceLifetimeScope;
 
@@ -1031,11 +1128,6 @@ private:
 #if RDG_DUMP_RESOURCES
 	void DumpNewGraphBuilder();
 	void DumpResourcePassOutputs(const FRDGPass* Pass);
-
-#if RDG_DUMP_RESOURCES_AT_EACH_DRAW
-	void BeginPassDump(const FRDGPass* Pass);
-	void EndPassDump(const FRDGPass* Pass);
-#endif
 #endif
 
 #if RDG_ENABLE_DEBUG
@@ -1066,12 +1158,10 @@ private:
 	/////////////////////////////////////////////////////////////////////////////
 
 	friend FRDGTrace;
-	friend DynamicRenderScaling::FRDGScope;
-	friend FRDGEventScopeGuard;
-	friend FRDGGPUStatScopeGuard;
 	friend FRDGAsyncComputeBudgetScopeGuard;
 	friend FRDGScopedCsvStatExclusive;
 	friend FRDGScopedCsvStatExclusiveConditional;
+	friend FRDGDispatchPassBuilder;
 };
 
 class FRDGAsyncComputeBudgetScopeGuard final
@@ -1079,19 +1169,17 @@ class FRDGAsyncComputeBudgetScopeGuard final
 public:
 	FRDGAsyncComputeBudgetScopeGuard(FRDGBuilder& InGraphBuilder, EAsyncComputeBudget InAsyncComputeBudget)
 		: GraphBuilder(InGraphBuilder)
-		, AsyncComputeBudgetRestore(GraphBuilder.AsyncComputeBudgetScope)
 	{
-		GraphBuilder.AsyncComputeBudgetScope = InAsyncComputeBudget;
+		// Deprecated
 	}
 
 	~FRDGAsyncComputeBudgetScopeGuard()
 	{
-		GraphBuilder.AsyncComputeBudgetScope = AsyncComputeBudgetRestore;
+		// Deprecated
 	}
 
 private:
 	FRDGBuilder& GraphBuilder;
-	const EAsyncComputeBudget AsyncComputeBudgetRestore;
 };
 
 #define RDG_ASYNC_COMPUTE_BUDGET_SCOPE(GraphBuilder, AsyncComputeBudget) \

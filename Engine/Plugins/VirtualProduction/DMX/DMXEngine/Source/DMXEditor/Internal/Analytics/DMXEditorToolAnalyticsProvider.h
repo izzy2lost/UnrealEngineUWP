@@ -22,7 +22,7 @@ namespace UE::DMX
 		 * @param Name						The name of the specific event. Will be appended to the tool specific event name.
 		 * @param Attributes				The attributes recorded with this event.
 		 */
-		void RecordEvent(const FName& Name, const TArray<FAnalyticsEventAttribute>& Attributes);
+		void RecordEvent(const FName& Name, const TArray<FAnalyticsEventAttribute>& InAttributes);
 
 	private:
 		/** Records analytics for when the tool started. */
@@ -40,7 +40,7 @@ namespace UE::DMX
 		/** Name of the tool we are providing analytics for */
 		const FName ToolName;
 
-		/** Prefix for DMX telemetry events */
-		static const FString DMXEventPrefix;
+		/** Event name for DMX telemetry events */
+		static const FString DMXToolEventName;
 	};
 }

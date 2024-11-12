@@ -1246,7 +1246,6 @@ void STimelineEditor::Construct(const FArguments& InArgs, TSharedPtr<FBlueprintE
 			SAssignNew( TrackListView, STimelineEdTrackListType )
 			.ListItemsSource( &TrackList )
 			.OnGenerateRow( this, &STimelineEditor::MakeTrackWidget )
-			.ItemHeight( 96 )
 			.OnItemScrolledIntoView(this, &STimelineEditor::OnItemScrolledIntoView)
 			.OnContextMenuOpening(this, &STimelineEditor::MakeContextMenu)
 			.SelectionMode(ESelectionMode::SingleToggle)

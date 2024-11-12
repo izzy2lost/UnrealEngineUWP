@@ -9,6 +9,14 @@
 #include "LargeWorldCoordinates.ush"
 #include "ReflectionEnvironmentShared.ush"
 #include "LightGridCommon.ush"
+#include "WaveOpUtil.ush"
+#include "GPUMessaging.ush"
+
+#if USE_HZB_CULL
+	#include "Nanite/NaniteHZBCull.ush"
+#endif
+
+#include "/Engine/Shared/LightGridDefinitions.h"
 
 RWStructuredBuffer<uint> RWNumCulledLightsGrid;
 
@@ -20,34 +28,58 @@ RWStructuredBuffer<uint> RWNumCulledLightsGrid;
 	#define RWCulledLightDataGrid	RWCulledLightDataGrid32Bit
 #endif
 
+RWStructuredBuffer<uint> RWNextCulledLightData;
 RWStructuredBuffer<uint> RWNextCulledLightLink;
-RWStructuredBuffer<uint> RWStartOffsetGrid;
 RWStructuredBuffer<uint> RWCulledLightLinks;
-
-StructuredBuffer<float4> ForwardLocalLightBuffer;
 
 uint NumReflectionCaptures;
 uint NumLocalLights;
 uint NumGridCells;
 uint MaxCulledLightsPerCell;
+uint NumAvailableLinks;
 uint3 CulledGridSize;
 float3 LightGridZParams;
+uint LightGridZSliceScale;
 uint LightGridPixelSizeShift;
 
-#if ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
+uint LightGridCullMarginXY;
+uint LightGridCullMarginZ;
+float3 LightGridCullMarginZParams;
+uint LightGridCullMaxZ;
+
+uint MegaLightsSupportedStartIndex;
+
 StructuredBuffer<float4> LightViewSpacePositionAndRadius;
 StructuredBuffer<float4> LightViewSpaceDirAndPreprocAngle;
-#endif // ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
+StructuredBuffer<float4> LightViewSpaceRectPlanes;
+
+#if USE_PARENT_LIGHT_GRID
+	StructuredBuffer<uint> ParentNumCulledLightsGrid;
+#	if LIGHT_GRID_USES_16BIT_BUFFERS
+		Buffer<uint>						ParentCulledLightDataGrid16Bit;
+#		define ParentCulledLightDataGrid	ParentCulledLightDataGrid16Bit
+#	else
+		StructuredBuffer<uint>				ParentCulledLightDataGrid32Bit;
+#		define ParentCulledLightDataGrid	ParentCulledLightDataGrid32Bit
+#	endif
+	uint3 ParentGridSize;
+	uint NumParentGridCells;
+	uint ParentGridSizeFactor;
+#endif // USE_PARENT_LIGHT_GRID
+
+#define NUM_PLANES_PER_RECT_LIGHT 4
 
 #define REFINE_SPOTLIGHT_BOUNDS 1
 
-#ifndef USE_LOCALSTORE_FOR_ATOMICS
-#define USE_LOCALSTORE_FOR_ATOMICS 0
+#ifndef REFINE_RECTLIGHT_BOUNDS
+#define REFINE_RECTLIGHT_BOUNDS 1
 #endif
 
-float ComputeCellNearViewDepthFromZSlice(uint ZSlice)
+#ifdef LightGridInjectionCS
+
+float ComputeCellNearViewDepthFromZSlice(uint ZSlice, uint ZSliceScale)
 {
-	float SliceDepth = (exp2(ZSlice / LightGridZParams.z) - LightGridZParams.y) / LightGridZParams.x;
+	float SliceDepth = ComputeDepthFromZSlice(LightGridZParams, ZSlice * ZSliceScale);
 
 	if (ZSlice == (uint)CulledGridSize.z)
 	{
@@ -63,13 +95,52 @@ float ComputeCellNearViewDepthFromZSlice(uint ZSlice)
 		// The exponential distribution of z slices contains an offset, but some screen pixels
 		// may be nearer to the camera than this offset. To avoid false light rejection, we set the
 		// first depth slice to zero to ensure that the AABB includes the [0, offset] depth range.
-		SliceDepth = 0.0f;
+		SliceDepth = View.NearPlane;
 	}
 
 	return SliceDepth;
 }
 
-void ComputeCellViewAABB(uint3 GridCoordinate, out float3 ViewTileMin, out float3 ViewTileMax)
+#if USE_HZB_CULL
+FScreenRect ComputeCellCullRect(uint3 GridCoordinate, float MinTileZ, float MaxTileZ, float MarginPixels)
+{
+	const float2 TileSize = (1u << LightGridPixelSizeShift);
+	const float2 TileMin = (GridCoordinate.xy + 0) * TileSize - MarginPixels;
+	const float2 TileMax = (GridCoordinate.xy + 1) * TileSize + MarginPixels;
+
+	// Compute extent of tiles in clip-space. Note that the last tile may extend a bit outside of view if view size is not evenly divisible tile size.
+	const float2 UnitPlaneScale = float2(2.0f, -2.0f) * View.ViewSizeAndInvSize.zw;
+	const float2 UnitPlaneBias = float2(-1.0f, 1.0f);
+
+	float2 UnitPlaneTileMin = TileMin * UnitPlaneScale + UnitPlaneBias;
+	float2 UnitPlaneTileMax = TileMax * UnitPlaneScale + UnitPlaneBias;
+
+	float MinTileDeviceZ = ConvertToDeviceZ(MinTileZ);
+	float MaxTileDeviceZ = ConvertToDeviceZ(MaxTileZ);
+
+	float3 CullRectMin;
+	CullRectMin.x = min(UnitPlaneTileMin.x, UnitPlaneTileMax.x);
+	CullRectMin.y = min(UnitPlaneTileMin.y, UnitPlaneTileMax.y);
+	CullRectMin.z = min(MinTileDeviceZ, MaxTileDeviceZ);
+
+	float3 CullRectMax;
+	CullRectMax.x = max(UnitPlaneTileMin.x, UnitPlaneTileMax.x);
+	CullRectMax.y = max(UnitPlaneTileMin.y, UnitPlaneTileMax.y);
+	CullRectMax.z = max(MinTileDeviceZ, MaxTileDeviceZ);
+
+	return GetScreenRect(int4(0, 0, HZBViewSize), CullRectMin, CullRectMax, 4);
+}
+#endif
+
+struct FCellBounds
+{
+	float3 ViewAabbMin;
+	float3 ViewAabbMax;
+	float3 ViewCenter;
+	float3 ViewExtent;
+};
+
+FCellBounds ComputeCellBounds(uint3 GridCoordinate, float MinTileZ, float MaxTileZ)
 {
 	// Compute extent of tiles in clip-space. Note that the last tile may extend a bit outside of view if view size is not evenly divisible tile size.
 	const float2 InvCulledGridSizeF = (1u << LightGridPixelSizeShift) * View.ViewSizeAndInvSize.zw;
@@ -78,9 +149,6 @@ void ComputeCellViewAABB(uint3 GridCoordinate, out float3 ViewTileMin, out float
 
 	float2 UnitPlaneTileMin = GridCoordinate.xy * TileSize + UnitPlaneMin;
 	float2 UnitPlaneTileMax = (GridCoordinate.xy + 1) * TileSize + UnitPlaneMin;
-
-	float MinTileZ = ComputeCellNearViewDepthFromZSlice(GridCoordinate.z);
-	float MaxTileZ = ComputeCellNearViewDepthFromZSlice(GridCoordinate.z + 1);
 
 	float MinTileDeviceZ = ConvertToDeviceZ(MinTileZ);
 	float4 MinDepthCorner0 = mul(float4(UnitPlaneTileMin.x, UnitPlaneTileMin.y, MinTileDeviceZ, 1), View.ClipToView);
@@ -103,25 +171,29 @@ void ComputeCellViewAABB(uint3 GridCoordinate, out float3 ViewTileMin, out float
 	float2 ViewMaxDepthCorner2 = MaxDepthCorner2.xy / MaxDepthCorner2.w;
 	float2 ViewMaxDepthCorner3 = MaxDepthCorner3.xy / MaxDepthCorner3.w;
 
+	FCellBounds CellBounds;
+
 	//@todo - derive min and max from quadrant
-	ViewTileMin.xy = min(ViewMinDepthCorner0, ViewMinDepthCorner1);
-	ViewTileMin.xy = min(ViewTileMin.xy, ViewMinDepthCorner2);
-	ViewTileMin.xy = min(ViewTileMin.xy, ViewMinDepthCorner3);
-	ViewTileMin.xy = min(ViewTileMin.xy, ViewMaxDepthCorner0);
-	ViewTileMin.xy = min(ViewTileMin.xy, ViewMaxDepthCorner1);
-	ViewTileMin.xy = min(ViewTileMin.xy, ViewMaxDepthCorner2);
-	ViewTileMin.xy = min(ViewTileMin.xy, ViewMaxDepthCorner3);
+	CellBounds.ViewAabbMin.xy = min(ViewMinDepthCorner0, ViewMinDepthCorner1);
+	CellBounds.ViewAabbMin.xy = min(CellBounds.ViewAabbMin.xy, ViewMinDepthCorner2);
+	CellBounds.ViewAabbMin.xy = min(CellBounds.ViewAabbMin.xy, ViewMinDepthCorner3);
+	CellBounds.ViewAabbMin.xy = min(CellBounds.ViewAabbMin.xy, ViewMaxDepthCorner0);
+	CellBounds.ViewAabbMin.xy = min(CellBounds.ViewAabbMin.xy, ViewMaxDepthCorner1);
+	CellBounds.ViewAabbMin.xy = min(CellBounds.ViewAabbMin.xy, ViewMaxDepthCorner2);
+	CellBounds.ViewAabbMin.xy = min(CellBounds.ViewAabbMin.xy, ViewMaxDepthCorner3);
+	CellBounds.ViewAabbMax.xy = max(ViewMinDepthCorner0, ViewMinDepthCorner1);
+	CellBounds.ViewAabbMax.xy = max(CellBounds.ViewAabbMax.xy, ViewMinDepthCorner2);
+	CellBounds.ViewAabbMax.xy = max(CellBounds.ViewAabbMax.xy, ViewMinDepthCorner3);
+	CellBounds.ViewAabbMax.xy = max(CellBounds.ViewAabbMax.xy, ViewMaxDepthCorner0);
+	CellBounds.ViewAabbMax.xy = max(CellBounds.ViewAabbMax.xy, ViewMaxDepthCorner1);
+	CellBounds.ViewAabbMax.xy = max(CellBounds.ViewAabbMax.xy, ViewMaxDepthCorner2);
+	CellBounds.ViewAabbMax.xy = max(CellBounds.ViewAabbMax.xy, ViewMaxDepthCorner3);
+	CellBounds.ViewAabbMin.z = MinTileZ;
+	CellBounds.ViewAabbMax.z = MaxTileZ;
+	CellBounds.ViewCenter = .5f * (CellBounds.ViewAabbMin + CellBounds.ViewAabbMax);
+	CellBounds.ViewExtent = CellBounds.ViewAabbMax - CellBounds.ViewCenter;
 
-	ViewTileMax.xy = max(ViewMinDepthCorner0, ViewMinDepthCorner1);
-	ViewTileMax.xy = max(ViewTileMax.xy, ViewMinDepthCorner2);
-	ViewTileMax.xy = max(ViewTileMax.xy, ViewMinDepthCorner3);
-	ViewTileMax.xy = max(ViewTileMax.xy, ViewMaxDepthCorner0);
-	ViewTileMax.xy = max(ViewTileMax.xy, ViewMaxDepthCorner1);
-	ViewTileMax.xy = max(ViewTileMax.xy, ViewMaxDepthCorner2);
-	ViewTileMax.xy = max(ViewTileMax.xy, ViewMaxDepthCorner3);
-
-	ViewTileMin.z = MinTileZ;
-	ViewTileMax.z = MaxTileZ; 
+	return CellBounds;
 }
 
 bool IntersectConeWithSphere(float3 ConeVertex, float3 ConeAxis, float ConeRadius, float2 CosSinAngle, float4 SphereToTest)
@@ -137,16 +209,15 @@ bool IntersectConeWithSphere(float3 ConeVertex, float3 ConeAxis, float ConeRadiu
 	return !(bSphereTooFarFromCone || bSpherePastConeEnd || bSphereBehindVertex);
 }
 
-
-
-bool AabbOutsidePlane(float3 center, float3 extents, float4 plane)
+/**
+ * Returns true if the aabb defined by Center and Extents is fully in front of the plane.
+ */
+bool IsAabbInFrontOfPlane(float3 Center, float3 Extents, float4 Plane)
 {
-	float dist = dot(float4(center, 1.0), plane);
-	float radius = dot(extents, abs(plane.xyz));
-
-	return dist > radius;
+	float Dist = dot(float4(Center, 1.0), Plane);
+	float Radius = dot(Extents, abs(Plane.xyz));
+	return Dist > Radius;
 }
-
 
 /**
  * Approximate cone / aabb test that creates a single separating plane that lies in the cone on the side facing the centre of the Aabb
@@ -165,138 +236,605 @@ bool IsAabbOutsideInfiniteAcuteConeApprox(float3 ConeVertex, float3 ConeAxis, fl
 	float3 N = -TanConeAngle * ConeAxis + M;
 	float4 Plane = float4(N, 0.0);
 
-	return AabbOutsidePlane(D, AabbExt, Plane);
+	return IsAabbInFrontOfPlane(D, AabbExt, Plane);
 }
 
-#if SHADER_LIGHT_GRID_INJECTION_CS
-
-[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
-void LightGridInjectionCS(
-	uint3 GroupId : SV_GroupID,
-	uint3 DispatchThreadId : SV_DispatchThreadID,
-	uint3 GroupThreadId : SV_GroupThreadID)
+bool OverlapsLight(uint LocalLightIndex, FCellBounds CellBounds, out bool bIsRectLight, out bool bIsTexturedLight)
 {
-	uint3 GridCoordinate = DispatchThreadId;
+	checkSlow(LocalLightIndex < NumLocalLights);
+
+	float4 LightPositionAndRadius = LightViewSpacePositionAndRadius[LocalLightIndex];
+	float3 ViewSpaceLightPosition = LightPositionAndRadius.xyz;
+	float LightRadius = LightPositionAndRadius.w;
+	float BoxDistanceSq = ComputeSquaredDistanceFromBoxToPoint(CellBounds.ViewCenter, CellBounds.ViewExtent, ViewSpaceLightPosition);
+	if (BoxDistanceSq < LightRadius * LightRadius)
+	{
+		float4 ViewSpaceDirAndPreprocAngle = LightViewSpaceDirAndPreprocAngle[LocalLightIndex];
+		bIsRectLight = asuint(ViewSpaceDirAndPreprocAngle.w) & 0x1;
+		bool bUseTightRectLightCulling = asuint(ViewSpaceDirAndPreprocAngle.w) & 0x2;
+		bIsTexturedLight = asuint(ViewSpaceDirAndPreprocAngle.w) & 0x4;
+
+		bool bPassSpotLightTest = true;
+#if REFINE_SPOTLIGHT_BOUNDS
+		{
+			float TanConeAngle = asfloat(asuint(ViewSpaceDirAndPreprocAngle.w) & 0xFFFFFFF8);
+
+			// Set to 0 for non-acute cones, or non-spot lights.
+			if (TanConeAngle > 0.0f)
+			{
+				float3 ViewSpaceLightDirection = -ViewSpaceDirAndPreprocAngle.xyz;
+				bPassSpotLightTest = !IsAabbOutsideInfiniteAcuteConeApprox(ViewSpaceLightPosition, ViewSpaceLightDirection, TanConeAngle, CellBounds.ViewCenter, CellBounds.ViewExtent);
+			}
+		}
+#endif // REFINE_SPOTLIGHT_BOUNDS
+		bool bPassRectLightTest = true;
+#if REFINE_RECTLIGHT_BOUNDS
+		{
+			if (bIsRectLight)
+			{
+				float3 D = CellBounds.ViewCenter - ViewSpaceLightPosition;
+				float4 Plane = float4(ViewSpaceDirAndPreprocAngle.xyz, 0.0);
+
+				bPassRectLightTest = !IsAabbInFrontOfPlane(D, CellBounds.ViewExtent, Plane);
+
+				if(bPassRectLightTest && bUseTightRectLightCulling)
+				{
+					for (uint PlaneIndex = 0; PlaneIndex < NUM_PLANES_PER_RECT_LIGHT; PlaneIndex++)
+					{
+						if (IsAabbInFrontOfPlane(CellBounds.ViewCenter, CellBounds.ViewExtent, LightViewSpaceRectPlanes[LocalLightIndex * NUM_PLANES_PER_RECT_LIGHT + PlaneIndex]))
+						{
+							bPassRectLightTest = false;
+						}
+					}
+				}
+			}
+		}
+#endif // REFINE_RECTLIGHT_BOUNDS
+		return bPassSpotLightTest && bPassRectLightTest;
+	}
+
+	bIsRectLight = false;
+	bIsTexturedLight = false;
+
+	return false;
+}
+
+bool OverlapsReflectionCapture(uint ReflectionCaptureIndex, FCellBounds CellBounds)
+{
+	checkSlow(ReflectionCaptureIndex < NumReflectionCaptures);
+
+	FDFVector3 CaptureWorldPosition = MakeDFVector3(GetReflectionPositionAndRadius(ReflectionCaptureIndex).xyz, GetReflectionPositionLow(ReflectionCaptureIndex).xyz);
+	float3 CaptureTranslatedWorldPosition = DFFastAddDemote(CaptureWorldPosition, PrimaryView.PreViewTranslation);
+	float3 ViewSpaceCapturePosition = mul(float4(CaptureTranslatedWorldPosition, 1), View.TranslatedWorldToView).xyz;
+	float CaptureRadius = GetReflectionPositionAndRadius(ReflectionCaptureIndex).w;
+
+	float BoxDistanceSq = ComputeSquaredDistanceFromBoxToPoint(CellBounds.ViewCenter, CellBounds.ViewExtent, ViewSpaceCapturePosition);
+
+	return (BoxDistanceSq < CaptureRadius * CaptureRadius);
+}
+
+void OutputReversedLinkedList(uint LinkOffset, uint NumPrimitives, uint CulledLightDataStart)
+{
+	uint CurrentIndex = 0;
+
+	while (LinkOffset != 0xFFFFFFFF && CurrentIndex < NumPrimitives)
+	{
+		// Reverse the order as we write them out, which restores the original order before the reverse linked list was built
+		const uint PrimitiveIndex = RWCulledLightLinks[LinkOffset * LIGHT_LINK_STRIDE + 0];
+		RWCulledLightDataGrid[CulledLightDataStart + NumPrimitives - CurrentIndex - 1] = PrimitiveIndex;
+		CurrentIndex++;
+		LinkOffset = RWCulledLightLinks[LinkOffset * LIGHT_LINK_STRIDE + 1];
+	}
+}
+
+struct FArrayView
+{
+	uint Num;
+	uint Offset;
+};
+
+uint GetPrimitiveIndex(FArrayView ArrayView, uint Index)
+{
+	checkSlow(Index < ArrayView.Num);
+#if USE_PARENT_LIGHT_GRID
+	return ParentCulledLightDataGrid[ArrayView.Offset + Index];
+#else
+	return ArrayView.Offset + Index;
+#endif
+}
+
+FArrayView InitLocalLightArrayView(uint ParentGridIndex)
+{
+	FArrayView ArrayView;
+
+#if USE_PARENT_LIGHT_GRID
+	uint Unused_NumVisibleMegaLights;
+	UnpackCulledLightsGridHeader0(ParentNumCulledLightsGrid[ParentGridIndex * 2 + 0], ArrayView.Num, Unused_NumVisibleMegaLights);
+
+	bool bHasRectLights_Unused;
+	bool bHasTexturedLights_Unused;
+	UnpackCulledLightsGridHeader1(ParentNumCulledLightsGrid[ParentGridIndex * 2 + 1], ArrayView.Offset, bHasRectLights_Unused, bHasTexturedLights_Unused);
+#else
+	ArrayView.Num = NumLocalLights;
+	ArrayView.Offset = 0;
+#endif
+
+	return ArrayView;
+}
+
+FArrayView InitReflectionCaptureArrayView(uint ParentGridIndex)
+{
+	FArrayView ArrayView;
+
+#if USE_PARENT_LIGHT_GRID
+	ArrayView.Num = ParentNumCulledLightsGrid[(NumParentGridCells + ParentGridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 0];
+	ArrayView.Offset = ParentNumCulledLightsGrid[(NumParentGridCells + ParentGridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 1];
+#else
+	ArrayView.Num = NumReflectionCaptures;
+	ArrayView.Offset = 0;
+#endif
+
+	return ArrayView;
+}
+
+void CullLights_SingleThread(uint GridIndex, FCellBounds CellBounds, uint ParentGridIndex)
+{
+	uint NumVisibleLights = 0;
+	uint NumVisibleMegaLights = 0;
+	uint bHasRectLights = false;
+	uint bHasTexturedLights = false;
+
+	uint LinkOffset = 0xFFFFFFFF;
+
+	FArrayView LocalLightArrayView = InitLocalLightArrayView(ParentGridIndex);
+
+	LOOP
+	for (uint Index = 0; Index < LocalLightArrayView.Num; ++Index)
+	{
+		uint LocalLightIndex = GetPrimitiveIndex(LocalLightArrayView, Index);
+
+		bool bIsRectLight;
+		bool bIsTexturedLight;
+		bool bOverlapsLight = OverlapsLight(LocalLightIndex, CellBounds, bIsRectLight, bIsTexturedLight);
+
+		if (bOverlapsLight)
+		{
+			bHasRectLights |= bIsRectLight;
+			bHasTexturedLights |= bIsTexturedLight;
+
+#if USE_LINKED_CULL_LIST
+			uint NextLink;
+			WaveInterlockedAddScalar_(RWNextCulledLightLink[0], 1U, NextLink);
+
+			if (NextLink < NumAvailableLinks)
+			{
+				RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 0] = LocalLightIndex;
+				RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 1] = LinkOffset;
+
+				LinkOffset = NextLink;
+
+				++NumVisibleLights;
+				if (LocalLightIndex >= MegaLightsSupportedStartIndex)
+				{
+					++NumVisibleMegaLights;
+				}
+			}
+#else // !USE_LINKED_CULL_LIST
+			if (NumVisibleLights < MaxCulledLightsPerCell)
+			{
+				RWCulledLightDataGrid[GridIndex * MaxCulledLightsPerCell + NumVisibleLights] = LocalLightIndex;
+
+				++NumVisibleLights;
+				if (LocalLightIndex >= MegaLightsSupportedStartIndex)
+				{
+					++NumVisibleMegaLights;
+				}
+			}
+#endif // !USE_LINKED_CULL_LIST
+		}
+	}
+
+#if USE_LINKED_CULL_LIST
+	uint CulledLightDataStart;
+	#if FEATURE_LEVEL == FEATURE_LEVEL_ES3_1
+	// Adreno compiler fails to reg-alloc on 6xx for this shader,
+	// and doesn't support UGPR spilling, so just fails to compile.
+	InterlockedAdd(RWNextCulledLightData[0], NumVisibleLights, CulledLightDataStart);
+	#else
+	WaveInterlockedAdd_(RWNextCulledLightData[0], NumVisibleLights, CulledLightDataStart);
+	#endif
+
+	// Mega Lights are order dependent
+	OutputReversedLinkedList(LinkOffset, NumVisibleLights, CulledLightDataStart);
+#else
+	uint CulledLightDataStart = GridIndex * MaxCulledLightsPerCell;
+#endif
+
+	RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(NumVisibleLights, NumVisibleMegaLights);
+	RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(CulledLightDataStart, bHasRectLights, bHasTexturedLights);
+}
+void CullReflectionCaptures_SingleThread(uint GridIndex, FCellBounds CellBounds, uint ParentGridIndex)
+{
+	uint NumVisibleCaptures = 0;
+
+	uint LinkOffset = 0xFFFFFFFF;
+
+	FArrayView ReflectionCaptureArrayView = InitReflectionCaptureArrayView(ParentGridIndex);
+
+	LOOP
+	for (uint Index = 0; Index < ReflectionCaptureArrayView.Num; ++Index)
+	{
+		uint ReflectionCaptureIndex = GetPrimitiveIndex(ReflectionCaptureArrayView, Index);
+
+		bool bOverlapsReflectionCapture = OverlapsReflectionCapture(ReflectionCaptureIndex, CellBounds);
+
+		if (bOverlapsReflectionCapture)
+		{
+#if USE_LINKED_CULL_LIST
+			uint NextLink;
+			WaveInterlockedAddScalar_(RWNextCulledLightLink[0], 1U, NextLink);
+
+			if (NextLink < NumAvailableLinks)
+			{
+				RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 0] = ReflectionCaptureIndex;
+				RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 1] = LinkOffset;
+
+				LinkOffset = NextLink;
+
+				++NumVisibleCaptures;
+			}
+#else // !USE_LINKED_CULL_LIST
+			if (NumVisibleCaptures < MaxCulledLightsPerCell)
+			{
+				RWCulledLightDataGrid[(NumGridCells + GridIndex) * MaxCulledLightsPerCell + NumVisibleCaptures] = ReflectionCaptureIndex;
+
+				++NumVisibleCaptures;
+			}
+#endif // !USE_LINKED_CULL_LIST
+		}
+	}
+
+#if USE_LINKED_CULL_LIST
+	uint CulledReflectionCaptureDataStart;
+	WaveInterlockedAdd_(RWNextCulledLightData[0], NumVisibleCaptures, CulledReflectionCaptureDataStart);
+
+	// Reflection captures are order dependent
+	OutputReversedLinkedList(LinkOffset, NumVisibleCaptures, CulledReflectionCaptureDataStart);
+#else
+	uint CulledReflectionCaptureDataStart = (NumGridCells + GridIndex) * MaxCulledLightsPerCell;
+#endif
+
+	RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = NumVisibleCaptures;
+	RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = CulledReflectionCaptureDataStart;
+}
+
+#define NUM_THREADS_PER_GROUP THREADGROUP_SIZE
+#include "ThreadGroupPrefixSum.ush"
+
+// When using one thread group per cell, store up to MAX_LDS_ITEMS in LDS before falling back to linked list
+#define USE_LDS (1)
+#define MAX_LDS_ITEMS 256
+
+groupshared uint CellLDSItems[MAX_LDS_ITEMS];
+
+struct FCellWriter
+{
+	uint LinkOffset;
+};
+
+FCellWriter InitCellWriter()
+{
+	FCellWriter CellWriter;
+	CellWriter.LinkOffset = LIGHT_GRID_CELL_WRITER_MAX_LINK_OFFSET;
+	
+	return CellWriter;
+}
+
+bool AddToCell(inout FCellWriter CellWriter, uint PrimitiveIndex, uint IndexInCell)
+{
+#if USE_LDS
+	// use LDS if there's still space
+	if (IndexInCell < MAX_LDS_ITEMS)
+	{
+		CellLDSItems[IndexInCell] = PrimitiveIndex;
+		return true;
+	}
+#endif
+
+	// otherwise store in linked list
+	uint NextLink;
+	WaveInterlockedAddScalar_(RWNextCulledLightLink[0], 1U, NextLink);
+
+	if (NextLink < NumAvailableLinks)
+	{
+		checkSlow(PrimitiveIndex <= LIGHT_GRID_CELL_WRITER_MAX_LINK_OFFSET);
+		checkSlow(IndexInCell <= 0xFFFF);
+		checkSlow(CellWriter.LinkOffset <= LIGHT_GRID_CELL_WRITER_MAX_LINK_OFFSET);
+
+		uint IndexInCellL8 = (IndexInCell & 0xFF);
+		uint IndexInCellH8 = ((IndexInCell >> 8) & 0xFF);
+
+		RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 0] = (IndexInCellL8 << 24) | (PrimitiveIndex & LIGHT_GRID_CELL_WRITER_MAX_LINK_OFFSET);
+		RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 1] = (IndexInCellH8 << 24) | (CellWriter.LinkOffset & LIGHT_GRID_CELL_WRITER_MAX_LINK_OFFSET);
+
+		CellWriter.LinkOffset = NextLink;
+
+		return true;
+	}
+
+	return false;
+}
+
+void OutputCell(FCellWriter CellWriter, uint NumPrimitives, uint CulledLightDataStart, uint ThreadIndex)
+{
+#if USE_LDS
+	// output entries in LDS to RWCulledLightDataGrid
+	LOOP
+	for (uint OutIndex = ThreadIndex; OutIndex < NumPrimitives; OutIndex += THREADGROUP_SIZE)
+	{
+		RWCulledLightDataGrid[CulledLightDataStart + OutIndex] = CellLDSItems[OutIndex];
+	}
+#endif
+
+	// output entries in linked list to RWCulledLightDataGrid
+
+	while (CellWriter.LinkOffset < LIGHT_GRID_CELL_WRITER_MAX_LINK_OFFSET)
+	{
+		const uint PackedData0 = RWCulledLightLinks[CellWriter.LinkOffset * LIGHT_LINK_STRIDE + 0];
+		const uint PackedData1 = RWCulledLightLinks[CellWriter.LinkOffset * LIGHT_LINK_STRIDE + 1];
+		const uint PrimitiveIndex = (PackedData0 & 0xFFFFFF);
+		const uint LinkOffset = (PackedData1 & 0xFFFFFF);
+		const uint IndexInCellL8 = (PackedData0 >> 24) & 0xFF;
+		const uint IndexInCellH8 = (PackedData1 >> 24) & 0xFF;
+		const uint IndexInCell = (IndexInCellH8 << 8) | IndexInCellL8;
+
+		RWCulledLightDataGrid[CulledLightDataStart + IndexInCell] = PrimitiveIndex;
+		CellWriter.LinkOffset = LinkOffset;
+	}
+}
+
+groupshared uint OutOffset;
+groupshared uint bCellHasRectLights;
+groupshared uint bCellHasTexturedLights;
+groupshared uint CellNumVisibleLights;
+groupshared uint CellNumVisibleMegaLights;
+groupshared uint CellNumVisibleReflectionCaptures;
+
+groupshared uint CulledLightDataStart;
+
+void CullLights_ThreadGroup(uint ThreadIndex, uint GridIndex, FCellBounds CellBounds, uint ParentGridIndex)
+{
+	if (ThreadIndex == 0)
+	{
+		OutOffset = 0;
+		bCellHasRectLights = 0;
+		bCellHasTexturedLights = 0;
+		CellNumVisibleLights = 0;
+		CellNumVisibleMegaLights = 0;
+	}
+	
+	GroupMemoryBarrierWithGroupSync();
+
+	uint NumVisibleLights = 0;
+	uint NumVisibleMegaLights = 0;
+	uint bHasRectLights = false;
+	uint bHasTexturedLights = false;
+
+	FCellWriter CellWriter = InitCellWriter();
+
+	FArrayView LocalLightArrayView = InitLocalLightArrayView(ParentGridIndex);
+
+	LOOP
+	for (uint GroupBaseIndex = 0; GroupBaseIndex < LocalLightArrayView.Num; GroupBaseIndex += THREADGROUP_SIZE)
+	{
+		const uint Index = GroupBaseIndex + ThreadIndex;
+		const uint LocalLightIndex = Index < LocalLightArrayView.Num ? GetPrimitiveIndex(LocalLightArrayView, Index) : 0xFFFFFFFF;
+
+		bool bIsRectLight;
+		bool bIsTexturedLight;
+		bool bOverlapsLight = LocalLightIndex < NumLocalLights && OverlapsLight(LocalLightIndex, CellBounds, bIsRectLight, bIsTexturedLight);
+		
+		// NOTE: Cannot be under any divergent branching!
+		uint GroupCount;
+		uint Offset = ThreadGroupPrefixSum(bOverlapsLight ? 1u : 0u, ThreadIndex, GroupCount);
+
+		uint IndexInCell = OutOffset + Offset;
+
+		// Wait until all threads are done with 'OutOffset'
+		GroupMemoryBarrierWithGroupSync();
+		
+		if (ThreadIndex == 0)
+		{
+			OutOffset += GroupCount;
+		}
+
+		if (bOverlapsLight)
+		{
+			bHasRectLights |= bIsRectLight;
+			bHasTexturedLights |= bIsTexturedLight;
+
+			if (AddToCell(CellWriter, LocalLightIndex, IndexInCell))
+			{
+				++NumVisibleLights;
+				if (LocalLightIndex >= MegaLightsSupportedStartIndex)
+				{
+					++NumVisibleMegaLights;
+				}
+			}
+		}
+	}
+
+	InterlockedOr(bCellHasRectLights, bHasRectLights ? 1 : 0);
+	InterlockedOr(bCellHasTexturedLights, bHasTexturedLights ? 1 : 0);
+	InterlockedAdd(CellNumVisibleLights, NumVisibleLights);
+	InterlockedAdd(CellNumVisibleMegaLights, NumVisibleMegaLights);
+
+	GroupMemoryBarrierWithGroupSync();
+
+	if (ThreadIndex == 0)
+	{
+		InterlockedAdd(RWNextCulledLightData[0], CellNumVisibleLights, CulledLightDataStart);
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+
+	OutputCell(CellWriter, CellNumVisibleLights, CulledLightDataStart, ThreadIndex);
+
+	if (ThreadIndex == 0)
+	{
+		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(CellNumVisibleLights, CellNumVisibleMegaLights);
+		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(CulledLightDataStart, bCellHasRectLights, bCellHasTexturedLights);
+	}
+}
+
+void CullReflectionCaptures_ThreadGroup(uint ThreadIndex, uint GridIndex, FCellBounds CellBounds, uint ParentGridIndex)
+{
+	if (ThreadIndex == 0)
+	{
+		OutOffset = 0;
+		CellNumVisibleReflectionCaptures = 0;
+	}
+	
+	GroupMemoryBarrierWithGroupSync();
+
+	uint NumVisibleCaptures = 0;
+
+	FCellWriter CellWriter = InitCellWriter();
+
+	FArrayView ReflectionCaptureArrayView = InitReflectionCaptureArrayView(ParentGridIndex);
+
+	LOOP
+	for (uint GroupBaseIndex = 0; GroupBaseIndex < ReflectionCaptureArrayView.Num; GroupBaseIndex += THREADGROUP_SIZE)
+	{
+		const uint Index = GroupBaseIndex + ThreadIndex;
+		const uint ReflectionCaptureIndex = Index < ReflectionCaptureArrayView.Num ? GetPrimitiveIndex(ReflectionCaptureArrayView, Index) : 0xFFFFFFFF;
+
+		bool bOverlapsReflectionCapture = ReflectionCaptureIndex < NumReflectionCaptures && OverlapsReflectionCapture(ReflectionCaptureIndex, CellBounds);
+		
+		// NOTE: Cannot be under any divergent branching!
+		uint GroupCount;
+		uint Offset = ThreadGroupPrefixSum(bOverlapsReflectionCapture ? 1u : 0u, ThreadIndex, GroupCount);
+		
+		uint IndexInCell = OutOffset + Offset;
+
+		// Wait until all threads are done with 'OutOffset'
+		GroupMemoryBarrierWithGroupSync();
+		
+		if (ThreadIndex == 0)
+		{
+			OutOffset += GroupCount;
+		}
+
+		if (bOverlapsReflectionCapture)
+		{
+			if (AddToCell(CellWriter, ReflectionCaptureIndex, IndexInCell))
+			{
+				++NumVisibleCaptures;
+			}
+		}
+	}
+
+	InterlockedAdd(CellNumVisibleReflectionCaptures, NumVisibleCaptures);
+
+	GroupMemoryBarrierWithGroupSync();
+
+	if (ThreadIndex == 0)
+	{
+		InterlockedAdd(RWNextCulledLightData[0], CellNumVisibleReflectionCaptures, CulledLightDataStart);
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+
+	OutputCell(CellWriter, CellNumVisibleReflectionCaptures, CulledLightDataStart, ThreadIndex);
+
+	if (ThreadIndex == 0)
+	{
+		RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = CellNumVisibleReflectionCaptures;
+		RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = CulledLightDataStart;
+	}
+}
+
+[numthreads(THREADGROUP_SIZE_X, THREADGROUP_SIZE_Y, THREADGROUP_SIZE_Z)]
+void LightGridInjectionCS(
+	uint3 DispatchThreadId : SV_DispatchThreadID,
+	uint3 GroupId : SV_GroupID,
+	uint GroupIndex : SV_GroupIndex)
+{
+#if USE_THREAD_GROUP_PER_CELL
+	const uint3 GridCoordinate = GroupId;
+	const uint ThreadIndex = GroupIndex;
+#else
+	const uint3 GridCoordinate = DispatchThreadId;
+#endif
 
 	if (all(GridCoordinate < (uint3)CulledGridSize))
 	{
-		uint GridIndex = (GridCoordinate.z * CulledGridSize.y + GridCoordinate.y) * CulledGridSize.x + GridCoordinate.x;
+		const uint GridIndex = (GridCoordinate.z * CulledGridSize.y + GridCoordinate.y) * CulledGridSize.x + GridCoordinate.x;
 
 // Disable to pass all lights through for debugging, will hit limits quickly though
 #define CULL_LIGHTS 1
-	#if CULL_LIGHTS
-		float3 ViewTileMin;
-		float3 ViewTileMax;
-		ComputeCellViewAABB(GridCoordinate, ViewTileMin, ViewTileMax);
+#if CULL_LIGHTS
 
-		float3 ViewTileCenter = .5f * (ViewTileMin + ViewTileMax);
-		float3 ViewTileExtent = ViewTileMax - ViewTileCenter;
-		float3 WorldTileCenter = mul(float4(ViewTileCenter, 1), View.ViewToTranslatedWorld).xyz - DFHackToFloat(PrimaryView.PreViewTranslation);
-		float4 WorldTileBoundingSphere = float4(WorldTileCenter, length(ViewTileExtent));
+		float MinTileZ = ComputeCellNearViewDepthFromZSlice(GridCoordinate.z + 0, LightGridZSliceScale);
+		float MaxTileZ = ComputeCellNearViewDepthFromZSlice(GridCoordinate.z + 1, LightGridZSliceScale);
 
-		uint NumAvailableLinks = NumGridCells * MaxCulledLightsPerCell * NUM_CULLED_GRID_PRIMITIVE_TYPES;
-
-		LOOP
-		for (uint LocalLightIndex = 0; LocalLightIndex < NumLocalLights; LocalLightIndex++)
+#if USE_HZB_CULL
+		float CullMinTileZ = MinTileZ;
+		float CullMaxTileZ = MaxTileZ;
+		if(LightGridCullMarginZ > 0)
 		{
-			uint LocalLightBaseIndex = LocalLightIndex * LOCAL_LIGHT_DATA_STRIDE;
+			// convert Min/MaxTileZ to volumetric fog grid coordinate
+			int MinCullSlice = (int)floor(ComputeZSliceFromDepth(LightGridCullMarginZParams, MinTileZ));
+			int MaxCullSlice = (int)ceil(ComputeZSliceFromDepth(LightGridCullMarginZParams, MaxTileZ));
+			// add margins
+			MinCullSlice = max(0, MinCullSlice - (int)LightGridCullMarginZ);
+			MaxCullSlice = min(LightGridCullMaxZ, MaxCullSlice + LightGridCullMarginZ);
+			// convert back to Min/MaxTileZ
+			CullMinTileZ = min(CullMinTileZ, ComputeDepthFromZSlice(LightGridCullMarginZParams, MinCullSlice));
+			CullMaxTileZ = max(CullMaxTileZ, ComputeDepthFromZSlice(LightGridCullMarginZParams, MaxCullSlice));
+		}
 
-#if ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
-			float4 LightPositionAndRadius = LightViewSpacePositionAndRadius[LocalLightIndex];
-			float3 ViewSpaceLightPosition = LightPositionAndRadius.xyz;
-			float LightRadius = LightPositionAndRadius.w;
-#else // !ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
-			float4 LightPositionAndInvRadius = ForwardLocalLightBuffer[LocalLightBaseIndex + 0];
-			float LightRadius = 1.0f / LightPositionAndInvRadius.w;
+		FScreenRect Rect = ComputeCellCullRect(GridCoordinate, CullMinTileZ, CullMaxTileZ, LightGridCullMarginXY);
 
-			float3 ViewSpaceLightPosition = mul(float4(LightPositionAndInvRadius.xyz, 1), View.TranslatedWorldToView).xyz;
-#endif // ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
-
-			float BoxDistanceSq = ComputeSquaredDistanceFromBoxToPoint(ViewTileCenter, ViewTileExtent, ViewSpaceLightPosition);
-
-			if (BoxDistanceSq < LightRadius * LightRadius)
-			{
-#if REFINE_SPOTLIGHT_BOUNDS
-				bool bPassSpotlightTest = true;
-				{
-					float4 ViewSpaceDirAndPreprocAngle = LightViewSpaceDirAndPreprocAngle[LocalLightIndex];
-					float TanConeAngle = ViewSpaceDirAndPreprocAngle.w;
-
-					// Set to 0 for non-acute cones, or non-spot lights.
-					if (TanConeAngle > 0.0f)
-					{
-						float3 ViewSpaceLightDirection = -ViewSpaceDirAndPreprocAngle.xyz;
-						bPassSpotlightTest = !IsAabbOutsideInfiniteAcuteConeApprox(ViewSpaceLightPosition, ViewSpaceLightDirection, TanConeAngle, ViewTileCenter, ViewTileExtent);
-					}
-				}
-				if (bPassSpotlightTest)
-#endif // REFINE_SPOTLIGHT_BOUNDS
-				{
-
-#if USE_LINKED_CULL_LIST
-					uint NextLink;
-					InterlockedAdd(RWNextCulledLightLink[0], 1U, NextLink);
-
-					if (NextLink < NumAvailableLinks)
-					{
-						uint PreviousLink;
-						InterlockedExchange(RWStartOffsetGrid[GridIndex], NextLink, PreviousLink);
-						RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 0] = LocalLightIndex;
-						RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 1] = PreviousLink;
-					}
-
-#else
-					uint CulledLightIndex;
-					InterlockedAdd(RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0], 1U, CulledLightIndex);
-					RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = GridIndex * MaxCulledLightsPerCell;
-
-					if (CulledLightIndex < MaxCulledLightsPerCell)
-					{
-						RWCulledLightDataGrid[GridIndex * MaxCulledLightsPerCell + CulledLightIndex] = LocalLightIndex;
-					}
+ 		if (!IsVisibleHZB(Rect, true /*bSample4x4*/))
+ 		{
+#if USE_THREAD_GROUP_PER_CELL
+			if (ThreadIndex == 0)
 #endif
-				}
-			}
-		}
-		
-		LOOP
-		for (uint ReflectionCaptureIndex = 0; ReflectionCaptureIndex < NumReflectionCaptures; ReflectionCaptureIndex++)
-		{
-			FDFVector3 CaptureWorldPosition = MakeDFVector3(GetReflectionPositionAndRadius(ReflectionCaptureIndex).xyz, GetReflectionPositionLow(ReflectionCaptureIndex).xyz);
-			float3 CaptureTranslatedWorldPosition = DFFastAddDemote(CaptureWorldPosition, PrimaryView.PreViewTranslation);
-			float3 ViewSpaceCapturePosition = mul(float4(CaptureTranslatedWorldPosition, 1), View.TranslatedWorldToView).xyz;
-			float CaptureRadius = GetReflectionPositionAndRadius(ReflectionCaptureIndex).w;
-
-			float BoxDistanceSq = ComputeSquaredDistanceFromBoxToPoint(ViewTileCenter, ViewTileExtent, ViewSpaceCapturePosition);
-
-			if (BoxDistanceSq < CaptureRadius * CaptureRadius)
 			{
-				#if USE_LINKED_CULL_LIST
-					uint NextLink;
-					InterlockedAdd(RWNextCulledLightLink[0], 1U, NextLink);
-
-					if (NextLink < NumAvailableLinks)
-					{
-						uint PreviousLink;
-						InterlockedExchange(RWStartOffsetGrid[NumGridCells + GridIndex], NextLink, PreviousLink);
-						RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 0] = ReflectionCaptureIndex;
-						RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 1] = PreviousLink;
-					}
-
-				#else
-					uint CulledCaptureIndex;
-					InterlockedAdd(RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 0], 1U, CulledCaptureIndex);
-					RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = (NumGridCells + GridIndex) * MaxCulledLightsPerCell;
-
-					if (CulledCaptureIndex < MaxCulledLightsPerCell)
-					{
-						RWCulledLightDataGrid[(NumGridCells + GridIndex) * MaxCulledLightsPerCell + CulledCaptureIndex] = ReflectionCaptureIndex;
-					}
-				#endif
+ 				RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(0, 0);
+ 				RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(0, false, false);
 			}
-		}
-#else
+ 			return;
+ 		}
+		
+		// tighten cell bounds based on farthest depth in cell
+		{
+			const float FarthestDeviceZ = GetMinDepthFromHZB(Rect, true /*bSample4x4*/);
+			const float FarthestSceneDepth = ConvertFromDeviceZ(FarthestDeviceZ);
 
+			MaxTileZ = min(MaxTileZ, FarthestSceneDepth);
+		}
+#endif // USE_HZB_CULL
+		
+		FCellBounds CellBounds = ComputeCellBounds(GridCoordinate, MinTileZ, MaxTileZ);
+
+#if USE_PARENT_LIGHT_GRID
+		const uint3 ParentGridCoordinate = GridCoordinate / ParentGridSizeFactor;
+		const uint ParentGridIndex = (ParentGridCoordinate.z * ParentGridSize.y + ParentGridCoordinate.y) * ParentGridSize.x + ParentGridCoordinate.x;
+#else
+		const uint ParentGridIndex = 0xFFFFFFFF;
+#endif
+
+#if USE_THREAD_GROUP_PER_CELL
+		CullLights_ThreadGroup(ThreadIndex, GridIndex, CellBounds, ParentGridIndex);
+		CullReflectionCaptures_ThreadGroup(ThreadIndex, GridIndex, CellBounds, ParentGridIndex);
+#else
+		CullLights_SingleThread(GridIndex, CellBounds, ParentGridIndex);
+		CullReflectionCaptures_SingleThread(GridIndex, CellBounds, ParentGridIndex);
+#endif
+
+#else // !CULL_LIGHTS
 		LOOP
 		for (uint LocalLightIndex = 0; LocalLightIndex < NumLocalLights; LocalLightIndex++)
 		{
@@ -306,8 +844,10 @@ void LightGridInjectionCS(
 			}
 		}
 
-		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = NumLocalLights;
-		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = GridIndex * MaxCulledLightsPerCell;
+		const uint NumVisibleLights = min(NumLocalLights, MaxCulledLightsPerCell);
+		const uint NumVisibleMegaLights = max(NumVisibleLights - MegaLightsSupportedStartIndex, 0);
+		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(NumVisibleLights, NumVisibleMegaLights);
+		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(GridIndex * MaxCulledLightsPerCell, true, true); // TODO
 		
 		LOOP
 		for (uint ReflectionCaptureIndex = 0; ReflectionCaptureIndex < NumReflectionCaptures; ReflectionCaptureIndex++)
@@ -318,114 +858,14 @@ void LightGridInjectionCS(
 			}
 		}
 
-		RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = NumReflectionCaptures;
+		const uint NumVisibleReflectionCaptures = min(NumReflectionCaptures, MaxCulledLightsPerCell);
+		RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = NumVisibleReflectionCaptures;
 		RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = (NumGridCells + GridIndex) * MaxCulledLightsPerCell;
-#endif
+#endif // !CULL_LIGHTS
 	}
 }
 
-#endif // SHADER_LIGHT_GRID_INJECTION_CS
-
-
-
-#if SHADER_LIGHT_GRID_COMPACT_CS
-
-RWStructuredBuffer<uint> RWNextCulledLightData;
-StructuredBuffer<uint> StartOffsetGrid;
-StructuredBuffer<uint> CulledLightLinks;
-
-#if USE_LOCALSTORE_FOR_ATOMICS
-groupshared uint LDSNextCulledLightData;
-groupshared uint LDSBaseStart;
-#endif
-
-
-void CompactReverseLinkedList(uint GridIndex, uint SceneMax, bool FirstThread, bool bThreadValid)
-{
-	uint NumCulledLights		= 0;
-	uint StartLinkOffset		= 0;
-	uint LinkOffset				= 0;
-	uint CulledLightDataStart	= 0;
-
-	if(bThreadValid)
-	{
-		StartLinkOffset = StartOffsetGrid[GridIndex];
-		LinkOffset = StartLinkOffset;
-
-		// Traverse the linked list to count how many culled indices we have
-		while (LinkOffset != 0xFFFFFFFF && NumCulledLights < SceneMax)
-		{
-			NumCulledLights++;
-			LinkOffset = CulledLightLinks[LinkOffset * LIGHT_LINK_STRIDE + 1];
-		}
-	}
-
-
-#if USE_LOCALSTORE_FOR_ATOMICS
-
-	LDSNextCulledLightData	= 0;
-	LDSBaseStart			= 0;
-
-	GroupMemoryBarrierWithGroupSync();
-
-	// Firstly do an interlocked add with LDS
-	InterlockedAdd(LDSNextCulledLightData, NumCulledLights, CulledLightDataStart);
-	GroupMemoryBarrierWithGroupSync();
-
-	// Then the first thread can do an interlocked add with the buffer
-	if(FirstThread)
-	{
-		InterlockedAdd(RWNextCulledLightData[0], LDSNextCulledLightData, LDSBaseStart);
-	}
-	GroupMemoryBarrierWithGroupSync();
-	
-	CulledLightDataStart += LDSBaseStart;
-#else
-	InterlockedAdd(RWNextCulledLightData[0], NumCulledLights, CulledLightDataStart);
-#endif
-
-	if( bThreadValid)
-	{
-		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = NumCulledLights;
-		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = CulledLightDataStart;
-	
-		LinkOffset = StartLinkOffset;
-		uint CulledLightIndex = 0;
-
-		while (LinkOffset != 0xFFFFFFFF && CulledLightIndex < NumCulledLights)
-		{
-			// Reverse the order as we write them out, which restores the original order before the reverse linked list was built
-			// Reflection captures are order dependent
-			RWCulledLightDataGrid[CulledLightDataStart + NumCulledLights - CulledLightIndex - 1] = CulledLightLinks[LinkOffset * LIGHT_LINK_STRIDE + 0];
-			CulledLightIndex++;
-			LinkOffset = CulledLightLinks[LinkOffset * LIGHT_LINK_STRIDE + 1];
-		}
-	}
-}
-
-[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
-void LightGridCompactCS(
-	uint3 GroupId : SV_GroupID,
-	uint3 DispatchThreadId : SV_DispatchThreadID,
-	uint3 GroupThreadId : SV_GroupThreadID,
-	uint  GroupIndex : SV_GroupIndex)
-{
-	uint3 GridCoordinate = DispatchThreadId;
-
-	bool bThreadValid = all(GridCoordinate < CulledGridSize);
-	bool bFirstThread =  GroupIndex==0;
-	
-	uint GridIndex = (GridCoordinate.z * CulledGridSize.y + GridCoordinate.y) * CulledGridSize.x + GridCoordinate.x;
-
-	// Compact lights
-	CompactReverseLinkedList(GridIndex, NumLocalLights, bFirstThread, bThreadValid);
-
-	// Compact reflection captures
-	CompactReverseLinkedList(NumGridCells + GridIndex, NumReflectionCaptures, bFirstThread, bThreadValid);
-}
-
-#endif // SHADER_LIGHT_GRID_COMPACT_CS
-
+#endif // LightGridInjectionCS
 
 
 #ifdef SHADER_DEBUG_LIGHT_GRID_PS
@@ -436,6 +876,7 @@ void LightGridCompactCS(
 
 Texture2D<float4> DepthTexture;
 uint DebugMode;
+uint MaxThreshold;
 
 void DebugLightGridPS(
 	in float4 SVPos : SV_POSITION,
@@ -470,15 +911,19 @@ void DebugLightGridPS(
 	FFontColor EnableSliceDebugFont = FontDarkGrey; if (SpecifyDebugSlice) { EnableSliceDebugFont = FontWhite; }
 	DebugSlice = AddSlider(Context, TEXT("Slice to debug"), 0.0f, EnableSliceDebugFont, 0.0f, GridData.CulledGridSize.z-1);
 	Newline(Context);
+	bool bIsolateMegaLights = AddCheckbox(Context, TEXT("Isolate MegaLights"), false, GetDefaultFontColor());
+	Newline(Context);
+	bool bExcludeMegaLights = AddCheckbox(Context, TEXT("Exclude MegaLights"), false, GetDefaultFontColor());
+	Newline(Context);
 
 	if (DebugMode == 1 && !SpecifyDebugSlice)
 	{
 		const float SceneDepth = ConvertFromDeviceZ(DepthTexture.Load(int3(PixelPosDynRes, 0)).r);
 
 		const uint GridIndex = ComputeLightGridCellIndex(LocalPixelPosDynRes, SceneDepth, EyeIndex);
-		const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);
+		const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 
-		DebugNumLightsInGridCell = CulledLightsGrid.NumLights;
+		DebugNumLightsInGridCell = bIsolateMegaLights ? CulledLightsGridHeader.NumMegaLights : (CulledLightsGridHeader.NumLights - (bExcludeMegaLights ? CulledLightsGridHeader.NumMegaLights : 0));
 	}
 	else
 	{
@@ -490,9 +935,10 @@ void DebugLightGridPS(
 		for (int SliceIt = StartGridIndexZ; SliceIt < EndGridIndexZ; SliceIt++)
 		{
 			const uint GridIndex = ComputeLightGridCellIndex(uint3(LocalPixelPosDynRes >> GridData.LightGridPixelSizeShift, SliceIt), EyeIndex);
-			const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);
+			const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 		
-			DebugNumLightsInGridCell = max(DebugNumLightsInGridCell, CulledLightsGrid.NumLights);
+			const uint NumLightsInSlice = DebugNumLightsInGridCell = bIsolateMegaLights ? CulledLightsGridHeader.NumMegaLights : (CulledLightsGridHeader.NumLights - (bExcludeMegaLights ? CulledLightsGridHeader.NumMegaLights : 0));
+			DebugNumLightsInGridCell = max(DebugNumLightsInGridCell, NumLightsInSlice);
 		}
 	}
 
@@ -503,7 +949,7 @@ void DebugLightGridPS(
 	if (DebugNumLightsInGridCell > 0)
 	{
 		OutLuminanceTransmittance.a   = 0.0f;
-		OutLuminanceTransmittance.rgb = GetHSVDebugColor(float(DebugNumLightsInGridCell) / 8.0f);
+		OutLuminanceTransmittance.rgb = GetHSVDebugColor(float(DebugNumLightsInGridCell) / MaxThreshold);
 		PrintSmallUint(PixelPos, OutLuminanceTransmittance.rgb, float3(0.1, 0.1, 0.1), (TileTopLeftPixelCoord + TileSize/2) / View.ViewResolutionFraction, float(DebugNumLightsInGridCell));
 	}
 
@@ -516,3 +962,30 @@ void DebugLightGridPS(
 
 #endif // SHADER_DEBUG_LIGHT_GRID_PS
 
+#ifdef FeedbackStatusCS
+
+StructuredBuffer<uint> NextCulledLightDataBuffer;
+uint NumCulledLightDataEntries;
+
+StructuredBuffer<uint> NextCulledLightLinkBuffer;
+
+uint StatusMessageId;
+
+[numthreads(1, 1, 1)]
+void FeedbackStatusCS()
+{												
+	uint NumAllocatedEntries = NextCulledLightDataBuffer[0];
+	uint NumAllocatedLinks = NextCulledLightLinkBuffer[0];
+
+	FGPUMessageWriter Mw = GPUMessageBegin(StatusMessageId, 4U);
+
+	// max of allocated entries or links because when link allocation fail entries are not allocated
+	// however every link allocation would result in an entry allocation
+	GPUMessageWriteItem(Mw, max(NumAllocatedEntries, NumAllocatedLinks));
+	GPUMessageWriteItem(Mw, NumCulledLightDataEntries);
+
+	GPUMessageWriteItem(Mw, NumAllocatedLinks);
+	GPUMessageWriteItem(Mw, NumAvailableLinks);
+}
+
+#endif

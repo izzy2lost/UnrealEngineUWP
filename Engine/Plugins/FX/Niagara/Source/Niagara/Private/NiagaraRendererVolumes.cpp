@@ -246,7 +246,7 @@ void FNiagaraRendererVolumes::GetDynamicMeshElements(const TArray<const FSceneVi
 		return;
 	}
 
-	FNiagaraDataBuffer* ParticleDataBuffer = VolumeDynamicData->GetParticleDataToRender();
+	FNiagaraDataBuffer* ParticleDataBuffer = VolumeDynamicData->GetParticleDataToRender(Collector.GetRHICommandList());
 	if (!ParticleDataBuffer || (SourceMode == ENiagaraRendererSourceDataMode::Particles && ParticleDataBuffer->GetNumInstances() == 0))
 	{
 		return;
@@ -368,7 +368,7 @@ void FNiagaraRendererVolumes::GetDynamicMeshElements(const TArray<const FSceneVi
 }
 
 #if RHI_RAYTRACING
-void FNiagaraRendererVolumes::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances, const FNiagaraSceneProxy* SceneProxy)
+void FNiagaraRendererVolumes::GetDynamicRayTracingInstances(FRayTracingInstanceCollector& Collector, const FNiagaraSceneProxy* SceneProxy)
 {
 	//-TODO: Add support for raytracing
 }

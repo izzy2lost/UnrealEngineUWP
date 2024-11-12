@@ -4,7 +4,7 @@
 ## Copyright Epic Games, Inc. All Rights Reserved.
 
 # Should be run in docker image, launched something like this (see RunMe.sh script):
-#   docker run --name ${ImageName} -v ${SCRIPT_DIR}/../../Vulkan:/Vulkan -v ${SDL_DIR}:/SDL-gui-backend -v ${SCRIPT_DIR}:/src ${Image} /src/docker-build-sdl2.sh
+#   docker run --name ${ImageName} --platform linux/arm64 -v ${SCRIPT_DIR}/../../Vulkan:/Vulkan -v ${SDL_DIR}:/SDL-gui-backend -v ${SCRIPT_DIR}:/src ${Image} /src/docker-build-sdl2.sh
 #
 # Expects these mapped directories:
 #   /Vulkan: vulkan sdk
@@ -12,19 +12,43 @@
 #
 # Built libSDL libraries are in /build directory
 
+DISTRO=${1:-Rocky8}
+
 if [ $UID -eq 0 ]; then
-  # Centos 7
-  yum install -y epel-release
-  yum install -y cmake3 make gcc-c++
-  yum install -y libXcursor-devel libXinerama-devel libxi-dev libXrandr-devel libXScrnSaver-devel libXi-devel mesa-libGL-devel mesa-libEGL-devel pulseaudio-libs-devel wayland-protocols-devel wayland-devel libxkbcommon-devel mesa-libwayland-egl-devel alsa-lib-devel libudev-devel
 
-  # Create non-privileged user and workspace
-  adduser buildmaster
-  mkdir -p /build
-  chown buildmaster:nobody -R /build
-  cd /build
+	if [ ${DISTRO} == "CentOS7" ]; then
+		# Centos 7
 
-  exec su buildmaster "$0"
+		# first we need to fix up the yum repos since CentOS 7 is EOL and mirrorlist.centos.org is now offline
+		sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo
+		sed -i s/^#.*baseurl=http/baseurl=http/g /etc/yum.repos.d/*.repo
+		sed -i s/^mirrorlist=http/#mirrorlist=http/g /etc/yum.repos.d/*.repo
+
+		# now install stuff
+		yum install -y epel-release
+		yum install -y cmake3 make gcc-c++
+		yum install -y libXcursor-devel libXinerama-devel libxi-dev libXrandr-devel libXScrnSaver-devel libXi-devel mesa-libGL-devel mesa-libEGL-devel pulseaudio-libs-devel wayland-protocols-devel wayland-devel libxkbcommon-devel mesa-libwayland-egl-devel alsa-lib-devel libudev-devel
+	elif [ ${DISTRO} == "Rocky8" ]; then
+		yum install -y epel-release
+		yum install -y gcc gcc-c++ git-core make cmake \
+			alsa-lib-devel pulseaudio-libs-devel pipewire-devel libX11-devel \
+			libXext-devel libXrandr-devel libXcursor-devel libXfixes-devel \
+			libXi-devel libXScrnSaver-devel dbus-devel systemd-devel \
+			mesa-libGL-devel libxkbcommon-devel mesa-libGLES-devel \
+			mesa-libEGL-devel vulkan-devel wayland-devel wayland-protocols-devel libdrm-devel 
+
+	else
+		echo Unsupported distro ${DISTRO}
+		exit 1
+	fi
+
+	# Create non-privileged user and workspace
+	adduser buildmaster
+	mkdir -p /build
+	chown buildmaster:nobody -R /build
+	cd /build
+
+	exec su buildmaster "$0"
 fi
 
 # This will be run from user buildmaster

@@ -92,6 +92,8 @@ public:
 
 	void Init(UWorld* InWorld);
 
+	void OnPostWorldInit();
+
 	static NIAGARA_API FNiagaraWorldManager* Get(const UWorld* World);
 	static void OnStartup();
 	static void OnShutdown();
@@ -167,7 +169,8 @@ public:
 	TArrayView<const FNiagaraCachedViewInfo> GetCachedViewInfo() const { return MakeArrayView(CachedViewInfo); }
 
 	//Returns the distance to the nearest viewpoint to the give location. Used for a distance on which to base LODs.
-	NIAGARA_API FVector::FReal GetLODDistance(FVector Location)const;
+	NIAGARA_API FVector::FReal GetLODDistance(FVector Location) const;
+	NIAGARA_API FVector::FReal GetLODDistance(FVector Location, TConstArrayView<FVector> ViewPoints) const;
 
 	UNiagaraComponentPool* GetComponentPool() { return ComponentPool; }
 
@@ -296,6 +299,9 @@ public:
 private:
 	// Callback function registered with global world delegates to instantiate world manager when a game world is created
 	static void OnWorldInit(UWorld* World, const UWorld::InitializationValues IVS);
+	
+	// Callback function registered with global world delegates to instantiate world manager after a game world is initialized
+	static void OnPostWorldInit(UWorld* World, const UWorld::InitializationValues IVS);
 
 	// Callback function registered with global world delegates to cleanup world manager contents
 	static void OnWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
@@ -349,6 +355,7 @@ private:
 	void HandleCSVStats(float DeltaSeconds);
 
 	static FDelegateHandle OnWorldInitHandle;
+	static FDelegateHandle OnPostWorldInitHandle;
 	static FDelegateHandle OnWorldCleanupHandle;
 	static FDelegateHandle OnPostWorldCleanupHandle;
 	static FDelegateHandle OnPreWorldFinishDestroyHandle;
@@ -429,6 +436,11 @@ private:
 
 #if WITH_PER_FXTYPE_PARTICLE_PERF_STATS
 	FParticlePerfStatsListenerPtr FXTypeCSVListener;
+#endif
+
+#if WITH_EDITOR
+	using FSystemDelegateMap = TMap<TWeakObjectPtr<UNiagaraSystem>, FDelegateHandle>;
+	FSystemDelegateMap SystemPostChangeDelegateHandles;
 #endif
 };
 

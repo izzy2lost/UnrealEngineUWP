@@ -70,6 +70,7 @@ namespace ADPCM
 
 		ADPCMFormatHeader()
 		{
+			FMemory::Memzero(this, sizeof(ADPCMFormatHeader));
 			int16 AdaptationCoefficient1[NUM_ADAPTATION_COEFF];
 			int16 AdaptationCoefficient2[NUM_ADAPTATION_COEFF];
 			GetAdaptationCoefficients(AdaptationCoefficient1, AdaptationCoefficient2);

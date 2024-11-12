@@ -198,14 +198,6 @@ void FLevelExporterUSDOptionsCustomization::CustomizeDetails(IDetailLayoutBuilde
 	{
 		OptionsPtr.Reset(LevelSequenceOptions);
 
-		// For now there is no easy way of fetching the level to export from a ULevelSequence... we could potentially try to guess what it is
-		// by looking at the soft object paths, but even those aren't exposed, so here we just default to using the current level as the export level.
-		if (LevelSequenceOptions->Level == nullptr)
-		{
-			const bool bEditorWorldsOnly = true;
-			LevelSequenceOptions->Level = IUsdClassesModule::GetCurrentWorld(bEditorWorldsOnly);
-		}
-
 		PickerTree = SNew(LevelExporterUSDImpl::SLevelPickerList, &LevelSequenceOptions->LevelExportOptions, LevelSequenceOptions->Level->GetWorld());
 		LevelFilterPropName = TEXT("LevelExportOptions.LevelsToIgnore");
 		ExportSublayersPropName = TEXT("LevelExportOptions.bExportSublayers");

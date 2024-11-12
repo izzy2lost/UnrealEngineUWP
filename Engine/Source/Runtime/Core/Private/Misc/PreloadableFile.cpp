@@ -291,6 +291,12 @@ FArchive* FPreloadableArchive::DetachLowerLevel()
 	return SynchronousArchive.Release();
 }
 
+bool FPreloadableArchive::HasValidData() const
+{
+	WaitForInitialization();
+	return SynchronousArchive || AsynchronousHandle;
+}
+
 void FPreloadableArchive::PausePreload()
 {
 	bIsPreloadingPaused = true;

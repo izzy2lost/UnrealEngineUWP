@@ -21,7 +21,7 @@
 #include "Transform/Mix/T_UpdateTargets.h"
 
 
-bool UTextureGraph::CheckCyclicDependency(const UTextureGraph* InTextureGraph) const
+bool UTextureGraph::CheckRecursiveDependency(const UTextureGraph* InTextureGraph) const
 {
 	TArray<UTextureGraph*> DependentGraphs;
 	GatherAllDependentGraphs(DependentGraphs);
@@ -35,6 +35,10 @@ bool UTextureGraph::CheckCyclicDependency(const UTextureGraph* InTextureGraph) c
 		return CurrentTextureGraph->GetOutermostObject() == InTextureGraph->GetOutermostObject() ||
 				(Package == SecondPackage && !bIsTransientPackage);
 	});
+}
+bool UTextureGraph::HasCyclicDependency() const
+{
+	return CheckRecursiveDependency(this);
 }
 void UTextureGraph::GatherAllDependentGraphs(TArray<UTextureGraph*>& DependentGraphs) const
 {
@@ -60,7 +64,7 @@ void UTextureGraph::GatherAllDependentGraphs(TArray<UTextureGraph*>& DependentGr
 				}
 		});
 }
-bool UTextureGraph::IsDependent(const UTextureGraph* InTextureGraph) const
+bool UTextureGraph::IsDependentOn(const UTextureGraph* InTextureGraph) const
 {
 	
 	// check if we're trying to assign our own TextureGraph to this expression
@@ -71,7 +75,7 @@ bool UTextureGraph::IsDependent(const UTextureGraph* InTextureGraph) const
 	}
 			
 	// check for cyclic dependency
-	if (CheckCyclicDependency(InTextureGraph))
+	if (CheckRecursiveDependency(InTextureGraph))
 	{
 		return true;
 	}
@@ -107,7 +111,7 @@ void UTextureGraph::Serialize(FArchive& Ar)
 
 	int32 Version = Ar.CustomVer(FTG_CustomVersion::GUID);
 
-	UE_LOG(LogTextureGraph, Log, TEXT("%s TextureGraph: %s >>>> %s"),
+	UE_LOG(LogTextureGraph, Verbose, TEXT("%s TextureGraph: %s >>>> %s"),
 		(Ar.IsSaving() ? TEXT("Saved") : TEXT("Loaded")),
 		*GetName(),
 		*FString::FromInt(Version));
@@ -145,7 +149,7 @@ void UTextureGraph::PostLoad()
 void UTextureGraph::PreSave(FObjectPreSaveContext SaveContext)
 {
 	Super::PreSave(SaveContext);
-	UE_LOG(LogTextureGraph, Log, TEXT("PreSave Script: %s"), *GetName());
+	UE_LOG(LogTextureGraph, Verbose, TEXT("PreSave Script: %s"), *GetName());
 }
 
 void UTextureGraph::Update(MixUpdateCyclePtr InCycle)
@@ -186,6 +190,11 @@ void UTextureGraph::PostMeshLoad()
 {
 	FModelInvalidateInfo InvalidateInfo;
 	Invalidate(InvalidateInfo);
+}
+
+void UTextureGraph::FlushInvalidations()
+{
+	TextureGraphEngine::GetMixManager()->FlushMix(this);
 }
 
 void UTextureGraph::TriggerUpdate(bool Tweaking)

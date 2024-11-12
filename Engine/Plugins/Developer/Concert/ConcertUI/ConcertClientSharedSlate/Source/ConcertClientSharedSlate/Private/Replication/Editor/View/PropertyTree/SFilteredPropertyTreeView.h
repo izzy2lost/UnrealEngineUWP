@@ -11,7 +11,7 @@
 
 namespace UE::ConcertSharedSlate
 {
-	class FReplicatedPropertyData;
+	class FPropertyData;
 	enum class EFilterResult : uint8;
 }
 
@@ -27,7 +27,7 @@ namespace UE::ConcertClientSharedSlate
 	{
 	public:
 		
-		using FFilterRef = TSharedRef<FFilterBase<const ConcertSharedSlate::FReplicatedPropertyData&>>;
+		using FFilterRef = TSharedRef<FFilterBase<const ConcertSharedSlate::FPropertyData&>>;
 		
 		SLATE_BEGIN_ARGS(SFilteredPropertyTreeView)
 		{}
@@ -36,9 +36,9 @@ namespace UE::ConcertClientSharedSlate
 		void Construct(const FArguments& InArgs, FFilterablePropertyTreeViewParams Params);
 		
 		//~ Begin IPropertyTreeView Interface
-		virtual void RefreshPropertyData(const TSet<FConcertPropertyChain>& PropertiesToDisplay, const FSoftClassPath& Class, bool bCanReuseExistingRowItems) override
+		virtual void RefreshPropertyData(const TArray<ConcertSharedSlate::FPropertyAssignmentEntry>& Entries, bool bCanReuseExistingRowItems) override
 		{
-			ExtendedTreeView->RefreshPropertyData(PropertiesToDisplay, Class, bCanReuseExistingRowItems);
+			ExtendedTreeView->RefreshPropertyData(Entries, bCanReuseExistingRowItems);
 		}
 		virtual void RequestRefilter() const override { ExtendedTreeView->RequestRefilter(); }
 		virtual void RequestResortForColumn(const FName& ColumnId) override { ExtendedTreeView->RequestResortForColumn(ColumnId); }
@@ -62,8 +62,8 @@ namespace UE::ConcertClientSharedSlate
 		FBuildFilterBarResult BuildFilterBar();
 
 		/** Runs all filters through this item */
-		ConcertSharedSlate::EFilterResult PassesFilters(const ConcertSharedSlate::FReplicatedPropertyData& ReplicatedPropertyData) const;
-		bool PassesAnyFilters(const ConcertSharedSlate::FReplicatedPropertyData& ReplicatedPropertyData) const;
+		ConcertSharedSlate::EFilterResult PassesFilters(const ConcertSharedSlate::FPropertyData& ReplicatedPropertyData) const;
+		bool PassesAnyFilters(const ConcertSharedSlate::FPropertyData& ReplicatedPropertyData) const;
 	};
 }
 

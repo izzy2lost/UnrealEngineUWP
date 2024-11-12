@@ -2,13 +2,35 @@
 
 #pragma once
 
+#include "Engine/DeveloperSettings.h"
 #include "Templates/SubclassOf.h"
 
 #include "PCGEditorSettings.generated.h"
 
 class UPCGSettings;
+class UPCGBuilderSettings;
 
 struct FEdGraphPinType;
+
+UCLASS(config=Editor, meta=(DisplayName="PCG"))
+class PCGEDITOR_API UPCGEditorProjectSettings : public UDeveloperSettings
+{
+	GENERATED_BODY()
+
+public:
+	UPCGEditorProjectSettings(const FObjectInitializer& ObjectInitializer);
+		
+	/** Default Builder Settings to use when running the PCGWorldPartitionBuilder */
+	UPROPERTY(EditAnywhere, config, Category = Builder)
+	TSoftObjectPtr<UPCGBuilderSettings> DefaultBuilderSetting;
+
+	/** [EXPERIMENTAL] Whether to automatically refresh components that use GPU Static Mesh Spawners when materials are modified. Temporary workaround for
+	* issues where instances can be lost.
+	* Note: This setting is subject to change/removal without deprecation.
+	*/
+	UPROPERTY(EditAnywhere, Config, Category = Workflow)
+	bool bAutoRefreshGPUStaticMeshSpawners = true;
+};
 
 UCLASS(config=EditorPerProjectUserSettings)
 class PCGEDITOR_API UPCGEditorSettings : public UObject
@@ -93,6 +115,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
 	FLinearColor RerouteNodeColor;
 
+	/** Color used for dynamic mesh nodes */
+	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
+	FLinearColor DynamicMeshNodeColor;
+
 	/** Default pin color */
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
 	FLinearColor DefaultPinColor;
@@ -121,6 +147,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
 	FLinearColor LandscapeDataPinColor;
 
+	/** Color used for data pins of type Base Texture */
+	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
+	FLinearColor BaseTextureDataPinColor;
+	
 	/** Color used for data pins of type Texture */
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
 	FLinearColor TextureDataPinColor;
@@ -140,6 +170,10 @@ public:
 	/** Color used for data pins of type Attribute Set */
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel, DisplayName = "Attribute Set Pin Color"))
 	FLinearColor ParamDataPinColor;
+
+	/** Color used for data pins of type Dynamic Mesh */
+	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
+	FLinearColor DynamicMeshPinColor;
 
 	/** Color used for other/unknown data types */
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
@@ -172,9 +206,32 @@ public:
 	/** Specify if we want to disable CPU Throttling when a PCG Graph is executing, this will improve execution time when app is out of focus/minimized */
 	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Disable CPU throttling during graph execution"))
 	bool bDisableCPUThrottlingDuringGraphExecution = false;
-};
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "PCGSettings.h"
-#endif
+	/** Controls whether the "Pause PCG" button will be display in the editor menu */
+	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Show PCG pause button in the editor (requires restart)"))
+	bool bShowPauseButton = false;
+
+	/** Controls whether PCG tasks will be cancelled when unpausing PCG, which might result in dirty/stale content, but will not require significant time. */
+	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Unpausing cancels all PCG tasks"))
+	bool bUnpauseCancelsAll = false;
+
+	/** Controls whether the alternate PCG pause button is shown instead of the default PCG icon. */
+	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Use alternate pause button icon", EditCondition = "bShowPauseButton", EditConditionHides))
+	bool bUseAlternatePauseButton = false;
+
+	/** Overrides the label of the pause button while PCG is not currently being paused. The default is empty or None, which will use the default label then. */
+	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Overrides default name for the 'currently paused' button", EditCondition = "bShowPauseButton", EditConditionHides))
+	FName OverridePausedButtonLabel = NAME_None;
+
+	/** Overrides the label of the pause button while PCG is currently paused. The default is empty or None, which will use the default label then. */
+	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Overrides default name for the 'not currently paused' button", EditCondition = "bShowPauseButton", EditConditionHides))
+	FName OverrideNotPausedButtonLabel = NAME_None;
+
+	/** Overrides the tooltip on the pause button. The default is empty, which will use the default tooltip then. */
+	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (MultiLine = true, DisplayName = "Overrides default tooltip on the pause button", EditCondition = "bShowPauseButton", EditConditionHides))
+	FString OverridePausedButtonTooltip = FString();
+
+	/** Target number of points when trying to debug volume data or landscape data, to avoid exploding the number of points if the volume/landscape is big, and to have a good representation if the volume/landscape is small. */
+	UPROPERTY(EditAnywhere, config, Category = "Editor Performance")
+	int32 TargetNumPointsForDebug = 64000;
+};

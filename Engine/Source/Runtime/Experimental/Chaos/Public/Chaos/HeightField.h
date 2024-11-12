@@ -895,6 +895,12 @@ namespace Chaos
 				Max = { FMath::Max(Max.X, InPoint.X), FMath::Max(Max.Y, InPoint.Y) };
 			}
 
+			void Inflate(const FVec2& InInflation)
+			{
+				Min -= InInflation;
+				Max += InInflation;
+			}
+
 			FVec2 Clamp(const FVec2& InToClamp, FReal InNudge = UE_SMALL_NUMBER) const
 			{
 				const FVec2 NudgeVec(InNudge, InNudge);
@@ -1070,17 +1076,27 @@ namespace Chaos
 		template<typename SQVisitor>
 		bool GridSweep(const FVec3& StartPoint, const FVec3& Dir, const FReal Length, const FVec3 InHalfExtents, SQVisitor& Visitor) const;
 		
-		CHAOS_API bool WalkSlow(TVec2<int32>& CellIdx, FHeightfieldRaycastVisitor& Visitor, FReal CurrentLength, const VectorRegister4Float& CurrentLengthSimd,
-			const FVec2& ScaledMin, FReal ZMidPoint, const FVec3& Dir, const FVec3& InvDir, bool bParallel[3], const FVec2& ScaledDx2D, FVec3& NextStart,
-			const FVec3& ScaleSign, const FVec3& ScaledDx, int32 IndexLowResX, int32 IndexLowResY) const;
-		
-		CHAOS_API bool WalkFast(TVec2<int32>& CellIdx, FHeightfieldRaycastVisitor& Visitor, FReal CurrentLength, const VectorRegister4Float& CurrentLengthSimd,
-			const FVec2& ScaledMin, FReal ZMidPoint, const FVec3& Dir, const FVec3& InvDir, bool bParallel[3], const FVec2& ScaledDx2D, FVec3& NextStart,
-			const FVec3& ScaleSign, const FVec3& ScaledDx, const FVec2& Scale2D, const FVec3& DirScaled) const;
+		struct FWalkingData {
 
-		CHAOS_API bool WalkOnLowRes(TVec2<int32>& CellIdx, FHeightfieldRaycastVisitor& Visitor, FReal CurrentLength, const VectorRegister4Float& CurrentLengthSimd,
-			const FVec2& ScaledMin, FReal ZMidPoint, const FVec3& Dir, const FVec3& InvDir, bool bParallel[3], const FVec2& ScaledDx2D, FVec3& NextStart,
-			const FVec3& ScaleSign, const FVec3& ScaledDx, const FVec2& Scale2D, const FVec3& DirScaled) const;
+			explicit FWalkingData(FHeightfieldRaycastVisitor& VisitorIn) : Visitor(VisitorIn) {}
+			VectorRegister4Float CurrentLengthSimd;
+			FVec2 ScaledMin;
+			FReal CurrentLength;
+			FReal ZMidPoint;
+			FVec3 Dir;
+			FVec3 InvDir; 
+			FVec3 NextStart;
+			FVec3 ScaleSign;
+			FVec3 ScaledDx;
+			FVec2 ScaledDx2D;
+			TVec2<int32> CellIdx;
+			bool bParallel[3];
+			FHeightfieldRaycastVisitor& Visitor;
+		};
+
+		CHAOS_API bool WalkSlow(FWalkingData& WalkingData, int32 IndexLowResX, int32 IndexLowResY) const;
+		CHAOS_API bool WalkFast(FWalkingData& WalkingData, const FVec2& Scale2D, const FVec3& DirScaled) const;
+		CHAOS_API bool WalkOnLowRes(FWalkingData& WalkingData, const FVec2& Scale2D, const FVec3& DirScaled) const;
 
 		CHAOS_API bool GridCast(const FVec3& StartPoint, const FVec3& Dir, const FReal Length, FHeightfieldRaycastVisitor& Visitor) const;
 		CHAOS_API bool GetGridIntersections(FBounds2D InFlatBounds, TArray<TVec2<int32>>& OutInterssctions) const;

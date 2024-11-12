@@ -227,7 +227,8 @@ class _Target(object):
             path += "-" + platform + "-" + variant.ueify()
         path += ".target"
 
-        if receipt := next(self._ufs_mount.glob(path), None):
+        ufs_node = self._ufs_mount.get_node()
+        if receipt := next(ufs_node.glob(path), None):
             return _Build(receipt, variant, platform, self._ufs_mount)
 
 
@@ -439,11 +440,17 @@ class _Project(_UfsNode):
 
     def _create_temp_target(self, target:_Target) -> None:
         int_dir = self.get_dir() / "Source"
-        int_dir.mkdir(parents=True, exist_ok=True)
 
-        type_name = target.get_type().name.title()
+        # Only do creation if we are the first to arrive
+        int_tag = int_dir / ".ushell_created"
+        if not int_dir.is_dir():
+            int_dir.mkdir(parents=True, exist_ok=True)
+            int_tag.open("wb").close()
+        else:
+            if not int_tag.is_file():
+                return
+
         target_name = target.get_name()
-
         dot_cs_path = int_dir / (target_name + ".Target.cs")
         if dot_cs_path.is_file():
             return
@@ -452,6 +459,7 @@ class _Project(_UfsNode):
         if self._engine.get_version_major() <= 4:
             game_target = "UE4Game"
 
+        type_name = target.get_type().name.title()
         with dot_cs_path.open("wt") as dot_cs:
             dot_cs.write(
                 "// Created by ushell to make blueprint projects work end to end.\n"
