@@ -29,7 +29,9 @@ TGlobalResource<FClearVertexBuffer> GClearVertexBuffer;
 DEFINE_LOG_CATEGORY_STATIC(LogClearQuad, Log, Log)
 
 template<EColorWriteMask ColorWriteMask>
-static void ClearQuadSetup(FRHICommandList& RHICmdList, int32 NumClearColors, const FLinearColor* ClearColorArray, bool bClearDepth, float Depth, bool bClearStencil, uint32 Stencil, TFunction<void(FGraphicsPipelineStateInitializer&)> PSOModifier = nullptr)
+static void ClearQuadSetup(FRHICommandList& RHICmdList, int32 NumClearColors, const FLinearColor* ClearColorArray, bool bClearDepth, float Depth, bool bClearStencil
+	, uint32 Stencil, TFunction<void(FGraphicsPipelineStateInitializer&)> PSOModifier = nullptr
+	, uint8 NumUintOutput = 0)
 {
 	if (UNLIKELY(!FApp::CanEverRender()))
 	{
@@ -77,6 +79,7 @@ static void ClearQuadSetup(FRHICommandList& RHICmdList, int32 NumClearColors, co
 	TOneColorPixelShaderMRT::FPermutationDomain PermutationVector;
 	PermutationVector.Set<TOneColorPixelShaderMRT::TOneColorPixelShaderNumOutputs>(NumClearColors ? NumClearColors : 1);
 	PermutationVector.Set<TOneColorPixelShaderMRT::TOneColorPixelShader128bitRT>(PlatformRequires128bitRT((EPixelFormat)GraphicsPSOInit.RenderTargetFormats[0]));
+	PermutationVector.Set<TOneColorPixelShaderMRT::TOneColorPixelNumUintOutputs>(NumUintOutput);
 	TShaderMapRef<TOneColorPixelShaderMRT > PixelShader(ShaderMap, PermutationVector);
 
 	GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector4();
@@ -116,6 +119,22 @@ void DrawClearQuadMRT(FRHICommandList& RHICmdList, bool bClearColor, int32 NumCl
 	else
 	{
 		ClearQuadSetup<CW_NONE>(RHICmdList, NumClearColors, ClearColorArray, bClearDepth, Depth, bClearStencil, Stencil);
+	}
+
+	RHICmdList.SetStreamSource(0, GClearVertexBuffer.VertexBufferRHI, 0);
+	RHICmdList.DrawPrimitive(0, 2, 1);
+}
+
+void DrawClearQuadMRTWithUints(FRHICommandList& RHICmdList, bool bClearColor, int32 NumClearColors, const FLinearColor* ClearColorArray, bool bClearDepth, float Depth, bool bClearStencil, uint32 Stencil, uint8 NumUintOutput)
+{
+	check(NumUintOutput <= NumClearColors);
+	if (bClearColor)
+	{
+		ClearQuadSetup<CW_RGBA>(RHICmdList, NumClearColors, ClearColorArray, bClearDepth, Depth, bClearStencil, Stencil, nullptr , NumUintOutput);
+	}
+	else
+	{
+		ClearQuadSetup<CW_NONE>(RHICmdList, NumClearColors, ClearColorArray, bClearDepth, Depth, bClearStencil, Stencil, nullptr, NumUintOutput);
 	}
 
 	RHICmdList.SetStreamSource(0, GClearVertexBuffer.VertexBufferRHI, 0);

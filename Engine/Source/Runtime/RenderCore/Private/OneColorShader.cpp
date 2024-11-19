@@ -49,6 +49,13 @@ bool TOneColorPixelShaderMRT::ShouldCompilePermutation(const FGlobalShaderPermut
 {
 	FPermutationDomain PermutationVector(Parameters.PermutationId);
 
+	const int32 NumOutputs = PermutationVector.Get<TOneColorPixelShaderMRT::TOneColorPixelShaderNumOutputs>();
+	const int32 NumUintOutputs = PermutationVector.Get<TOneColorPixelShaderMRT::TOneColorPixelNumUintOutputs>();
+	if (NumOutputs < NumUintOutputs)
+	{
+		return false;
+	}
+
 	if (PermutationVector.Get<TOneColorPixelShaderMRT::TOneColorPixelShaderNumOutputs>())
 	{
 		return (PermutationVector.Get<TOneColorPixelShaderMRT::TOneColorPixelShader128bitRT>() ? FDataDrivenShaderPlatformInfo::GetRequiresExplicit128bitRT(Parameters.Platform) : true);
@@ -65,6 +72,14 @@ void TOneColorPixelShaderMRT::ModifyCompilationEnvironment(const FGlobalShaderPe
 	if (PermutationVector.Get<TOneColorPixelShaderMRT::TOneColorPixelShader128bitRT>())
 	{
 		OutEnvironment.SetRenderTargetOutputFormat(0, PF_A32B32G32R32F);
+	}
+
+	const int32 NumOutputs = PermutationVector.Get<TOneColorPixelShaderMRT::TOneColorPixelShaderNumOutputs>();
+	const int32 NumUintOutputs = PermutationVector.Get<TOneColorPixelShaderMRT::TOneColorPixelNumUintOutputs>();
+	const int32 UintOutputStartIndex = NumOutputs - NumUintOutputs;
+	for (int32 UintTargetIndex = 0; UintTargetIndex < NumUintOutputs; UintTargetIndex++)
+	{
+		OutEnvironment.SetRenderTargetOutputFormat(UintOutputStartIndex + UintTargetIndex, PF_R32_UINT);
 	}
 }
 
