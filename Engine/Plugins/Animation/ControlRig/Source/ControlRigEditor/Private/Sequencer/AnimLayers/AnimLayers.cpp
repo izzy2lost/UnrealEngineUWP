@@ -1765,12 +1765,16 @@ bool UAnimLayers::SetPassthroughKey(ISequencer* InSequencer, int32 InIndex)
 	return true;
 }
 
+
 static void MergeControlRigSections(UMovieSceneControlRigParameterSection* BaseSection, UMovieSceneControlRigParameterSection* Section, const TRange<FFrameNumber>& Range)
 {
-	if (!BaseSection || !Section)
+	//disable section if no control in the section and override, need to make sure we skip it's eval or it will incorrectly
+	//override when merging
+	auto ShouldDisableSection = [](UMovieSceneControlRigParameterSection* CRSection, FRigControlElement* ControlElement)
 	{
-		return;
-	}
+		return (CRSection->GetControlNameMask(ControlElement->GetFName()) == false &&
+				CRSection->GetBlendType().IsValid() && CRSection->GetBlendType() == EMovieSceneBlendType::Override);
+	};
 	TArrayView<FMovieSceneFloatChannel*> BaseFloatChannels = BaseSection->GetChannelProxy().GetChannels<FMovieSceneFloatChannel>();
 	if (BaseFloatChannels.Num() > 0)
 	{
@@ -1800,12 +1804,28 @@ static void MergeControlRigSections(UMovieSceneControlRigParameterSection* BaseS
 			if (FChannelMapInfo* pChannelIndex = BaseSection->ControlChannelMap.Find(ControlElement->GetFName()))
 			{
 				const int32 ChannelIndex = pChannelIndex->ChannelIndex;
-				bool bMaskKeyOut = (BaseSection->GetControlNameMask(ControlElement->GetFName()) == false)
-					|| (Section->GetControlNameMask(ControlElement->GetFName()) == false);
 
+				//if section is additive an control not there, skip it. we need to keep overrides since we may be blending over
+				//an additive and we want the full override value (with prpoer scale)
+				const bool bMaskKeyOut = (Section->GetBlendType().IsValid() && Section->GetBlendType() == EMovieSceneBlendType::Additive 
+					&& Section->GetControlNameMask(ControlElement->GetFName()) == false);
 				if (bMaskKeyOut)
 				{
 					continue;
+				}
+				TOptional<bool> bBaseSectionResetActive;
+				TOptional<bool> bSectionResetActive;
+
+				if (ShouldDisableSection(BaseSection, ControlElement))
+				{
+					bBaseSectionResetActive = BaseSection->IsActive();
+					BaseSection->SetIsActive(false);
+				}
+
+				if (ShouldDisableSection(Section, ControlElement))
+				{
+					bSectionResetActive = Section->IsActive();
+					Section->SetIsActive(false);
 				}
 
 				switch (ControlElement->Settings.ControlType)
@@ -1946,6 +1966,14 @@ static void MergeControlRigSections(UMovieSceneControlRigParameterSection* BaseS
 					}
 					default:
 						break;
+				}
+				if (bBaseSectionResetActive.IsSet())
+				{
+					BaseSection->SetIsActive(bBaseSectionResetActive.GetValue());
+				}
+				if (bSectionResetActive.IsSet())
+				{
+					Section->SetIsActive(bSectionResetActive.GetValue());
 				}
 			}
 		}
@@ -2090,6 +2118,7 @@ bool UAnimLayers::MergeAnimLayers(ISequencer* InSequencer, const TArray<int32>& 
 		UAnimLayer* BaseLayer = LayersToMerge[Index + 1];
 		UAnimLayer* AnimLayer = LayersToMerge[Index];
 		BaseLayer->Modify();
+		AnimLayer->Modify();
 		for (TPair<TWeakObjectPtr<UObject>, FAnimLayerItem>& Pair : AnimLayer->AnimLayerItems)
 		{
 			if (Pair.Key != nullptr)
