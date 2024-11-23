@@ -53,23 +53,31 @@ void UPCGVolumeData::Initialize(AVolume* InVolume)
 	// TODO: Compute the strict bounds, we must find a FBox inscribed into the oriented box.
 	// Currently, we'll leave the strict bounds empty and fall back to checking against the local box
 	Bounds = FBox::BuildAABB(BoxSphereBounds.Origin, BoxSphereBounds.BoxExtent);
-	
-	// Keep a "sceneless" equivalent body so we can do queries against it without locking constraints
-	if (UBrushComponent* BrushComponent = Volume->GetBrushComponent())
+
+	SetupVolumeBodyInstance();
+}
+
+void UPCGVolumeData::SetupVolumeBodyInstance()
+{
+	if (AVolume* CurrentVolume = Volume.Get())
 	{
-		FBodyInstance* BodyInstance = BrushComponent->GetBodyInstance();
-		UBodySetup* BodySetup = BrushComponent->GetBodySetup();
-
-		// In some instances, non-collidable bodies will not be initialized, but it's not an issue for PCG so we can continue regardless.
-		// Otherwise, require that the body is not dynamic.
-		if (BodyInstance && BodySetup && (!FPhysicsInterface::IsValid(BodyInstance->ActorHandle) || !BodyInstance->IsDynamic()))
+		// Keep a "sceneless" equivalent body so we can do queries against it without locking constraints
+		if (UBrushComponent* BrushComponent = CurrentVolume->GetBrushComponent())
 		{
-			ReleaseInternalBodyInstance();
+			FBodyInstance* BodyInstance = BrushComponent->GetBodyInstance();
+			UBodySetup* BodySetup = BrushComponent->GetBodySetup();
 
-			VolumeBodyInstance = new FBodyInstance();
-			VolumeBodyInstance->bAutoWeld = false;
-			VolumeBodyInstance->bSimulatePhysics = false;
-			VolumeBodyInstance->InitBody(BodySetup, BrushComponent->GetComponentTransform(), nullptr, nullptr);
+			// In some instances, non-collidable bodies will not be initialized, but it's not an issue for PCG so we can continue regardless.
+			// Otherwise, require that the body is not dynamic.
+			if (BodyInstance && BodySetup && (!FPhysicsInterface::IsValid(BodyInstance->ActorHandle) || !BodyInstance->IsDynamic()))
+			{
+				ReleaseInternalBodyInstance();
+
+				VolumeBodyInstance = new FBodyInstance();
+				VolumeBodyInstance->bAutoWeld = false;
+				VolumeBodyInstance->bSimulatePhysics = false;
+				VolumeBodyInstance->InitBody(BodySetup, BrushComponent->GetComponentTransform(), nullptr, nullptr);
+			}
 		}
 	}
 }
@@ -197,11 +205,10 @@ void UPCGVolumeData::CopyBaseVolumeData(UPCGVolumeData* NewVolumeData) const
 	NewVolumeData->Bounds = Bounds;
 	NewVolumeData->StrictBounds = StrictBounds;
 
+	// We can't copy the properties if the VolumeBodyInstance is setup for a body. Re-create it using the same method as in Initialize.
 	if (VolumeBodyInstance)
 	{
-		NewVolumeData->ReleaseInternalBodyInstance();
-		NewVolumeData->VolumeBodyInstance = new FBodyInstance();
-		NewVolumeData->VolumeBodyInstance->CopyBodyInstancePropertiesFrom(VolumeBodyInstance);
+		NewVolumeData->SetupVolumeBodyInstance();
 	}
 }
 
