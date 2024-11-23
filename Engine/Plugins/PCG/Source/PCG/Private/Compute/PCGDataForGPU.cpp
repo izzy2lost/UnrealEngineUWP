@@ -80,9 +80,9 @@ namespace PCGDataForGPUHelpers
 		case EPCGKernelAttributeType::Int:
 		case EPCGKernelAttributeType::Float:
 		case EPCGKernelAttributeType::StringKey:
+		case EPCGKernelAttributeType::Name:
 			return 4;
 		case EPCGKernelAttributeType::Float2:
-		case EPCGKernelAttributeType::Name:
 			return 8;
 		case EPCGKernelAttributeType::Float3:
 		case EPCGKernelAttributeType::Rotator:
@@ -252,15 +252,11 @@ namespace PCGDataForGPUHelpers
 		}
 		case PCG::Private::MetadataTypes<FName>::Id:
         {
-        	// FName are defined with 2 int32, so packed them both.
+        	// FNames are currently stored in string table so use same logic as string.
         	const FPCGMetadataAttribute<FName>* Attribute = static_cast<const FPCGMetadataAttribute<FName>*>(InAttributeBase);
-        	FName Value = Attribute->GetValue(ValueKey);
-        	check(StrideBytes == 8);
-			const FNameEntryId NameEntry = Value.GetDisplayIndex();
-			const uint32 Number = Value.GetNumber();
-
-        	OutPackedDataCollection[InOutAddressUints++] = NameEntry.ToUnstableInt();
-        	OutPackedDataCollection[InOutAddressUints++] = Number;
+			const int32 Value = InStringTable.IndexOfByKey(Attribute->GetValue(ValueKey).ToString());
+			check(StrideBytes == 4);
+			OutPackedDataCollection[InOutAddressUints++] = Value;
         	break;
         }
 		default:
@@ -453,13 +449,11 @@ namespace PCGDataForGPUHelpers
 		{
 			FPCGMetadataAttribute<FName>* Attribute = static_cast<FPCGMetadataAttribute<FName>*>(AttributeBase);
 
-			const FNameEntryId NameEntryId = FNameEntryId::FromUnstableInt(DataAsInt[ElementIndex]);
-			const uint32 Number = DataAsInt[ElementIndex + 1];
-			// Names need some validation
-			const FName Value = FName::CreateFromDisplayId(NameEntryId, Number);
-			if (Value.IsValid())
+			// FNames currently stored in string table.
+			const int32 StringKey = DataAsInt[ElementIndex];
+			if (InStringTable.IsValidIndex(StringKey))
 			{
-				Attribute->SetValue(EntryKey, Value);
+				Attribute->SetValue(EntryKey, *InStringTable[StringKey]);
 			}
 			break;
 		}
@@ -657,7 +651,7 @@ void FPCGDataDesc::InitializeAttributeDescs(const UPCGData* InData, const TMap<F
 
 			TArray<int32> UniqueStringKeys;
 
-			if (AttributeType == EPCGKernelAttributeType::StringKey)
+			if (AttributeType == EPCGKernelAttributeType::StringKey || AttributeType == EPCGKernelAttributeType::Name)
 			{
 				const FPCGMetadataAttributeBase* AttributeBase = Metadata->GetConstAttribute(AttributeName);
 				check(AttributeBase);
@@ -681,9 +675,13 @@ void FPCGDataDesc::InitializeAttributeDescs(const UPCGData* InData, const TMap<F
 							StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FString>*>(AttributeBase)->GetValue(ValueKey));
 						}
 						else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftClassPath>::Id)
-                        {
-                        	StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(AttributeBase)->GetValue(ValueKey).ToString());
-                        }
+						{
+							StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(AttributeBase)->GetValue(ValueKey).ToString());
+						}
+						else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FName>::Id)
+						{
+							StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FName>*>(AttributeBase)->GetValue(ValueKey).ToString());
+						}
 						else
 						{
 							// Should not get here if attribute type is string key.
@@ -713,9 +711,13 @@ void FPCGDataDesc::InitializeAttributeDescs(const UPCGData* InData, const TMap<F
 							StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FString>*>(AttributeBase)->GetValue(MetadataKey));
 						}
 						else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftClassPath>::Id)
-                        {
-                        	StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(AttributeBase)->GetValue(MetadataKey).ToString());
-                        }
+						{
+							StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(AttributeBase)->GetValue(MetadataKey).ToString());
+						}
+						else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FName>::Id)
+						{
+							StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FName>*>(AttributeBase)->GetValue(MetadataKey).ToString());
+						}
 						else
 						{
 							// Should not get here if attribute type is string key.

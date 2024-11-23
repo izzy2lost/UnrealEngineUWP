@@ -106,7 +106,7 @@ void UPCGDataBinding::BuildStringTable()
 			const FName AttributeName = AttributeNames[AttributeIndex];
 			const EPCGKernelAttributeType AttributeType = PCGDataForGPUHelpers::GetAttributeTypeFromMetadataType(AttributeTypes[AttributeIndex]);
 
-			if (AttributeType == EPCGKernelAttributeType::StringKey)
+			if (AttributeType == EPCGKernelAttributeType::StringKey || AttributeType == EPCGKernelAttributeType::Name)
 			{
 				const FPCGMetadataAttributeBase* AttributeBase = Metadata->GetConstAttribute(AttributeName);
 				if (!AttributeBase)
@@ -126,9 +126,13 @@ void UPCGDataBinding::BuildStringTable()
 						StringTable.AddUnique(static_cast<const FPCGMetadataAttribute<FString>*>(AttributeBase)->GetValue(InValueKey));
 					}
 					else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftClassPath>::Id)
-                    {
-                    	StringTable.AddUnique(static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(AttributeBase)->GetValue(InValueKey).ToString());
-                    }
+					{
+						StringTable.AddUnique(static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(AttributeBase)->GetValue(InValueKey).ToString());
+					}
+					else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FName>::Id)
+					{
+						StringTable.AddUnique(static_cast<const FPCGMetadataAttribute<FName>*>(AttributeBase)->GetValue(InValueKey).ToString());
+					}
 					else
 					{
 						checkNoEntry();

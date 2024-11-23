@@ -390,7 +390,14 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 				{
 					if (AttributeDesc.Name == SelectedName)
 					{
-						UniqueStringKeys.Append(AttributeDesc.UniqueStringKeys);
+						if (AttributeDesc.Type == EPCGKernelAttributeType::StringKey)
+						{
+							UniqueStringKeys.Append(AttributeDesc.UniqueStringKeys);
+						}
+						else
+						{
+							UE_LOG(LogPCG, Error, TEXT("Attribute '%s' not usable for mesh selection, only attributes of type String Key are supported."), *AttributeDesc.Name.ToString())
+						}
 					}
 				}
 			}

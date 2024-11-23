@@ -233,11 +233,11 @@ int GetStringKey_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int Attr
 	return GetInt_{DataInterfaceName}(DataIndex, ElementIndex, AttributeId);
 }
 
+// TODO: left as uint2 which we locked into for 5.5.0. Future version should change this to int.
 uint2 GetName_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
 {
-	// Names are composed of 2 uints.
-	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
-	return {DataInterfaceName}_DataCollectionBuffer.Load2(AttributeAddress + ElementIndex * 2 * 4);
+	// Names are represented as ints.
+	return uint2((uint)GetInt_{DataInterfaceName}(DataIndex, ElementIndex, AttributeId), 0);
 }
 
 // #################### ATTRIBUTE SETTERS ##########################
@@ -312,11 +312,11 @@ void SetStringKey_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int Att
 	SetInt_{DataInterfaceName}(DataIndex, ElementIndex, AttributeId, Value);
 }
 
+// TODO: Value left as uint2 which we locked into for 5.5.0. Future version should change this to int.
 void SetName_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, uint2 Value)
 {
-	// Names are composed of 2 uints.
-	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
-	{DataInterfaceName}_DataCollectionBuffer.Store2(AttributeAddress + ElementIndex * 2 * 4, Value);
+	// Names are represented as ints.
+	SetInt_{DataInterfaceName}(DataIndex, ElementIndex, AttributeId, (int)Value.x);
 }
 
 // #################### POINT ATTRIBUTE GETTERS ##########################
