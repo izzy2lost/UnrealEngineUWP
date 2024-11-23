@@ -62,7 +62,19 @@ void UPCGDataBinding::InitializeInputData(const FPCGDataCollection& InComputeGra
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGDataBinding::InitializeInputData);
 
-	DataForGPU.InputDataCollection = InComputeGraphElementInputData;
+	// Add compatible data objects from input collection.
+	DataForGPU.InputDataCollection.TaggedData.Reserve(InComputeGraphElementInputData.TaggedData.Num());
+	for (const FPCGTaggedData& InputData : InComputeGraphElementInputData.TaggedData)
+	{
+		if (InputData.Data && PCGComputeHelpers::IsTypeAllowedAsInput(InputData.Data->GetDataType()))
+		{
+			DataForGPU.InputDataCollection.TaggedData.Add(InputData);
+		}
+		else if (InputData.Data)
+		{
+			UE_LOG(LogPCG, Warning, TEXT("Stripped input data that is not currently supported by GPU execution: %s"), *InputData.Data->GetName());
+		}
+	}
 
 	// Link each input pin to the data collection, so that data providers can find the data.
 	for (const TSoftObjectPtr<const UPCGPin>& InputPinPtr : Graph->PinsReceivingDataFromCPU)
