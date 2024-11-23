@@ -4412,20 +4412,26 @@ void FOpenXRHMD::DrawVisibleAreaMesh(class FRHICommandList& RHICmdList, int32 Vi
 
 void FOpenXRHMD::UpdateLayer(FOpenXRLayer& ManagerLayer, uint32 LayerId, bool bIsValid)
 {
+	const bool bStaticSwapchain = !(ManagerLayer.Desc.Flags & IStereoLayers::LAYER_FLAG_TEX_CONTINUOUS_UPDATE);
+	if (bStaticSwapchain)
+	{
+		ManagerLayer.RightEye.Swapchain.Reset();
+		ManagerLayer.LeftEye.Swapchain.Reset();
+	}
+
 	ENQUEUE_RENDER_COMMAND(UpdateLayer)(
 		[
 			this,
-			Flags = ManagerLayer.Desc.Flags,
 			bUpdateRightEyeTexture = ManagerLayer.RightEye.bUpdateTexture,
 			bUpdateLeftEyeTexture = ManagerLayer.LeftEye.bUpdateTexture,
-			LayerId
+			LayerId,
+			bStaticSwapchain
 		](FRHICommandList&)
 	{
 	for (FOpenXRLayer& NativeLayer : NativeLayers)
 		{
 			if (NativeLayer.GetLayerId() == LayerId)
 			{
-				const bool bStaticSwapchain = !(Flags & IStereoLayers::LAYER_FLAG_TEX_CONTINUOUS_UPDATE);
 				NativeLayer.RightEye.bUpdateTexture = bUpdateRightEyeTexture;
 				NativeLayer.LeftEye.bUpdateTexture = bUpdateLeftEyeTexture;
 				if (bStaticSwapchain)
