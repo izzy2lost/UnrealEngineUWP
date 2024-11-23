@@ -252,7 +252,7 @@ bool FPoseSearchDatabaseAnimationAssetBase::IsSkeletonCompatible(TObjectPtr<cons
 					if (RoledSkeleton.Role == Role)
 					{
 						// Match skeleton
-						if (RoledSkeleton.Skeleton->IsCompatibleForEditor(AssetData))
+						if (RoledSkeleton.Skeleton && RoledSkeleton.Skeleton->IsCompatibleForEditor(AssetData))
 						{
 							return true;
 						}
