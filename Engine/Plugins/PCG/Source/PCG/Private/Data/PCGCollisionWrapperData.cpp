@@ -239,9 +239,11 @@ void UPCGCollisionWrapperData::FinalizeInitializationEx(const TArray<FSoftObject
 
 		for (FBodyInstance* BodyInstance : CollisionWrapper.BodyInstances)
 		{
-			check(BodyInstance);
 			PhysicsInterfaceTypes::FInlineShapeArray& Shapes = CachedShapes.Emplace_GetRef();
-			CollisionWrapper.GetShapeArray(BodyInstance, CollisionQueryFlag, Shapes);
+			if (BodyInstance)
+			{
+				CollisionWrapper.GetShapeArray(BodyInstance, CollisionQueryFlag, Shapes);
+			}
 		}
 	}
 }
