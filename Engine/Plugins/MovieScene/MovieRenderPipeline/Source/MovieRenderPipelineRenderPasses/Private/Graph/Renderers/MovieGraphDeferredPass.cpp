@@ -335,6 +335,11 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 				
 				FMovieGraphSampleState PassSampleState = SampleState;
 				PassSampleState.TraversalContext.RenderDataIdentifier = Identifier;
+
+				// Additional Post Process materials should not have things composited onto them (like burn-ins)
+				// nor should they have OCIO applied (as they're going to be data buffers like depth).
+				PassSampleState.bAllowsCompositing = false;
+				PassSampleState.bAllowOCIO = false;
 				
 				// Give a lower priority to materials so they show up after the main pass in multi-layer exrs.
 				PassSampleState.CompositingSortOrder = SampleState.CompositingSortOrder + 1;
