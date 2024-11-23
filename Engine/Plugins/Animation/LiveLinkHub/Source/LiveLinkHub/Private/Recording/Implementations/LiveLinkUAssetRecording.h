@@ -15,6 +15,13 @@
 class FMemoryReader;
 struct FLiveLinkPlaybackTracks;
 
+namespace UE::LiveLinkHub::Private::RecordingVersions
+{
+	constexpr int32 InitialVersion = 1;
+	/** Account for varying frame sizes and offsets. */
+	constexpr int32 DynamicFrameSizes = 2;
+}
+
 /**
  * Asset containing all animation data stored as bulk data. This is loaded async in chunks dependent on the playhead position.
  * Overall recording length, framerate, and frame indices are based on the maximum track length and farthest timestamp.
@@ -80,9 +87,19 @@ private:
 	/** Initial processing on a frame, finding the correct struct and offsets. The RecordingFileReader is assumed to be at the correct position. */
 	bool LoadInitialFrameData(UE::LiveLinkHub::FrameData::Private::FFrameMetaData& OutFrameData);
 	
-	/** Load frame data to a data container. */
+	/**
+	 * Load frame data to a data container. By default, it loads frames from the initial frame and then alternates in batches right then left.
+	 *
+	 * @param InFrameData The meta frame data being read and updated.
+	 * @param InDataContainer The data container for loaded frames to be stored.
+	 * @param RequestedStartFrame The farthest left start frame to load.
+	 * @param RequestedInitialFrame The first frame to be loaded, such as the midpoint, or the start frame.
+	 * @param RequestedFramesToLoad The total frames to try to load.
+	 * @param bForceSequential Whether to force a sequential load, left to right, rather than alternating.
+	 * In this case all frames from RequestedStartFrame to RequestedFramesToLoad are loaded.
+	 */
 	void LoadFrameData(UE::LiveLinkHub::FrameData::Private::FFrameMetaData& InFrameData, FLiveLinkRecordingBaseDataContainer& InDataContainer,
-		int32 RequestedStartFrame, int32 RequestedInitialFrame, int32 RequestedFramesToLoad);
+		int32 RequestedStartFrame, int32 RequestedInitialFrame, int32 RequestedFramesToLoad, bool bForceSequential = false);
 
 	/**
 	 * Attempt to load a frame from bulk data.
@@ -235,5 +252,8 @@ private:
 	bool bIsFullyLoaded = false;
 	
 	/** The current version of the recording. */
-	const int32 RecordingVersion = 1;
+	const int32 RecordingVersion = UE::LiveLinkHub::Private::RecordingVersions::DynamicFrameSizes;
+
+	/** The version being currently loaded. */
+	int32 RecordingVersionBeingLoaded = 0;
 };
