@@ -104,11 +104,12 @@ namespace UE::MovieGraph
 
 			AccumulatorPin->FetchFinalPixelDataLinearColor(OutputLayers);
 
+			MoviePipeline::FObjectIdAccelerationData* AccelData = FMovieGraphObjectIdPass::GetAccelerationData(SampleStatePayload->TraversalContext.RenderDataIdentifier.RootBranchName);
+			check(AccelData);
+
 			// Add in the object ID metadata. This cannot be done in the node's GetFormatResolveArgs() because the manifest is only known after render-time,
-			// and the manifest data is destroyed during node teardown (and teardown occurs before the metadata is finalized and the file written to dis
-			FUObjectAnnotationSparse<UE::MoviePipeline::FObjectIdAccelerationData, true>& ManifestAnnotation = UMovieGraphObjectIdNode::GetManifestAnnotation();
-			const UE::MoviePipeline::FObjectIdAccelerationData AccelData = ManifestAnnotation.GetAnnotation(ObjectIdArgs->RenderPassNode.Get());
-			UpdateCryptomatteMetadata(AccelData, SampleStatePayload->TraversalContext.RenderDataIdentifier.RendererName, SampleStatePayload->AdditionalFileMetadata);
+			// and the manifest data is destroyed during node teardown (and teardown occurs before the metadata is finalized and the file written to disk)
+			UpdateCryptomatteMetadata(*AccelData, SampleStatePayload->TraversalContext.RenderDataIdentifier.RendererName, SampleStatePayload->AdditionalFileMetadata);
 
 			for (int32 Index = 0; Index < ObjectIdArgs->NumOutputLayers; Index++)
 			{
@@ -169,7 +170,7 @@ void FMovieGraphObjectIdPass::Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> I
 	// the Object ID render data identifiers are the same, other than the sub resource name, so this should be fine.
 	RenderDataIdentifier = RenderDataIdentifiers[0];
 
-	UE::MoviePipeline::FObjectIdAccelerationData AccelData = UE::MoviePipeline::FObjectIdAccelerationData();
+	UE::MoviePipeline::FObjectIdAccelerationData& AccelData = AccelerationDataByBranch.Add(LayerData.BranchName);
 
 	// Static metadata needed for Cryptomatte
 	const uint32 NameHash = ::MoviePipeline::HashNameToId(TCHAR_TO_UTF8(*InRenderPassNode->GetRendererName()));
@@ -193,8 +194,6 @@ void FMovieGraphObjectIdPass::Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> I
 		UpdateManifestAccelerationData(AccelData, ObjectIdNode->IdType);
 	}
 	
-	GetManifestAnnotation().AddAnnotation(InLayer.RenderPassNode.Get(), AccelData);
-
 	SceneViewState.Allocate(InRenderer->GetWorld()->GetFeatureLevel());
 
 	// The InRenderPassNode is not initialized with user's config. Use InLayer to 
@@ -207,7 +206,7 @@ void FMovieGraphObjectIdPass::Teardown()
 {
 	FMovieGraphDeferredPass::Teardown();
 
-	GetManifestAnnotation().RemoveAnnotation(LayerData.RenderPassNode.Get());
+	AccelerationDataByBranch.Remove(RenderDataIdentifier.RootBranchName);
 }
 
 void FMovieGraphObjectIdPass::GatherOutputPasses(UMovieGraphEvaluatedConfig* InConfig, TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const
@@ -232,12 +231,15 @@ TSharedRef<MoviePipeline::IMoviePipelineAccumulationArgs> FMovieGraphObjectIdPas
 	const FMoviePipelineAccumulatorPoolPtr SampleAccumulatorPool = InGraphRenderer->GetOrCreateAccumulatorPool<FMaskOverlappedAccumulator>();
 	const UE::MovieGraph::DefaultRenderer::FSurfaceAccumulatorPool::FInstancePtr AccumulatorInstance = SampleAccumulatorPool->GetAccumulatorInstance_GameThread<FMaskOverlappedAccumulator>(InSampleState.TraversalContext.Time.OutputFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
 
+	const UE::MoviePipeline::FObjectIdAccelerationData* AccelerationData = GetAccelerationData(InSampleState.TraversalContext.RenderDataIdentifier.RootBranchName);
+	check(AccelerationData);
+
 	TSharedRef<FMovieGraphObjectIdMaskSampleAccumulationArgs> AccumulationArgs = MakeShared<FMovieGraphObjectIdMaskSampleAccumulationArgs>();
 	AccumulationArgs->OutputMerger = InGraphRenderer->GetOwningGraph()->GetOutputMerger();
 	AccumulationArgs->ImageAccumulator = StaticCastSharedPtr<FMaskOverlappedAccumulator>(AccumulatorInstance->Accumulator);
 	AccumulationArgs->AccumulatorInstance = SampleAccumulatorPool->GetAccumulatorInstance_GameThread<FMaskOverlappedAccumulator>(InSampleState.TraversalContext.Time.OutputFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
 	AccumulationArgs->NumOutputLayers = RenderDataIdentifiers.Num();
-	AccumulationArgs->CacheData = MakeShared<TMap<int32, UE::MoviePipeline::FMoviePipelineHitProxyCacheValue>>(*GetManifestAnnotation().GetAnnotation(LayerData.RenderPassNode.Get()).Cache);
+	AccumulationArgs->CacheData = MakeShared<TMap<int32, UE::MoviePipeline::FMoviePipelineHitProxyCacheValue>>(*AccelerationData->Cache);
 	AccumulationArgs->RenderPassNode = LayerData.RenderPassNode;
 
 	return AccumulationArgs;
@@ -246,6 +248,11 @@ TSharedRef<MoviePipeline::IMoviePipelineAccumulationArgs> FMovieGraphObjectIdPas
 UE::MovieGraph::Rendering::FMovieGraphImagePassBase::FAccumulatorSampleFunc FMovieGraphObjectIdPass::GetAccumulateSampleFunction() const
 {
 	return UE::MovieGraph::AccumulateSampleObjectId_TaskThread;
+}
+
+UE::MoviePipeline::FObjectIdAccelerationData* FMovieGraphObjectIdPass::GetAccelerationData(const FName& InBranchName)
+{
+	return AccelerationDataByBranch.Find(InBranchName);
 }
 
 UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams FMovieGraphObjectIdPass::GetRenderTargetInitParams(const FMovieGraphTimeStepData& InTimeData, const FIntPoint& InResolution)
@@ -259,9 +266,4 @@ UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams FMovieGraphObjectIdPass
 	InitParams.PixelFormat = PF_B8G8R8A8;
 
 	return InitParams;
-}
-
-FUObjectAnnotationSparse<UE::MoviePipeline::FObjectIdAccelerationData, true>& FMovieGraphObjectIdPass::GetManifestAnnotation()
-{
-	return UMovieGraphObjectIdNode::GetManifestAnnotation();
 }

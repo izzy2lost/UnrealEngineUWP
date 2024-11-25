@@ -4,15 +4,7 @@
 
 #include "Editor/EditorPerProjectUserSettings.h"
 #include "MovieGraphObjectIdPass.h"
-#include "MoviePipelineObjectIdUtils.h"
 #include "MoviePipelineTelemetry.h"
-
-FUObjectAnnotationSparse<UE::MoviePipeline::FObjectIdAccelerationData, true>& UMovieGraphObjectIdNode::GetManifestAnnotation()
-{
-	static FUObjectAnnotationSparse<UE::MoviePipeline::FObjectIdAccelerationData, true> ManifestAnnotation;
-	
-	return ManifestAnnotation;
-}
 
 FEngineShowFlags UMovieGraphObjectIdNode::GetShowFlags() const
 {

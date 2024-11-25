@@ -4,7 +4,6 @@
 
 #include "MoviePipelineObjectIdUtils.h"
 #include "Graph/Nodes/MovieGraphImagePassBaseNode.h"
-#include "UObject/UObjectAnnotation.h"
 
 #include "MovieGraphObjectIdNode.generated.h"
 
@@ -18,8 +17,6 @@ class UMovieGraphObjectIdNode : public UMovieGraphImagePassBaseNode
 
 public:
 	UMovieGraphObjectIdNode() = default;
-
-	static FUObjectAnnotationSparse<UE::MoviePipeline::FObjectIdAccelerationData, true>& GetManifestAnnotation();
 
 	// UMovieGraphImagePassBaseNode Interface
 	virtual FEngineShowFlags GetShowFlags() const override;
