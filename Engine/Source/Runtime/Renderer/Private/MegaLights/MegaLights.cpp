@@ -1159,9 +1159,9 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 	FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
 	TUniformBufferRef<FBlueNoise> BlueNoiseUniformBuffer = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 
-	for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ++ViewIndex)
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
-		FViewInfo& View = *AllViews[ViewIndex];
+		FViewInfo& View = Views[ViewIndex];
 		View.GetOwnMegaLightsVolume().Texture = nullptr;
 
 		// History reset for debugging purposes
