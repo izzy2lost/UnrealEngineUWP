@@ -652,8 +652,16 @@ void UActorModifierCoreBase::PostModifierCreation(UActorModifierCoreStack* InSta
 	// initialize once, called by the subsystem itself
 	if (GetModifierStack() == InStack)
 	{
-		if (const UActorModifierCoreBase* CDO = GetClass()->GetDefaultObject<UActorModifierCoreBase>())
+		if (UActorModifierCoreBase* CDO = GetClass()->GetDefaultObject<UActorModifierCoreBase>())
 		{
+			if (!CDO->Metadata.IsValid())
+			{
+				if (UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get())
+				{
+					ModifierSubsystem->RegisterModifierClass(CDO->GetClass(), /** Override*/true);
+				}
+			}
+			
 			Metadata = CDO->Metadata;
 		}
 
@@ -768,6 +776,12 @@ void UActorModifierCoreBase::InitializeModifier(EActorModifierCoreEnableReason I
 		if (!Metadata.IsValid())
 		{
 			PostModifierCreation(GetModifierStack());
+
+			// Cannot proceed with invalid metadata
+			if (!Metadata.IsValid())
+			{
+				UE_LOG(LogActorModifierCoreBase, Fatal, TEXT("Invalid modifier metadata for instance of class %s"), *GetClass()->GetName())	
+			}
 		}
 
 		// Initialize profiler
