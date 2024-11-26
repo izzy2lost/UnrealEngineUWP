@@ -101,10 +101,10 @@ namespace UE::LiveLinkHub::FrameData::Private
 		int64 RecordingStartFrameFilePosition = 0;
 		/** Maximum number of frames. */
 		int32 MaxFrames = 0;
-		/** Frame offsets and sizes. [FrameOffsetBytes, FrameSizeBytes] */
-		TArray<TTuple<int32, int32>> FrameDiskSizes;
-		/** Whether the frame size is consistent throughout this animation. */
-		bool bHasConsistentFrameSize = false;
+		/** Total size of the structure. */
+		int32 SerializedStructureSize = 0;
+		/** The size in bytes of each animation frame. */
+		int32 FrameDiskSize;
 		/** The last timestamp for this frame data. */
 		double LastTimestamp = 0.f;
 		/** The frame rate, based only off of number of frames and the last timestamp. */
@@ -113,14 +113,7 @@ namespace UE::LiveLinkHub::FrameData::Private
 		FFrameBufferCache BufferedCache;
 		/** Current iteration data while buffering. */
 		FFrameBufferIterationData BufferIterationData;
-
-		/** The size in bytes of an animation frame. */
-		int32 GetFrameDiskSize(const int32 InFrameIdx) const
-		{
-			check(InFrameIdx >= 0 && InFrameIdx < FrameDiskSizes.Num());
-			return FrameDiskSizes[InFrameIdx].Value;
-		}
-		
+	
 		/** Find the correct file offset based on the frame index. */
 		int64 GetFrameFilePosition(const int32 InFrameIdx) const
 		{
@@ -130,8 +123,7 @@ namespace UE::LiveLinkHub::FrameData::Private
 		/** Find the offset relative to local storage only, not accounting for disk position. */
 		int64 GetRelativeFrameFilePosition(const int32 InFrameIdx) const
 		{
-			check(InFrameIdx >= 0 && InFrameIdx < FrameDiskSizes.Num());
-			return bHasConsistentFrameSize ? FrameDiskSizes[InFrameIdx].Value * InFrameIdx : FrameDiskSizes[InFrameIdx].Key;
+			return FrameDiskSize * InFrameIdx;
 		};
 	};
 }

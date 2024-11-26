@@ -403,16 +403,6 @@ void ULiveLinkUAssetRecording::SaveFrameData(FArchive* InFileWriter, const FLive
 	// Write the struct name and size so it can be loaded later.
 	*InFileWriter << StructTypeName;
 
-	// Offset and size.
-	TArray<TTuple<int32, int32>> SerializedFrameSizes;
-	SerializedFrameSizes.AddDefaulted(NumFrames);
-
-	// Remember the position to write the frame size.
-	const uint64 SerializedFrameSizePosition = InFileWriter->Tell();
-	*InFileWriter << SerializedFrameSizes;
-	
-	SerializedFrameSizes.Reset();
-
 	// Write the frame header size.
 	{
 		const uint64 CurrentPosition = InFileWriter->Tell();
@@ -423,15 +413,15 @@ void ULiveLinkUAssetRecording::SaveFrameData(FArchive* InFileWriter, const FLive
 		InFileWriter->Seek(CurrentPosition);
 	}
 
-	int32 RelativeStartPosition = 0;
-	
+	// Remember the position to write the frame size.
+	const uint64 SerializedFrameSizePosition = InFileWriter->Tell();
+	int32 SerializedFrameSize = 0;
+	*InFileWriter << SerializedFrameSize;
+			
 	for (int32 FrameIdx = 0; FrameIdx < NumFrames; ++FrameIdx)
 	{
 		TSharedPtr<FInstancedStruct>& Frame = InBaseDataContainer.RecordedData[FrameIdx];
 		check(Frame.IsValid() && Frame->IsValid());
-
-		// Beginning of the frame data.
-		const int64 StartFramePosition = InFileWriter->Tell();
 			
 		// Write the frame index for streaming frames when loading.
 		*InFileWriter << FrameIdx;
@@ -441,24 +431,25 @@ void ULiveLinkUAssetRecording::SaveFrameData(FArchive* InFileWriter, const FLive
 		*InFileWriter << Timestamp;
 			
 		// Write the entire frame data.
+		uint64 SerializeDataStart = InFileWriter->Tell();
 		FObjectAndNameAsStringProxyArchive StructAr(*InFileWriter, false);
 		Frame->Serialize(StructAr);
 
 		// Store the serialized frame size, so we can write it once later.
 		{
-			const int64 EndFramePosition = InFileWriter->Tell();
-			const int32 CurrentSerializedFrameSize = EndFramePosition - StartFramePosition;
-			SerializedFrameSizes.Add({ RelativeStartPosition, CurrentSerializedFrameSize });
-			RelativeStartPosition += CurrentSerializedFrameSize;
+			int32 CurrentSerializedFrameSize = InFileWriter->Tell() - SerializeDataStart;
+			// Sanity check that the serialized frame size is consistent.
+			ensure(CurrentSerializedFrameSize == SerializedFrameSize || SerializedFrameSize == 0);
+			SerializedFrameSize = CurrentSerializedFrameSize;
 		}
 	}
 
-	if (SerializedFrameSizes.Num() > 0)
+	if (SerializedFrameSize > 0)
 	{
 		// Write the frame data offset at the beginning of the block.
 		const uint64 FinalOffset = InFileWriter->Tell();
 		InFileWriter->Seek(SerializedFrameSizePosition);
-		*InFileWriter << SerializedFrameSizes;
+		*InFileWriter << SerializedFrameSize;
 		InFileWriter->Seek(FinalOffset);
 	}
 }
@@ -508,12 +499,7 @@ void ULiveLinkUAssetRecording::LoadRecordingAsync(int32 InStartFrame, int32 InCu
 		AnimationData.ReadBulkDataPrimitive(LoadedRecordingVersion);
 
 		// If we modify the RecordingVersion we can perform import logic here.
-		if (LoadedRecordingVersion != RecordingVersion)
-		{
-			UE_LOG(LogLiveLinkHub, Log, TEXT("Converting version %d to %d"), LoadedRecordingVersion, RecordingVersion);
-		}
-			
-		RecordingVersionBeingLoaded = LoadedRecordingVersion;
+		ensure(LoadedRecordingVersion == RecordingVersion);
 			
 		// Process static data.
 		
@@ -531,7 +517,7 @@ void ULiveLinkUAssetRecording::LoadRecordingAsync(int32 InStartFrame, int32 InCu
 			}
 				
 			FLiveLinkRecordingStaticDataContainer& DataContainer = RecordingData.StaticData.FindChecked(*TemporaryFrameData.FrameDataSubjectKey.Get());
-			LoadFrameData(TemporaryFrameData, DataContainer, 0, 0, TemporaryFrameData.MaxFrames, /* bForceSequential */ true);
+			LoadFrameData(TemporaryFrameData, DataContainer, 0, 0, 1);
 
 			FScopeLock Lock(&DataContainerMutex);
 			MoveFrameDataToContainer(DataContainer, TemporaryFrameData);
@@ -551,8 +537,7 @@ void ULiveLinkUAssetRecording::LoadRecordingAsync(int32 InStartFrame, int32 InCu
 			}
 
 			// Offset to the end of this block if there is multiple NumFrameData.
-			const int32 EndBlockPosition = KeyPosition.GetFrameFilePosition(KeyPosition.MaxFrames - 1) + KeyPosition.GetFrameDiskSize(KeyPosition.MaxFrames - 1);
-			AnimationData.SetBulkDataOffset(EndBlockPosition);
+			AnimationData.SetBulkDataOffset(KeyPosition.GetFrameFilePosition(KeyPosition.MaxFrames));
 			FrameFileData.Add(*KeyPosition.FrameDataSubjectKey, MoveTemp(KeyPosition));
 		}
 	}
@@ -655,24 +640,13 @@ bool ULiveLinkUAssetRecording::LoadInitialFrameData(UE::LiveLinkHub::FrameData::
 		if (MaxFrames > 0)
 		{	
 			FString StructTypeName;
-			TArray<TTuple<int32, int32>> SerializedFrameSizes;
-			
+			int32 SerializedStructureSize;
+
 			Reader->GetMemoryReader() << StructTypeName;
 
-			if (RecordingVersionBeingLoaded < UE::LiveLinkHub::Private::RecordingVersions::DynamicFrameSizes)
-			{
-				// Convert from 5.5.0 recordings where we expected all frames to be a constant size.
-				int32 SerializedFrameSize = 0;
-				AnimationData.ReadBulkDataPrimitive(SerializedFrameSize);
-				// Frame size consists of the frame index, timestamp, and frame struct data.
-				SerializedFrameSizes.Init({ 0, sizeof(int32) + sizeof(double) + SerializedFrameSize }, MaxFrames);
-			}
-			else
-			{
-				Reader->GetMemoryReader() << SerializedFrameSizes;
-			}
+			AnimationData.ReadBulkDataPrimitive(SerializedStructureSize);
 
-			OutFrameData.FrameDiskSizes = MoveTemp(SerializedFrameSizes);
+			OutFrameData.SerializedStructureSize = SerializedStructureSize;
 			OutFrameData.RecordingStartFrameFilePosition = AnimationData.GetBulkDataOffset();
 
 			OutFrameData.LoadedStruct = FindObject<UScriptStruct>(nullptr, *StructTypeName, true);
@@ -682,30 +656,12 @@ bool ULiveLinkUAssetRecording::LoadInitialFrameData(UE::LiveLinkHub::FrameData::
 				return false;
 			}
 
-			// Determine max frame size and if there are different frame sizes.
-			if (OutFrameData.FrameDiskSizes.Num() > 0)
+			// The size on disk for each frame-- consisting of the frame index, timestamp, and frame struct data.
+			OutFrameData.FrameDiskSize = (sizeof(int32) + sizeof(double) + SerializedStructureSize);
+
+			if (OutFrameData.FrameDiskSize > MaxFrameDiskSize)
 			{
-				bool bIsConsistentSize = true;
-				int32 MaxValue = TNumericLimits<int32>::Lowest();
-				int32 LastValue = OutFrameData.FrameDiskSizes[0].Value;
-				for (const TTuple<int32, int32>& Tuple : OutFrameData.FrameDiskSizes)
-				{
-					if (LastValue != Tuple.Value)
-					{
-						bIsConsistentSize = false;
-					}
-
-					LastValue = Tuple.Value;
-					
-					if (Tuple.Value > MaxValue)
-					{
-						MaxValue = Tuple.Value;
-					}
-				}
-
-				OutFrameData.bHasConsistentFrameSize = bIsConsistentSize;
-			
-				MaxFrameDiskSize = MaxValue;
+				MaxFrameDiskSize = OutFrameData.FrameDiskSize;
 			}
 		}
 	}
@@ -730,7 +686,7 @@ bool ULiveLinkUAssetRecording::LoadInitialFrameData(UE::LiveLinkHub::FrameData::
 }
 
 void ULiveLinkUAssetRecording::LoadFrameData(UE::LiveLinkHub::FrameData::Private::FFrameMetaData& InFrameData, FLiveLinkRecordingBaseDataContainer& InDataContainer,
-                                             int32 RequestedStartFrame, int32 RequestedInitialFrame, int32 RequestedFramesToLoad, bool bForceSequential)
+                                             int32 RequestedStartFrame, int32 RequestedInitialFrame, int32 RequestedFramesToLoad)
 {
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("ULiveLinkUAssetRecording::LoadFrameData"), STAT_ULiveLinkUAssetRecording_LoadFrameData, STATGROUP_LiveLinkHub);
 
@@ -857,12 +813,12 @@ void ULiveLinkUAssetRecording::LoadFrameData(UE::LiveLinkHub::FrameData::Private
 			RightFrameIdx++;
 		}
 		
-		auto AlternateLoadDirection = [&bLoadRight](const bool bRightOnly)
+		auto AlternateLoadDirection = [&]()
 		{
-			bLoadRight = bRightOnly ? true : !bLoadRight;
+			bLoadRight = !bLoadRight;
 		};
 
-		const int32 BufferBatchSize = bForceSequential ? MaxFrames : GetDefault<ULiveLinkHubSettings>()->BufferBatchSize;
+		const int32 BufferBatchSize = GetDefault<ULiveLinkHubSettings>()->BufferBatchSize;
 
 		struct FBulkDataBatch
 		{
@@ -910,19 +866,14 @@ void ULiveLinkUAssetRecording::LoadFrameData(UE::LiveLinkHub::FrameData::Private
 			}
 
 			// Make sure we're still within limits.
-			LeftBatchSize = FMath::Clamp(LeftBatchSize, 0, InFrameData.bHasConsistentFrameSize ? AvailableLeftFrames : 1);
-			RightBatchSize = FMath::Clamp(RightBatchSize, 0, InFrameData.bHasConsistentFrameSize ? AvailableRightFrames : 1);
+			LeftBatchSize = FMath::Clamp(LeftBatchSize, 0, AvailableLeftFrames);
+			RightBatchSize = FMath::Clamp(RightBatchSize, 0, AvailableRightFrames);
 			
 			// Determine the min/max frames for each batch.
 			if (LeftBatchSize > 0)
 			{
 				RawFramesLeftBatch.MinFrame = LeftFrameIdx - LeftBatchSize + 1;
 				RawFramesLeftBatch.MaxFrame = LeftFrameIdx;
-
-				if (RawFramesLeftBatch.MinFrame < 0)
-				{
-					RawFramesLeftBatch.MinFrame = 0;
-				}
 
 				// Shrink the batch to the first loaded frame, left to right since it's more likely frames for the left batch
 				// will already be loaded the more to the right (center).
@@ -948,11 +899,6 @@ void ULiveLinkUAssetRecording::LoadFrameData(UE::LiveLinkHub::FrameData::Private
 				RawFramesRightBatch.MinFrame = RightFrameIdx;
 				RawFramesRightBatch.MaxFrame = RightFrameIdx + RightBatchSize - 1;
 
-				if (RawFramesRightBatch.MinFrame < 0)
-				{
-					RawFramesRightBatch.MinFrame = 0;
-				}
-				
 				// Shrink the batch to the first loaded frame, right to left since it's more likely frames for the right batch
 				// will already be loaded the more to the left (center).
 				for (int32 Idx = RawFramesRightBatch.MaxFrame; Idx >= RawFramesRightBatch.MinFrame; --Idx)
@@ -977,7 +923,7 @@ void ULiveLinkUAssetRecording::LoadFrameData(UE::LiveLinkHub::FrameData::Private
 		// Iterate through the entire range, loading frames from cache or disk. This runs until a batch cycle has completed
 		// or the entire range is loaded.
 		int32 FramesLoaded = 0;
-		while (RightFrameIdx < MaxFrames || (!bForceSequential && LeftFrameIdx >= RequestedStartFrame))
+		while (RightFrameIdx < MaxFrames || LeftFrameIdx >= RequestedStartFrame)
 		{
 			if (bCancelStream)
 			{
@@ -1098,7 +1044,7 @@ void ULiveLinkUAssetRecording::LoadFrameData(UE::LiveLinkHub::FrameData::Private
 			ensure(InDataContainer.Timestamps.Num() == InDataContainer.RecordedData.Num());
 			
 			FramesLoaded++;
-			AlternateLoadDirection(bForceSequential);
+			AlternateLoadDirection();
 			
 			// Break the loop when enough frames have finished constituting a batch of frames.
 			if (FramesLoaded > 0 && FramesLoaded % BufferBatchSize == 0)
@@ -1140,7 +1086,7 @@ bool ULiveLinkUAssetRecording::LoadFrameFromDisk(const int32 InFrame, const UE::
 	{
 		const int64 FramePosition = InFrameData.GetFrameFilePosition(InFrame);
 		AnimationData.SetBulkDataOffset(FramePosition);
-		Reader = AnimationData.CreateBulkDataMemoryReader(InFrameData.GetFrameDiskSize(InFrame));
+		Reader = AnimationData.CreateBulkDataMemoryReader(InFrameData.FrameDiskSize);
 	}
 
 	int32 ParsedFrameIdx = 0;
@@ -1182,7 +1128,7 @@ bool ULiveLinkUAssetRecording::LoadTimestampFromDisk(const int32 InFrame, const 
 	const int64 FramePosition = InFrameData.GetFrameFilePosition(InFrame);
 	AnimationData.SetBulkDataOffset(FramePosition);
 			
-	const TSharedPtr<FLiveLinkHubBulkData::FScopedBulkDataMemoryReader> Reader = AnimationData.CreateBulkDataMemoryReader(InFrameData.GetFrameDiskSize(InFrame));
+	const TSharedPtr<FLiveLinkHubBulkData::FScopedBulkDataMemoryReader> Reader = AnimationData.CreateBulkDataMemoryReader(InFrameData.FrameDiskSize);
 
 	int32 ParsedFrameIdx = 0;
 	Reader->GetMemoryReader() << ParsedFrameIdx;
@@ -1204,9 +1150,6 @@ TSharedPtr<FLiveLinkHubBulkData::FScopedBulkDataMemoryReader> ULiveLinkUAssetRec
 {
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("ULiveLinkUAssetRecording::LoadRawFramesFromDisk"), STAT_ULiveLinkUAssetRecording_LoadRawFramesFromDisk, STATGROUP_LiveLinkHub);
 
-	// Currently can only batch load multiple frames if frame size is consistent.
-	check(InFrameData.bHasConsistentFrameSize || InNumFrames <= 1);
-	
 	// Seek to the beginning of the frames to load.
 	const int64 FramePosition = InFrameData.GetFrameFilePosition(InFrame);
 	AnimationData.SetBulkDataOffset(FramePosition);
@@ -1216,7 +1159,7 @@ TSharedPtr<FLiveLinkHubBulkData::FScopedBulkDataMemoryReader> ULiveLinkUAssetRec
 	check(MaxFrames >= 1);
 
 	// Determine complete byte size to load.
-	const int32 MaxByteSize = MaxFrames * InFrameData.GetFrameDiskSize(InFrame);
+	const int32 MaxByteSize = MaxFrames * InFrameData.FrameDiskSize;
 	return AnimationData.CreateBulkDataMemoryReader(MaxByteSize);
 }
 
