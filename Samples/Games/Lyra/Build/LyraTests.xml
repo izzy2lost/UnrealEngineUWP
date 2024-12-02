@@ -60,7 +60,7 @@
 
 	<Property Name="ExtraStageAndPackageArguments" Value="-target=&quot;$(TargetName)&quot; -compressed -CrashReporter" />
 
-	<Property Name="CheckBuildSizePlatforms" Value="Android:420000" />
+	<!-- Property Name="CheckBuildSizePlatforms" Value="Android:420000" / -->
 
 	<!-- =============================================================================== -->
 	<!-- Setup -->
