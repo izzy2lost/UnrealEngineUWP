@@ -2635,7 +2635,10 @@ void UInterchangeManager::ReleaseAsyncHelper(TWeakPtr<UE::Interchange::FImportAs
 	//Make sure the async helper is destroy, if not destroy its because we are canceling the import and we still have a shared ptr on it
 	{
 		TSharedPtr<UE::Interchange::FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelperSharedPtr = AsyncHelper.Pin();
-		check(!AsyncHelperSharedPtr.IsValid() || AsyncHelperSharedPtr->bCancel);
+		if (AsyncHelperSharedPtr.IsValid() && !AsyncHelperSharedPtr->bCancel)
+		{
+			UE_LOG(LogInterchangeEngine, Warning, TEXT("Interchange AsyncHelper resource not released properly."));
+		}
 	}
 
 	int32 ImportTaskNumber = ImportTasks.Num() + QueueTaskCount;

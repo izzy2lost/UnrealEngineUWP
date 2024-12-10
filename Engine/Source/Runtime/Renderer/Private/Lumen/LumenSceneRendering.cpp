@@ -1512,12 +1512,43 @@ void FDeferredShadingSceneRenderer::BeginUpdateLumenSceneTasks(FRDGBuilder& Grap
 	bool bAnyLumenActive = false;
 	bool bHasOrthographicView = false;
 
-	for (const FViewInfo& View : Views)
+	for (FViewInfo& View : Views)
 	{
-		bAnyLumenActive = bAnyLumenActive || ShouldRenderLumenDiffuseGI(Scene, View);
+		bool bLumenActive = ShouldRenderLumenDiffuseGI(Scene, View);
+		bAnyLumenActive = bAnyLumenActive || bLumenActive;
 		if (!bHasOrthographicView && !View.IsPerspectiveProjection())
 		{
 			bHasOrthographicView = true;
+		}
+
+		if (bLumenActive)
+		{
+			// Cache LumenSceneData pointer per view for efficient lookup of the view specific Lumen scene (also nice for debugging)
+			View.ViewLumenSceneData = Scene->FindLumenSceneData(View.ViewState ? View.ViewState->GetShareOriginViewKey() : 0, View.GPUMask.GetFirstIndex());
+
+#if WITH_MGPU
+			if (View.ViewLumenSceneData->bViewSpecific)
+			{
+				// Update view specific scene data if the GPU mask changed (copies resources cross GPU so CPU and GPU data are coherent)
+				View.ViewLumenSceneData->UpdateGPUMask(GraphBuilder, FrameTemporaries, View.ViewState->Lumen, View.GPUMask);
+			}
+			else if (View.GPUMask.GetFirstIndex() != 0)
+			{
+				// Otherwise, if this view is on a different GPU, we need to allocate GPU specific scene data (if not already allocated)
+				if (View.ViewLumenSceneData == Scene->DefaultLumenSceneData)
+				{
+					View.ViewLumenSceneData = new FLumenSceneData(Scene->DefaultLumenSceneData->bTrackAllPrimitives);
+
+					View.ViewLumenSceneData->CopyInitialData(*Scene->DefaultLumenSceneData);
+
+					// Key shouldn't already exist in Scene, because "FindLumenSceneData" above should have found it
+					FLumenSceneDataKey ByGPUIndex = { 0, View.GPUMask.GetFirstIndex() };
+					check(Scene->PerViewOrGPULumenSceneData.Find(ByGPUIndex) == nullptr);
+
+					Scene->PerViewOrGPULumenSceneData.Emplace(ByGPUIndex, View.ViewLumenSceneData);
+				}
+			}
+#endif  // WITH_MGPU
 		}
 	}
 
@@ -2005,36 +2036,6 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 				&& View.ViewState);
 
 		bAnyLumenActive = bAnyLumenActive || bLumenActive;
-
-		// Cache LumenSceneData pointer per view for efficient lookup of the view specific Lumen scene (also nice for debugging)
-		View.ViewLumenSceneData = Scene->FindLumenSceneData(View.ViewState ? View.ViewState->GetShareOriginViewKey() : 0, View.GPUMask.GetFirstIndex());
-
-#if WITH_MGPU
-		if (bLumenActive)
-		{
-			if (View.ViewLumenSceneData->bViewSpecific)
-			{
-				// Update view specific scene data if the GPU mask changed (copies resources cross GPU so CPU and GPU data are coherent)
-				View.ViewLumenSceneData->UpdateGPUMask(GraphBuilder, FrameTemporaries, View.ViewState->Lumen, View.GPUMask);
-			}
-			else if (View.GPUMask.GetFirstIndex() != 0)
-			{
-				// Otherwise, if this view is on a different GPU, we need to allocate GPU specific scene data (if not already allocated)
-				if (View.ViewLumenSceneData == Scene->DefaultLumenSceneData)
-				{
-					View.ViewLumenSceneData = new FLumenSceneData(Scene->DefaultLumenSceneData->bTrackAllPrimitives);
-
-					View.ViewLumenSceneData->CopyInitialData(*Scene->DefaultLumenSceneData);
-
-					// Key shouldn't already exist in Scene, because "FindLumenSceneData" above should have found it
-					FLumenSceneDataKey ByGPUIndex = { 0, View.GPUMask.GetFirstIndex() };
-					check(Scene->PerViewOrGPULumenSceneData.Find(ByGPUIndex) == nullptr);
-
-					Scene->PerViewOrGPULumenSceneData.Emplace(ByGPUIndex, View.ViewLumenSceneData);
-				}
-			}
-		}
-#endif  // WITH_MGPU
 	}
 
 	if (bAnyLumenActive)

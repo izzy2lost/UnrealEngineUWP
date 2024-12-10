@@ -180,10 +180,13 @@ void UAvaGizmoComponent::ApplyGizmoValues()
 		}
 
 #if WITH_EDITOR
-		// Mark camera cut to remove temporal effects
-		for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
+		if (GEditor)
 		{
-			LevelVC->SetIsCameraCut();
+			// Mark camera cut to remove temporal effects
+			for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
+			{
+				LevelVC->SetIsCameraCut();
+			}
 		}
 #endif
 

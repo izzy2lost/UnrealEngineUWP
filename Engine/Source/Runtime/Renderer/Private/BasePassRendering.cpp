@@ -1134,21 +1134,56 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 			// If no fast-clear action was used, we need to do an MRT shader clear.
 			if (ColorLoadAction == ERenderTargetLoadAction::ENoAction)
 			{
-				const FRenderTargetBindingSlots& RenderTargets = PassParameters->RenderTargets;
-				FLinearColor ClearColors[MaxSimultaneousRenderTargets];
-				FRHITexture* Textures[MaxSimultaneousRenderTargets];
-				int32 TextureIndex = 0;
-
-				RenderTargets.Enumerate([&](const FRenderTargetBinding& RenderTarget)
+				if (Substrate::IsSubstrateEnabled())
 				{
-					FRHITexture* TextureRHI = RenderTarget.GetTexture()->GetRHI();
-					ClearColors[TextureIndex] = TextureIndex == 0 ? SceneColorClearValue : TextureRHI->GetClearColor();
-					Textures[TextureIndex] = TextureRHI;
-					++TextureIndex;
-				});
+					const FRenderTargetBindingSlots& RenderTargets = PassParameters->RenderTargets;
+					FLinearColor ClearColors[MaxSimultaneousRenderTargets];
+					int32 MRTCount = 0;
+					uint8 NumUintOutputs = 0;	// Substrate textures are always integers and we assume they are all at the end of the MRTs.
 
-				// Clear color only; depth-stencil is fast cleared.
-				DrawClearQuadMRT(RHICmdList, true, TextureIndex, ClearColors, false, 0, false, 0);
+					// Clear Only non-UINT targets.
+					RenderTargets.Enumerate([&](const FRenderTargetBinding& RenderTarget)
+						{
+							FRHITexture* TextureRHI = RenderTarget.GetTexture()->GetRHI();
+
+							EPixelFormat Format = TextureRHI->GetFormat();
+							if (!IsInteger(Format))
+							{
+								ClearColors[MRTCount] = MRTCount == 0 ? SceneColorClearValue : TextureRHI->GetClearColor();
+								++MRTCount;
+
+								// We do not support non integer textures after we have identified integer textures starting point.
+								check(NumUintOutputs == 0);
+							}
+							else
+							{
+								ClearColors[MRTCount] = TextureRHI->GetClearColor();
+								++NumUintOutputs;
+								++MRTCount;
+							}
+						});
+
+					// Clear color only; depth-stencil is fast cleared.
+					DrawClearQuadMRTWithUints(RHICmdList, true, MRTCount, ClearColors, false, 0, false, 0, NumUintOutputs);
+				}
+				else
+				{
+					const FRenderTargetBindingSlots& RenderTargets = PassParameters->RenderTargets;
+					FLinearColor ClearColors[MaxSimultaneousRenderTargets];
+					FRHITexture* Textures[MaxSimultaneousRenderTargets];
+					int32 TextureIndex = 0;
+
+					RenderTargets.Enumerate([&](const FRenderTargetBinding& RenderTarget)
+						{
+							FRHITexture* TextureRHI = RenderTarget.GetTexture()->GetRHI();
+							ClearColors[TextureIndex] = TextureIndex == 0 ? SceneColorClearValue : TextureRHI->GetClearColor();
+							Textures[TextureIndex] = TextureRHI;
+							++TextureIndex;
+						});
+
+					// Clear color only; depth-stencil is fast cleared.
+					DrawClearQuadMRT(RHICmdList, true, TextureIndex, ClearColors, false, 0, false, 0);
+				}
 			}
 		});
 

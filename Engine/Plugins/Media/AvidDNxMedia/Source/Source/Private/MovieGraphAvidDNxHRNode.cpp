@@ -49,6 +49,7 @@ FSlateIcon UMovieGraphAvidDNxHRNode::GetIconAndTint(FLinearColor& OutColor) cons
 	OutColor = FLinearColor::White;
 	return AvidDNxHRIcon;
 }
+#endif // WITH_EDITOR
 
 TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAvidDNxHRNode::Initialize_GameThread(const FMovieGraphVideoNodeInitializationContext& InInitializationContext)
 {
@@ -211,8 +212,6 @@ bool UMovieGraphAvidDNxHRNode::IsAudioSupported() const
 	// The current Avid DNxHR SDK does not support audio encoding so we don't write audio to the container.
 	return false;
 }
-
-#endif // WITH_EDITOR
 
 void UMovieGraphAvidDNxHRNode::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
 {

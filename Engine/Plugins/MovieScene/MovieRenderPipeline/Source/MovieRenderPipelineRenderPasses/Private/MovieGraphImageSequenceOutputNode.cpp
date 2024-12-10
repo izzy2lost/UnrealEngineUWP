@@ -384,8 +384,21 @@ void UMovieGraphImageSequenceOutputNode_EXR::OnReceiveImageDataImpl(UMovieGraphP
 			// This composited pass will only composite on top of renders w/ the same branch and camera
 			if (CompositedPass.Key.IsBranchAndCameraEqual(RenderData.Key))
 			{
+				EImagePixelType PixelType = RenderData.Value->GetType();
+
 				// There could be multiple renders within this branch using the composited pass, so we have to copy the image data
-				ImageWriteTask->PixelPreprocessors.FindOrAdd(LayerIndex).Add(TAsyncCompositeImage<FFloat16Color>(CompositedPass.Value->CopyImageData()));
+				switch (PixelType)
+				{
+				case EImagePixelType::Color:
+					ImageWriteTask->PixelPreprocessors.FindOrAdd(LayerIndex).Add(TAsyncCompositeImage<FColor>(CompositedPass.Value->CopyImageData()));
+					break;
+				case EImagePixelType::Float16:
+					ImageWriteTask->PixelPreprocessors.FindOrAdd(LayerIndex).Add(TAsyncCompositeImage<FFloat16Color>(CompositedPass.Value->CopyImageData()));
+					break;
+				case EImagePixelType::Float32:
+					ImageWriteTask->PixelPreprocessors.FindOrAdd(LayerIndex).Add(TAsyncCompositeImage<FLinearColor>(CompositedPass.Value->CopyImageData()));
+					break;
+				}
 			}
 		}
 

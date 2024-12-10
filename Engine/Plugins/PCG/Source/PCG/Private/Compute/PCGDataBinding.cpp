@@ -62,7 +62,19 @@ void UPCGDataBinding::InitializeInputData(const FPCGDataCollection& InComputeGra
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGDataBinding::InitializeInputData);
 
-	DataForGPU.InputDataCollection = InComputeGraphElementInputData;
+	// Add compatible data objects from input collection.
+	DataForGPU.InputDataCollection.TaggedData.Reserve(InComputeGraphElementInputData.TaggedData.Num());
+	for (const FPCGTaggedData& InputData : InComputeGraphElementInputData.TaggedData)
+	{
+		if (InputData.Data && PCGComputeHelpers::IsTypeAllowedAsInput(InputData.Data->GetDataType()))
+		{
+			DataForGPU.InputDataCollection.TaggedData.Add(InputData);
+		}
+		else if (InputData.Data)
+		{
+			UE_LOG(LogPCG, Warning, TEXT("Stripped input data that is not currently supported by GPU execution: %s"), *InputData.Data->GetName());
+		}
+	}
 
 	// Link each input pin to the data collection, so that data providers can find the data.
 	for (const TSoftObjectPtr<const UPCGPin>& InputPinPtr : Graph->PinsReceivingDataFromCPU)
@@ -106,7 +118,7 @@ void UPCGDataBinding::BuildStringTable()
 			const FName AttributeName = AttributeNames[AttributeIndex];
 			const EPCGKernelAttributeType AttributeType = PCGDataForGPUHelpers::GetAttributeTypeFromMetadataType(AttributeTypes[AttributeIndex]);
 
-			if (AttributeType == EPCGKernelAttributeType::StringKey)
+			if (AttributeType == EPCGKernelAttributeType::StringKey || AttributeType == EPCGKernelAttributeType::Name)
 			{
 				const FPCGMetadataAttributeBase* AttributeBase = Metadata->GetConstAttribute(AttributeName);
 				if (!AttributeBase)
@@ -126,9 +138,13 @@ void UPCGDataBinding::BuildStringTable()
 						StringTable.AddUnique(static_cast<const FPCGMetadataAttribute<FString>*>(AttributeBase)->GetValue(InValueKey));
 					}
 					else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftClassPath>::Id)
-                    {
-                    	StringTable.AddUnique(static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(AttributeBase)->GetValue(InValueKey).ToString());
-                    }
+					{
+						StringTable.AddUnique(static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(AttributeBase)->GetValue(InValueKey).ToString());
+					}
+					else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FName>::Id)
+					{
+						StringTable.AddUnique(static_cast<const FPCGMetadataAttribute<FName>*>(AttributeBase)->GetValue(InValueKey).ToString());
+					}
 					else
 					{
 						checkNoEntry();

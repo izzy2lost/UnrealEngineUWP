@@ -361,7 +361,12 @@ bool UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, 
 
 	for (const FPCGDataDesc& DataDesc : PinDesc.DataDescs)
 	{
-		if (DataDesc.AttributeDescs.FindByPredicate([](const FPCGKernelAttributeDesc& InAttributeDesc) { return InAttributeDesc.Type == EPCGKernelAttributeType::StringKey; }))
+		auto HasStringKey = [](const FPCGKernelAttributeDesc& InAttributeDesc)
+		{
+			return InAttributeDesc.Type == EPCGKernelAttributeType::StringKey || InAttributeDesc.Type == EPCGKernelAttributeType::Name;
+		};
+
+		if (DataDesc.AttributeDescs.FindByPredicate(HasStringKey))
 		{
 			bOutputHasStringKeys = true;
 			break;
@@ -384,7 +389,7 @@ bool UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, 
 			{
 				for (FPCGKernelAttributeDesc& AttributeDesc : DataDesc.AttributeDescs)
 				{
-					bFoundStringKeyAttribute |= (AttributeDesc.Type == EPCGKernelAttributeType::StringKey);
+					bFoundStringKeyAttribute |= (AttributeDesc.Type == EPCGKernelAttributeType::StringKey || AttributeDesc.Type == EPCGKernelAttributeType::Name);
 				}
 			}
 
@@ -400,7 +405,7 @@ bool UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, 
 			{
 				for (FPCGKernelAttributeDesc& AttributeDesc : DataDesc.AttributeDescs)
 				{
-					if (AttributeDesc.Type != EPCGKernelAttributeType::StringKey)
+					if (AttributeDesc.Type != EPCGKernelAttributeType::StringKey && AttributeDesc.Type != EPCGKernelAttributeType::Name)
 					{
 						continue;
 					}
@@ -415,7 +420,8 @@ bool UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, 
 						{
 							for (const FPCGKernelAttributeDesc& InputAttributeDesc : InputDataDesc.AttributeDescs)
 							{
-								if (InputAttributeDesc.Type == EPCGKernelAttributeType::StringKey && InputAttributeDesc.Name == AttributeDesc.Name)
+								const bool bIsString = InputAttributeDesc.Type == EPCGKernelAttributeType::StringKey || InputAttributeDesc.Type == EPCGKernelAttributeType::Name;
+								if (bIsString && InputAttributeDesc.Name == AttributeDesc.Name)
 								{
 									AttributeDesc.UniqueStringKeys.Append(InputAttributeDesc.UniqueStringKeys);
 									bFoundMatchingAttribute = true;
@@ -437,7 +443,7 @@ bool UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, 
 							{
 								for (const FPCGKernelAttributeDesc& InputAttributeDesc : InputDataDesc.AttributeDescs)
 								{
-									if (InputAttributeDesc.Type == EPCGKernelAttributeType::StringKey)
+									if (InputAttributeDesc.Type == EPCGKernelAttributeType::StringKey || InputAttributeDesc.Type == EPCGKernelAttributeType::Name)
 									{
 										AttributeDesc.UniqueStringKeys.Append(InputAttributeDesc.UniqueStringKeys);
 									}

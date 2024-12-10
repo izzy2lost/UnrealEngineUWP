@@ -698,8 +698,6 @@ void SPCGEditorGraphAttributeListView::RefreshAttributeList()
 	const FPCGDataVisualizationRegistry& DataVisRegistry = FPCGModule::GetConstPCGDataVisualizationRegistry();
 	const UPCGData* DataToVisualize = PCGData;
 
-	DataPtr = DataToVisualize;
-
 	if (const IPCGDataVisualization* DataVisualization = DataVisRegistry.GetDataVisualization(PCGData->GetClass()))
 	{
 		const FPCGTableVisualizerInfo TableVisualizerInfo = DataVisualization->GetTableVisualizerInfo(PCGData);
@@ -730,6 +728,8 @@ void SPCGEditorGraphAttributeListView::RefreshAttributeList()
 		SortMode = EColumnSortMode::Type::Ascending;
 		FocusOnDataCallback.Reset();
 	}
+
+	DataPtr = DataToVisualize;
 
 	ListView->SetItemsSource(&ListViewItems);
 	ListView->RequestListRefresh();

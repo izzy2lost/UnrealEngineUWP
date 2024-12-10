@@ -78,6 +78,7 @@ struct FOpenGLES : public FOpenGLBase
 	static FORCEINLINE bool HasBinaryProgramRetrievalFailed() { return bBinaryProgramRetrievalFailed; }
 	static FORCEINLINE bool RequiresDisabledEarlyFragmentTests() { return bRequiresDisabledEarlyFragmentTests; }
 	static FORCEINLINE bool RequiresReadOnlyBuffersWorkaround() { return bRequiresReadOnlyBuffersWorkaround; }
+	static FORCEINLINE bool RequiresPreciseQualifierWorkaround() { return bRequiresPreciseQualifierWorkaround; }
 	static FORCEINLINE bool RequiresARMShaderFramebufferFetchDepthStencilUndef() { return bRequiresARMShaderFramebufferFetchDepthStencilUndef; }
 
 	// Adreno doesn't support HALF_FLOAT
@@ -704,6 +705,9 @@ public:
 		
 	/* This is a workaround for a Mali bug where read-only buffers do not work when passed to functions*/
 	static bool bRequiresReadOnlyBuffersWorkaround;
+
+	/* This is a workaround for Samsung xclipse that fails to compile shaders that use the 'precise' qualifier*/
+	static bool bRequiresPreciseQualifierWorkaround;
 
 	/* This is to avoid a bug in Adreno drivers that define GL_ARM_shader_framebuffer_fetch_depth_stencil even when device does not support this extension  */
 	static bool bRequiresARMShaderFramebufferFetchDepthStencilUndef;

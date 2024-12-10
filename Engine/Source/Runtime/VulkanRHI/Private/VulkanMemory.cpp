@@ -4293,18 +4293,18 @@ namespace VulkanRHI
 
 	FStagingManager::~FStagingManager()
 	{
-		check(UsedStagingBuffers.Num() == 0);
-		check(PendingFreeStagingBuffers.Num() == 0);
-		check(FreeStagingBuffers.Num() == 0);
 	}
 
 	void FStagingManager::Deinit()
 	{
 		ProcessPendingFree(true, true);
 
-		check(UsedStagingBuffers.Num() == 0);
-		check(PendingFreeStagingBuffers.Num() == 0);
-		check(FreeStagingBuffers.Num() == 0);
+		if ((UsedStagingBuffers.Num() != 0) || (PendingFreeStagingBuffers.Num() != 0) || (FreeStagingBuffers.Num() != 0))
+		{
+			UE_LOG(LogVulkanRHI, Warning,
+				TEXT("Some resources in the FStagingManager were not freed!  (UsedBuffer=%d, PendingFree=%d, FreeBuffer=%d)"),
+				UsedStagingBuffers.Num(), PendingFreeStagingBuffers.Num(), FreeStagingBuffers.Num());
+		}
 	}
 
 	FStagingBuffer* FStagingManager::AcquireBuffer(uint32 Size, VkBufferUsageFlags InUsageFlags, VkMemoryPropertyFlagBits InMemoryReadFlags)

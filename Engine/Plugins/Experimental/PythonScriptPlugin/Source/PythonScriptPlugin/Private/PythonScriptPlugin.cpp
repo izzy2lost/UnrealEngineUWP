@@ -665,6 +665,15 @@ bool FPythonScriptPlugin::ExecPythonCommandEx(FPythonCommandEx& InOutPythonComma
 	}
 
 #if WITH_PYTHON
+	if (!bInitialized)
+	{
+		InOutPythonCommand.CommandResult =
+			TEXT("Attempt to execute python command before PythonScriptPlugin is initialized. Ensure your call is after OnPythonInitialized.");
+
+		UE_LOG(LogPython, Warning, TEXT("%s"), *InOutPythonCommand.CommandResult);
+		return false;
+	}
+
 	if (InOutPythonCommand.ExecutionMode == EPythonCommandExecutionMode::ExecuteFile)
 	{
 		// The EPythonCommandExecutionMode::ExecuteFile name is misleading as it is used to run literal code or a .py file. Detect

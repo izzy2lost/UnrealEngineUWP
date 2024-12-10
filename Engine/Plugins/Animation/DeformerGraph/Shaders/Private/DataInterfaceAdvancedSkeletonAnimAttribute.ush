@@ -26,7 +26,7 @@ StructuredBuffer<{TypeName}> {DataInterfaceName}_{AttributeName};
 #else // !GPUSKIN_UNLIMITED_BONE_INFLUENCE
 	
 	uint StreamOffset = {DataInterfaceName}_InputWeightStart + (VertexIndex * ({DataInterfaceName}_InputWeightStride / 4));
-	int BlendIndex = GetBlendIndices_{DataInterfaceName}(StreamOffset, BoneIndex / 4)[BoneIndex & 0x3];
+	int BlendIndex = GetBlendIndices({DataInterfaceName}_InputWeightStream, StreamOffset, BoneIndex / 4)[BoneIndex & 0x3];
 	return {DataInterfaceName}_{AttributeName}[BlendIndex];
 
 #endif

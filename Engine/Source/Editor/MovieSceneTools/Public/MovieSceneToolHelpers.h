@@ -759,7 +759,7 @@ public:
 				else if (Section->GetBlendType().Get() == EMovieSceneBlendType::Override)
 				{
 					Value = (Value * (1.0 - Weight)) +
-						(Value * Weight);
+						(WeightedValue * Weight);
 				}
 			}
 			Values.Add(Value);
@@ -883,18 +883,15 @@ public:
 				}
 				else if (MergeAlgorithm == FChannelMergeAlgorithm::Override)
 				{
+					//when doing an override merge we need to just get the full value since the new layer will also be
+					//an override layer
 					if (Sections[1]->GetRange().Contains(Frame))
 					{
-						float Weight = Sections[1]->GetTotalWeightValue(FrameTime);
 						TArray<CurveValueType> ChannelValues = MovieSceneToolHelpers::GetChannelValues<ChannelType,
 							CurveValueType>(OverrideChannelIndex, OverrideChannelIndex, OtherSections, AbsoluteSections, Frame);
 						if (ChannelValues.Num() == 1)
 						{
-							CurveValueType WeightedValue = 0.0;
-							ChannelType* EachChannel = Channels[1];
-							EachChannel->Evaluate(FrameTime, WeightedValue);
-							WeightedValue *= Weight;
-							Value.Value = WeightedValue + (1.0 - Weight) * ChannelValues[0];
+							Value.Value = ChannelValues[0];
 						}
 					}
 				}
@@ -944,13 +941,15 @@ public:
 		Sections.Add(BaseSection);
 		Sections.Add(TopSection);
 		FChannelMergeAlgorithm MergeAlgorithm = FChannelMergeAlgorithm::Add;
-		if (TopSection->GetBlendType().IsValid() && TopSection->GetBlendType().Get() == EMovieSceneBlendType::Absolute)
-		{
-			MergeAlgorithm = FChannelMergeAlgorithm::Average;
-		}
-		else if (TopSection->GetBlendType().IsValid() && TopSection->GetBlendType().Get() == EMovieSceneBlendType::Override)
+		//if either setion is override we do an override blend since the result will be override
+		if ((TopSection->GetBlendType().IsValid() && TopSection->GetBlendType().Get() == EMovieSceneBlendType::Override) ||
+			(BaseSection->GetBlendType().IsValid() && BaseSection->GetBlendType().Get() == EMovieSceneBlendType::Override))
 		{
 			MergeAlgorithm = FChannelMergeAlgorithm::Override;
+		}
+		else if (TopSection->GetBlendType().IsValid() && TopSection->GetBlendType().Get() == EMovieSceneBlendType::Absolute)
+		{
+			MergeAlgorithm = FChannelMergeAlgorithm::Average;
 		}
 
 		for (ChannelIndex = StartIndex; ChannelIndex <= EndIndex; ++ChannelIndex)

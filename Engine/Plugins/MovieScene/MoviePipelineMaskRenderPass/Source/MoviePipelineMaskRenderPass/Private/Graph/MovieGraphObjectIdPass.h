@@ -5,7 +5,6 @@
 #include "MoviePipelineObjectIdUtils.h"
 #include "Graph/Renderers/MovieGraphDeferredPass.h"
 #include "Graph/Renderers/MovieGraphImagePassBase.h"
-#include "UObject/UObjectAnnotation.h"
 
 struct FMovieGraphObjectIdMaskSampleAccumulationArgs : MoviePipeline::IMoviePipelineAccumulationArgs
 {
@@ -39,13 +38,16 @@ struct FMovieGraphObjectIdPass : UE::MovieGraph::Rendering::FMovieGraphDeferredP
 	virtual FAccumulatorSampleFunc GetAccumulateSampleFunction() const override;
 	// ~FMovieGraphImagePassBase Interface
 
+	/** Gets the ObjectID acceleration data for a specific branch (will be nullptr if not found). */
+	static UE::MoviePipeline::FObjectIdAccelerationData* GetAccelerationData(const FName& InBranchName);
+
 protected:
 	virtual UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams GetRenderTargetInitParams(const FMovieGraphTimeStepData& InTimeData, const FIntPoint& InResolution) override;
-
-private:
-	static FUObjectAnnotationSparse<UE::MoviePipeline::FObjectIdAccelerationData, true>& GetManifestAnnotation();
 
 protected:
 	/** The identifiers for all object ID layers that will be generated. */
 	TArray<FMovieGraphRenderDataIdentifier> RenderDataIdentifiers;
+
+	/** ObjectID acceleration data that needs to be consistent throughout a render (cached per branch). */
+	inline static TMap<FName, UE::MoviePipeline::FObjectIdAccelerationData> AccelerationDataByBranch;
 };

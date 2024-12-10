@@ -101,7 +101,8 @@ class TOneColorPixelShaderMRT : public FOneColorPS
 public:
 	class TOneColorPixelShader128bitRT : SHADER_PERMUTATION_BOOL("b128BITRENDERTARGET");
 	class TOneColorPixelShaderNumOutputs : SHADER_PERMUTATION_RANGE_INT("NUM_OUTPUTS", 1, 8);
-	using FPermutationDomain = TShaderPermutationDomain<TOneColorPixelShaderNumOutputs, TOneColorPixelShader128bitRT>;
+	class TOneColorPixelNumUintOutputs : SHADER_PERMUTATION_RANGE_INT("NUM_UINT_OUTPUTS", 0, 8);
+	using FPermutationDomain = TShaderPermutationDomain<TOneColorPixelShaderNumOutputs, TOneColorPixelShader128bitRT, TOneColorPixelNumUintOutputs>;
 
 	TOneColorPixelShaderMRT();
 	TOneColorPixelShaderMRT(const ShaderMetaType::CompiledShaderInitializerType& Initializer);

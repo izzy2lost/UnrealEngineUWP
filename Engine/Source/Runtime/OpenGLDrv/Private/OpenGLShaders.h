@@ -29,6 +29,7 @@ struct FOpenGLShaderDeviceCapabilities
 	GLint MaxVaryingVectors;
 	bool bRequiresDisabledEarlyFragmentTests;
 	bool bRequiresReadOnlyBuffersWorkaround;
+	bool bRequiresPreciseQualifierWorkaround;
 };
 
 /**

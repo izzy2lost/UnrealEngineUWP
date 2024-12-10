@@ -53,18 +53,53 @@ void MainVertexShader(
 #ifndef NUM_OUTPUTS
 #define NUM_OUTPUTS 1
 #endif
+#ifndef NUM_UINT_OUTPUTS
+#define NUM_UINT_OUTPUTS 0
+#endif
+
+#define NUM_FLOAT_OUTPUTS (NUM_OUTPUTS - NUM_UINT_OUTPUTS) 
 
 float4 DrawColorMRT[8];
 
 //These shaders used for RHIClear.  Don't use any global uniform variables here as it greatly complicates
 //the state restoration for an inline shader clear.
 void MainPixelShaderMRT( 
-	out float4 OutColor[NUM_OUTPUTS] : SV_Target0)
+#if NUM_UINT_OUTPUTS == 0
+	out float4	OutColor[NUM_OUTPUTS]					: SV_Target0
+#elif NUM_UINT_OUTPUTS == NUM_OUTPUTS
+	out uint	OutUints[NUM_UINT_OUTPUTS]				: SV_Target0
+#else
+	out float4	OutColor[NUM_OUTPUTS - NUM_UINT_OUTPUTS]: SV_Target0
+#if NUM_FLOAT_OUTPUTS == 1
+	, out uint	OutUints[NUM_UINT_OUTPUTS]				: SV_Target1
+#elif(NUM_FLOAT_OUTPUTS == 2)
+	, out uint	OutUints[NUM_UINT_OUTPUTS]				: SV_Target2
+#elif(NUM_FLOAT_OUTPUTS == 3)
+	, out uint	OutUints[NUM_UINT_OUTPUTS]				: SV_Target3
+#elif(NUM_FLOAT_OUTPUTS == 4)
+	, out uint	OutUints[NUM_UINT_OUTPUTS]				: SV_Target4
+#elif(NUM_FLOAT_OUTPUTS == 5)
+	, out uint	OutUints[NUM_UINT_OUTPUTS]				: SV_Target5
+#elif(NUM_FLOAT_OUTPUTS == 6)
+	, out uint	OutUints[NUM_UINT_OUTPUTS]				: SV_Target6
+#elif(NUM_FLOAT_OUTPUTS == 7)
+	, out uint	OutUints[NUM_UINT_OUTPUTS]				: SV_Target7
+#endif
+#endif
+)
 {
-	for (int i = 0; i < NUM_OUTPUTS; i++)
+#if NUM_UINT_OUTPUTS < NUM_OUTPUTS
+	for (int i = 0; i < NUM_FLOAT_OUTPUTS; i++)
 	{
 		OutColor[i] = DrawColorMRT[i];
 	}
+#endif
+#if NUM_UINT_OUTPUTS > 0
+	for (int i = 0; i < NUM_UINT_OUTPUTS; i++)
+	{
+		OutUints[i] = DrawColorMRT[NUM_FLOAT_OUTPUTS + i].x;
+	}
+#endif
 }
 
 void MainPixelShader( 

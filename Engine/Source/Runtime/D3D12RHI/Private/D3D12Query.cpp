@@ -214,7 +214,7 @@ void FD3D12DynamicRHI::RHIEndRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdLi
 		if (QueryBatchData[GPUIndex])
 		{
 			// This query belongs to a batch. Use the sync point we created earlier
-			Query->SyncPoint = static_cast<FD3D12SyncPoint*>(QueryBatchData[0]);
+			Query->SyncPoint = static_cast<FD3D12SyncPoint*>(QueryBatchData[GPUIndex]);
 		}
 		else
 		{

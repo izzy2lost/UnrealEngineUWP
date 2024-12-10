@@ -779,6 +779,7 @@ void OPENGLDRV_API GetCurrentOpenGLShaderDeviceCapabilities(FOpenGLShaderDeviceC
 		Capabilities.bRequiresARMShaderFramebufferFetchDepthStencilUndef = false;
 		Capabilities.bRequiresReadOnlyBuffersWorkaround = false;
 		Capabilities.MaxVaryingVectors = FOpenGL::GetMaxVaryingVectors();
+		Capabilities.bRequiresPreciseQualifierWorkaround = false;
 	}
 
 #elif PLATFORM_ANDROID
@@ -788,6 +789,7 @@ void OPENGLDRV_API GetCurrentOpenGLShaderDeviceCapabilities(FOpenGLShaderDeviceC
 		Capabilities.bRequiresARMShaderFramebufferFetchDepthStencilUndef = FOpenGL::RequiresARMShaderFramebufferFetchDepthStencilUndef();
 		Capabilities.MaxVaryingVectors = FOpenGL::GetMaxVaryingVectors();
 		Capabilities.bRequiresDisabledEarlyFragmentTests = FOpenGL::RequiresDisabledEarlyFragmentTests();
+		Capabilities.bRequiresPreciseQualifierWorkaround = FOpenGL::RequiresPreciseQualifierWorkaround();
 #elif PLATFORM_IOS
 	Capabilities.TargetPlatform = EOpenGLShaderTargetPlatform::OGLSTP_iOS;
 #else
@@ -831,6 +833,12 @@ void OPENGLDRV_API GLSLToDeviceCompatibleGLSL(FAnsiCharArray& GlslCodeOriginal, 
 		ReplaceCString(GlslCodeOriginal, ESVersion, "");
 
 		AppendCString(GlslCode, "#define fma(A, B, C) ((A) * (B) + (C))\n");
+	}
+
+	if (Capabilities.bRequiresPreciseQualifierWorkaround)
+	{
+		// Disable use of 'precise' qualifier
+		AppendCString(GlslCode, "#define precise\n");
 	}
 
 	if (Capabilities.bRequiresReadOnlyBuffersWorkaround)

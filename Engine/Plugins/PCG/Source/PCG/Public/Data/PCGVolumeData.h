@@ -46,6 +46,7 @@ public:
 protected:
 	void CopyBaseVolumeData(UPCGVolumeData* NewVolumeData) const;
 	void ReleaseInternalBodyInstance();
+	void SetupVolumeBodyInstance();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = SourceData)
 	TWeakObjectPtr<AVolume> Volume = nullptr;

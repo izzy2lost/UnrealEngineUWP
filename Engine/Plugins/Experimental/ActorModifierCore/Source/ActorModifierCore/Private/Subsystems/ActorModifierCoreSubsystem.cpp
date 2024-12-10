@@ -125,6 +125,12 @@ bool UActorModifierCoreSubsystem::RegisterModifierClass(const UClass* InModifier
 	{
 		CDO->PostModifierCDOCreation();
 
+		if (!CDO->Metadata.IsValid() || !CDO->Metadata->GetClass())
+		{
+			UE_LOG(LogActorModifierCoreSubsystem, Warning, TEXT("[%s] Could not register modifier class : Modifier metadata is invalid"), *CDO->GetClass()->GetName())
+			return false;	
+		}
+		
 		if (CDO->IsModifierStack())
 		{
 			return false;
@@ -142,8 +148,6 @@ bool UActorModifierCoreSubsystem::RegisterModifierClass(const UClass* InModifier
 		{
 			UnregisterModifierClass(ModifierName);
 		}
-
-		check(CDO->Metadata.IsValid())
 
 		ModifiersMetadata.Add(ModifierName, CDO->Metadata.ToSharedRef());
 

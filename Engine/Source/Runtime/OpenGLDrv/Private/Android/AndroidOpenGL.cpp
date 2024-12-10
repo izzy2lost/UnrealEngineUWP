@@ -643,6 +643,7 @@ void FAndroidOpenGL::ProcessExtensions(const FString& ExtensionsString)
 	const bool bIsPoverVRBased = RendererString.Contains(TEXT("PowerVR"));
 	const bool bIsAdrenoBased = RendererString.Contains(TEXT("Adreno"));
 	const bool bIsMaliBased = RendererString.Contains(TEXT("Mali"));
+	const bool bIsSamsungBased = RendererString.Contains(TEXT("Xclipse"));
 
 	if (bIsPoverVRBased)
 	{
@@ -687,6 +688,16 @@ void FAndroidOpenGL::ProcessExtensions(const FString& ExtensionsString)
 	{
 		//TODO restrict this to problematic drivers only
 		bRequiresReadOnlyBuffersWorkaround = true;
+	}
+
+	if (bIsSamsungBased)
+	{
+		FString AndroidVersion = FAndroidMisc::GetAndroidVersion();
+		if (AndroidVersion.Contains(TEXT("14")))
+		{
+			bRequiresPreciseQualifierWorkaround = true;
+			UE_LOG(LogRHI, Log, TEXT("Disable \'precise\' qualifier for [Android: %s, GPU: %s]"), *AndroidVersion, *RendererString);
+		}
 	}
 
 	// Disable ASTC if requested by device profile
