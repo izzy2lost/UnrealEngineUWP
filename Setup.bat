@@ -28,9 +28,17 @@ echo powershell -NoProfile -ExecutionPolicy Bypass -File GetUWPDependencies.ps1 
 rem @ARG_CHANGE - END
 :no_git_hooks_directory
 
-rem Install prerequisites...
+@echo off
+rem Check if running as administrator
+whoami /groups | find "S-1-16-12288" >nul || (
+    echo This script requires administrator privileges.
+    powershell -Command "Start-Process '%~f0' -Verb RunAs"
+    exit /b
+)
+
+rem Install prerequisites
 echo Installing prerequisites...
-start /wait Engine\Extras\Redist\en-us\UE4PrereqSetup_x64.exe /quiet /norestart
+start /wait powershell -Command "& {Start-Process 'Engine\Extras\Redist\en-us\UE4PrereqSetup_x64.exe' -ArgumentList '/quiet /norestart' -Wait -NoNewWindow}"
 
 rem @ATG_CHANGE - BEGIN Sync dependencies custom to the UWP fork
 echo Installing dependencies custom to the UWP fork...
