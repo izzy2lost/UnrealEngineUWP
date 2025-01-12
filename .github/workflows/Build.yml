@@ -1,0 +1,49 @@
+name: UnrealEngine Build and Archive
+
+on:
+  workflow_dispatch: # Allows manual triggering of the workflow
+
+jobs:
+  build:
+    runs-on: windows-2019 # Use Windows 2019 runner
+
+    steps:
+    # Step 1: Checkout repository with submodules and depth 1
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 1
+
+    # Step 2: Run Setup.bat
+    - name: Run Setup.bat
+      run: |
+        cd ${{ github.workspace }}
+        .\Setup.bat
+      shell: cmd
+
+    # Step 3: Run GenerateProjectFiles.bat
+    - name: Run GenerateProjectFiles.bat
+      run: |
+        cd ${{ github.workspace }}
+        .\GenerateProjectFiles.bat
+      shell: cmd
+
+    # Step 4: Install 7-Zip
+    - name: Install 7-Zip
+      run: choco install 7zip -y
+      shell: powershell
+
+    # Step 5: Create a .7z archive of the repository
+    - name: Compress repository into 7z
+      run: |
+        cd ${{ github.workspace }}
+        7z a UnrealEngine_with_submodules.7z .
+      shell: cmd
+
+    # Step 6: Upload the .7z file as an artifact
+    - name: Upload 7z file
+      uses: actions/upload-artifact@v3
+      with:
+        name: UnrealEngine_with_submodules
+        path: ${{ github.workspace }}\UnrealEngine_with_submodules.7z
