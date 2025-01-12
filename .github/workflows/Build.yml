@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    runs-on: windows-2019 # Use Windows 2019 runner
+    runs-on: windows-2019
 
     steps:
     # Step 1: Checkout repository with submodules and depth 1
@@ -15,11 +15,10 @@ jobs:
         submodules: recursive
         fetch-depth: 1
 
-    # Step 2: Run Setup.bat
+    # Step 2: Run Setup.bat with admin privileges
     - name: Run Setup.bat
       run: |
-        cd ${{ github.workspace }}
-        .\Setup.bat
+        powershell -Command "& {Start-Process 'cmd.exe' -ArgumentList '/c .\Setup.bat' -Wait -NoNewWindow}"
       shell: cmd
 
     # Step 3: Run GenerateProjectFiles.bat
