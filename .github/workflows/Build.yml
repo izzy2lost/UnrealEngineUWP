@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    runs-on: windows-2019
+    runs-on: windows-2019 # Use Windows 2019 runner
 
     steps:
     # Step 1: Checkout repository with submodules and depth 1
@@ -15,40 +15,33 @@ jobs:
         submodules: recursive
         fetch-depth: 1
 
-    # Step 2: Install UE4 Prerequisites
-    - name: Install UE4 Prerequisites
-      run: |
-        cd ${{ github.workspace }}
-        Engine\Extras\Redist\en-us\UE4PrereqSetup_x64.exe /quiet /norestart
-      shell: cmd
-
-    # Step 3: Run Setup.bat
+    # Step 2: Run Setup.bat
     - name: Run Setup.bat
       run: |
         cd ${{ github.workspace }}
         .\Setup.bat
       shell: cmd
 
-    # Step 4: Run GenerateProjectFiles.bat
+    # Step 3: Run GenerateProjectFiles.bat
     - name: Run GenerateProjectFiles.bat
       run: |
         cd ${{ github.workspace }}
         .\GenerateProjectFiles.bat
       shell: cmd
 
-    # Step 5: Install 7-Zip
+    # Step 4: Install 7-Zip
     - name: Install 7-Zip
       run: choco install 7zip -y
       shell: powershell
 
-    # Step 6: Create a .7z archive of the repository
+    # Step 5: Create a .7z archive of the repository
     - name: Compress repository into 7z
       run: |
         cd ${{ github.workspace }}
         7z a UnrealEngine_with_submodules.7z .
       shell: cmd
 
-    # Step 7: Upload the .7z file as an artifact
+    # Step 6: Upload the .7z file as an artifact
     - name: Upload 7z file
       uses: actions/upload-artifact@v3
       with:
