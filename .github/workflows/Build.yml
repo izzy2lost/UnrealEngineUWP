@@ -19,6 +19,8 @@ jobs:
       run: |
        cmd /c ".\Setup.bat"
       shell: cmd
+      timeout-minutes: 20
+      continue-on-error: true
 
     # Step 3: Run GenerateProjectFiles.bat
     - name: Run GenerateProjectFiles.bat
