@@ -1,7 +1,7 @@
 name: UnrealEngine Build and Archive
 
 on:
-  workflow_dispatch: # Allows manual triggering of the workflow
+  workflow_dispatch:
 
 jobs:
   build:
@@ -15,35 +15,40 @@ jobs:
         submodules: recursive
         fetch-depth: 1
 
-    - name: Run Setup.bat
+    # Step 2: Run Unreal Build
+    - name: Run Unreal Build
       run: |
-       cmd /c ".\Setup.bat"
-      shell: cmd
-      timeout-minutes: 20
-      continue-on-error: true
+        Engine/Build/BatchFiles/RunUAT.bat BuildGraph ^
+          -script=Engine/Build/InstalledEngineBuild.xml ^
+          -target="Make Installed Build Win64" ^
+          -nosign ^
+          -set:HostPlatformCompiler=VisualStudio2019 ^
+          -set:GameConfigurations=Development;Shipping ^
+          -set:WithWin64=true ^
+          -set:WithAndroid=false ^
+          -set:WithDDC=false ^
+          -set:WithLinux=false ^
+          -set:WithLinuxArm64=false ^
+          -set:WithIOS=false ^
+          -set:WithTVOS=false ^
+          -set:WithMac=false ^
+          -clean         
 
-    # Step 3: Run GenerateProjectFiles.bat
-    - name: Run GenerateProjectFiles.bat
-      run: |
-        cd ${{ github.workspace }}
-        .\GenerateProjectFiles.bat
-      shell: cmd
-
-    # Step 4: Install 7-Zip
+    # Step 3: Install 7-Zip
     - name: Install 7-Zip
       run: choco install 7zip -y
       shell: powershell
 
-    # Step 5: Create a .7z archive of the repository
-    - name: Compress repository into 7z
+    # Step 4: Compress the installed engine into a .7z file
+    - name: Compress Installed Engine
       run: |
         cd ${{ github.workspace }}
-        7z a UnrealEngine_with_submodules.7z .
+        7z a InstalledEngine.7z "LocalBuilds/Engine"
       shell: cmd
 
-    # Step 6: Upload the .7z file as an artifact
-    - name: Upload 7z file
+    # Step 5: Upload the .7z file as an artifact
+    - name: Upload Installed Engine Archive
       uses: actions/upload-artifact@v3
       with:
-        name: UnrealEngine_with_submodules
-        path: ${{ github.workspace }}\UnrealEngine_with_submodules.7z
+        name: InstalledEngine
+        path: ${{ github.workspace }}\InstalledEngine.7z
