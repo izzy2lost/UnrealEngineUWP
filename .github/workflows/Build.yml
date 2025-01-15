@@ -15,8 +15,8 @@ jobs:
         submodules: recursive
         fetch-depth: 1
 
-    # Step 2: Run Unreal Build
     - name: Run Unreal Build
+      shell: cmd
       run: |
         Engine/Build/BatchFiles/RunUAT.bat BuildGraph ^
           -script=Engine/Build/InstalledEngineBuild.xml ^
