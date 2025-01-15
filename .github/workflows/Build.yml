@@ -15,25 +15,22 @@ jobs:
         submodules: recursive
         fetch-depth: 1
 
-    # Step 2: Restore NuGet dependencies
-    - name: Restore NuGet Packages
-      run: nuget restore Engine/Source/Programs/UnrealBuildTool/UnrealBuildTool.csproj
-
-    # Step 3: Run Unreal Build
+    # Step 2: Run Unreal Build
     - name: Run Unreal Build
-      run: Engine/Build/BatchFiles/RunUAT.bat BuildGraph -script=Engine/Build/InstalledEngineBuild.xml -target="Make Installed Build Win64" -nosign -set:HostPlatformCompiler=VisualStudio2019 -set:GameConfigurations=Development;Shipping -set:WithWin64=true -set:WithAndroid=false -set:WithDDC=false -set:WithLinux=false -set:WithLinuxArm64=false -set:WithIOS=false -set:WithTVOS=false -set:WithMac=false -clean
+      shell: cmd
+      run: Engine\Build\BatchFiles\RunUAT.bat BuildGraph -script=Engine/Build/InstalledEngineBuild.xml -target="Make Installed Build Win64" -nosign -set:HostPlatformCompiler=VisualStudio2019 -set:GameConfigurations=Development;Shipping -set:WithWin64=true -set:WithAndroid=false -set:WithDDC=false -set:WithLinux=false -set:WithLinuxArm64=false -set:WithIOS=false -set:WithTVOS=false -set:WithMac=false -clean
 
-    # Step 4: Install 7-Zip
+    # Step 3: Install 7-Zip
     - name: Install 7-Zip
       run: choco install 7zip -y
       shell: powershell
 
-    # Step 5: Compress the installed engine into a .7z file
+    # Step 4: Compress the installed engine into a .7z file
     - name: Compress Installed Engine
-      run: 7z a InstalledEngine.7z LocalBuilds/Engine
       shell: cmd
+      run: 7z a InstalledEngine.7z LocalBuilds\Engine
 
-    # Step 6: Upload the .7z file as an artifact
+    # Step 5: Upload the .7z file as an artifact
     - name: Upload Installed Engine Archive
       uses: actions/upload-artifact@v3
       with:
