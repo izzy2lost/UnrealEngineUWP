@@ -15,10 +15,9 @@ jobs:
         submodules: recursive
         fetch-depth: 1
 
-    # Step 2: Run Setup.bat with admin privileges
     - name: Run Setup.bat
       run: |
-        powershell -Command "& {Start-Process 'cmd.exe' -ArgumentList '/c .\Setup.bat' -Wait -NoNewWindow}"
+       cmd /c ".\Setup.bat"
       shell: cmd
 
     # Step 3: Run GenerateProjectFiles.bat
