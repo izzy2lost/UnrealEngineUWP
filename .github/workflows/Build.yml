@@ -42,7 +42,12 @@ jobs:
         Start-Process -FilePath $Dest -ArgumentList ($Params -join " ") -Wait
         Remove-Item $Dest
 
-    # Step 3: Run Setup.bat
+    # Step 3: Install vswhere
+    - name: Install vswhere
+      run: choco install vswhere -y
+      shell: powershell
+
+    # Step 4: Run Setup.bat
     - name: Run Setup.bat
       run: |
         cmd /c ".\Setup.bat"
@@ -50,14 +55,14 @@ jobs:
       timeout-minutes: 20
       continue-on-error: true
 
-    # Step 4: Run GenerateProjectFiles.bat
+    # Step 5: Run GenerateProjectFiles.bat
     - name: Run GenerateProjectFiles.bat
       run: |
         cd ${{ github.workspace }}
         .\GenerateProjectFiles.bat -2017
       shell: cmd
 
-    # Step 5: Build Unreal Engine Editor
+    # Step 6: Build Unreal Engine Editor
     - name: Build Unreal Engine Editor
       shell: powershell
       run: |
@@ -68,17 +73,17 @@ jobs:
           $SolutionPath /p:Configuration="$Configuration" /p:Platform="$Platform" /m
       timeout-minutes: 120
 
-    # Step 6: Install 7-Zip
+    # Step 7: Install 7-Zip
     - name: Install 7-Zip
       run: choco install 7zip -y
       shell: powershell
 
-    # Step 7: Compress the installed engine into a .7z file
+    # Step 8: Compress the installed engine into a .7z file
     - name: Compress Installed Engine
       shell: cmd
       run: 7z a InstalledEngine.7z LocalBuilds\Engine
 
-    # Step 8: Upload the .7z file as an artifact
+    # Step 9: Upload the .7z file as an artifact
     - name: Upload Installed Engine Archive
       uses: actions/upload-artifact@v3
       with:
