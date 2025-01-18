@@ -22,7 +22,6 @@ jobs:
         $Url = 'https://aka.ms/vs/15/release/vs_buildtools.exe'
         $Exe = "vs_buildtools.exe"
         $Dest = "c:\\tmp\\" + $Exe
-        $client = new-object System.Net.WebClient
 
         # Retry logic
         $maxRetries = 5
@@ -31,7 +30,7 @@ jobs:
 
         while (-not $success -and $retryCount -lt $maxRetries) {
             try {
-                $client.DownloadFile($Url, $Dest)
+                Invoke-WebRequest -Uri $Url -OutFile $Dest -UseBasicParsing
                 $success = $true
             } catch {
                 $retryCount++
