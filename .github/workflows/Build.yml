@@ -68,7 +68,7 @@ jobs:
           $vswherePath = & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" `
             -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe
           & $vswherePath $SolutionPath /p:Configuration="$Configuration" /p:Platform="$Platform" /m
-        timeout-minutes: 120
+        timeout-minutes: 240
 
       # Step 7: Install 7-Zip
       - name: Install 7-Zip
