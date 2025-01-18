@@ -23,7 +23,27 @@ jobs:
         $Exe = "vs_buildtools.exe"
         $Dest = "c:\\tmp\\" + $Exe
         $client = new-object System.Net.WebClient
-        $client.DownloadFile($Url, $Dest)
+
+        # Retry logic
+        $maxRetries = 5
+        $retryCount = 0
+        $success = $false
+
+        while (-not $success -and $retryCount -lt $maxRetries) {
+            try {
+                $client.DownloadFile($Url, $Dest)
+                $success = $true
+            } catch {
+                $retryCount++
+                Write-Host "Download failed, retrying ($retryCount/$maxRetries)..."
+                Start-Sleep -Seconds 5
+            }
+        }
+
+        if (-not $success) {
+            throw "Failed to download file after $maxRetries attempts."
+        }
+
         $Params = "--add Microsoft.VisualStudio.Workload.NativeDesktop `
         --add Microsoft.VisualStudio.Workload.ManagedDesktop `
         --add Microsoft.VisualStudio.Workload.Universal `
