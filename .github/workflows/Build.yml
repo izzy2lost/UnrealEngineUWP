@@ -54,7 +54,7 @@ jobs:
     - name: Run GenerateProjectFiles.bat
       run: |
         cd ${{ github.workspace }}
-        .\GenerateProjectFiles.bat
+        .\GenerateProjectFiles.bat -2017
       shell: cmd
 
     # Step 5: Install 7-Zip
