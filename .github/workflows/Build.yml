@@ -54,20 +54,31 @@ jobs:
     - name: Run GenerateProjectFiles.bat
       run: |
         cd ${{ github.workspace }}
-        .\GenerateProjectFiles.bat -2017
+        .\GenerateProjectFiles.bat
       shell: cmd
 
-    # Step 5: Install 7-Zip
+    # Step 5: Build Unreal Engine Editor
+    - name: Build Unreal Engine Editor
+      shell: powershell
+      run: |
+        $SolutionPath = "${{ github.workspace }}\UE4.sln"
+        $Configuration = "Development Editor"
+        $Platform = "Win64"
+        & "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\MSBuild\15.0\Bin\MSBuild.exe" `
+          $SolutionPath /p:Configuration="$Configuration" /p:Platform="$Platform" /m
+      timeout-minutes: 120
+
+    # Step 6: Install 7-Zip
     - name: Install 7-Zip
       run: choco install 7zip -y
       shell: powershell
 
-    # Step 6: Compress the installed engine into a .7z file
+    # Step 7: Compress the installed engine into a .7z file
     - name: Compress Installed Engine
       shell: cmd
       run: 7z a InstalledEngine.7z LocalBuilds\Engine
 
-    # Step 7: Upload the .7z file as an artifact
+    # Step 8: Upload the .7z file as an artifact
     - name: Upload Installed Engine Archive
       uses: actions/upload-artifact@v3
       with:
