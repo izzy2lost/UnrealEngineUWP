@@ -17,19 +17,30 @@ jobs:
 
     # Step 2: Download and install Visual Studio 2017 Build Tools with required workloads and components
     - name: Install Visual Studio 2017
-      shell: cmd
+      shell: powershell
       run: |
-        curl -L -o vs_buildtools.exe https://aka.ms/vs/15/release/vs_buildtools.exe
-        start /wait vs_buildtools.exe --quiet --wait --norestart --nocache --installPath C:\BuildTools \
-          --add Microsoft.VisualStudio.Workload.NativeDesktop \
-          --add Microsoft.VisualStudio.Workload.ManagedDesktop \
-          --add Microsoft.VisualStudio.Workload.Universal \
-          --add Microsoft.VisualStudio.Workload.NativeGame \
-          --add Microsoft.Net.Component.4.6.2.TargetingPack \
-          --add Microsoft.VisualStudio.Component.Windows10SDK.17763 \
-          --add Microsoft.VisualStudio.Component.Windows10SDK.17134 \
-          --add Microsoft.VisualStudio.Component.Windows10SDK.16299 \
-          --add Microsoft.VisualStudio.Component.Windows81SDK
+        $Url = 'https://aka.ms/vs/15/release/vs_buildtools.exe'
+        $Exe = "vs_buildtools.exe"
+        $Dest = "c:\\tmp\\" + $Exe
+        $client = new-object System.Net.WebClient
+        $client.DownloadFile($Url, $Dest)
+        $Params = "--add Microsoft.VisualStudio.Workload.NativeDesktop `
+        --add Microsoft.VisualStudio.Workload.ManagedDesktop `
+        --add Microsoft.VisualStudio.Workload.Universal `
+        --add Microsoft.VisualStudio.Workload.NativeGame `
+        --add Microsoft.Net.Component.4.6.2.TargetingPack `
+        --add Microsoft.VisualStudio.Component.Windows10SDK.17763 `
+        --add Microsoft.VisualStudio.Component.Windows10SDK.17134 `
+        --add Microsoft.VisualStudio.Component.Windows10SDK.16299 `
+        --add Microsoft.VisualStudio.Component.Windows81SDK `
+        --add Microsoft.VisualStudio.Workload.MSBuildTools `
+        --add Microsoft.VisualStudio.Workload.WebBuildTools `
+        --add Microsoft.Net.Component.4.7.SDK `
+        --add Microsoft.Net.Component.4.7.TargetingPack `
+        --add Microsoft.Net.ComponentGroup.4.7.DeveloperTools `
+        --quiet --wait"
+        Start-Process $Dest -ArgumentList $Params -Wait
+        Remove-Item $Dest
 
     # Step 3: Run Unreal Build
     - name: Run Unreal Build
