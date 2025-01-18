@@ -20,7 +20,7 @@ jobs:
       shell: cmd
       run: |
         curl -L -o vs_buildtools.exe https://aka.ms/vs/15/release/vs_buildtools.exe
-        vs_buildtools.exe --quiet --wait --norestart --nocache \
+        start /wait vs_buildtools.exe --quiet --wait --norestart --nocache --installPath C:\BuildTools \
           --add Microsoft.VisualStudio.Workload.NativeDesktop \
           --add Microsoft.VisualStudio.Workload.ManagedDesktop \
           --add Microsoft.VisualStudio.Workload.Universal \
