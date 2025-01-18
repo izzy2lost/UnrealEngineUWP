@@ -1,7 +1,7 @@
 name: UnrealEngine Build and Archive
 
 on:
-  workflow_dispatch: # Allows manual triggering of the workflow
+  workflow_dispatch:
 
 jobs:
   build:
@@ -15,35 +15,34 @@ jobs:
         submodules: recursive
         fetch-depth: 1
 
-    - name: Run Setup.bat
-      run: |
-       cmd /c ".\Setup.bat"
+    # Step 2: Install Visual Studio 2017 with required workloads and components
+    - name: Install Visual Studio 2017
       shell: cmd
-      timeout-minutes: 20
-      continue-on-error: true
+      run: |
+        choco install visualstudio2017community --package-parameters "--add Microsoft.VisualStudio.Workload.NativeDesktop --add Microsoft.VisualStudio.Workload.ManagedDesktop --add Microsoft.VisualStudio.Workload.Universal --add Microsoft.VisualStudio.Workload.NativeGame --addComponent Microsoft.Net.Component.4.6.2.TargetingPack --includeRecommended --includeOptional --passive --norestart"
+        choco install windows-sdk-10.0 --version 10.0.17763.0
+        choco install windows-sdk-10.0 --version 10.0.17134.0
+        choco install windows-sdk-10.0 --version 10.0.16299.0
+        choco install windows-sdk-8.1 --version 8.100.26936
 
-    # Step 3: Run GenerateProjectFiles.bat
-    - name: Run GenerateProjectFiles.bat
-      run: |
-        cd ${{ github.workspace }}
-        .\GenerateProjectFiles.bat
+    # Step 3: Run Unreal Build
+    - name: Run Unreal Build
       shell: cmd
+      run: Engine\Build\BatchFiles\RunUAT.bat BuildGraph -script=Engine/Build/InstalledEngineBuild.xml -target="Make Installed Build Win64" -nosign -set:HostPlatformCompiler=VisualStudio2017 -set:Game
 
     # Step 4: Install 7-Zip
     - name: Install 7-Zip
       run: choco install 7zip -y
       shell: powershell
 
-    # Step 5: Create a .7z archive of the repository
-    - name: Compress repository into 7z
-      run: |
-        cd ${{ github.workspace }}
-        7z a UnrealEngine_with_submodules.7z .
+    # Step 5: Compress the installed engine into a .7z file
+    - name: Compress Installed Engine
       shell: cmd
+      run: 7z a InstalledEngine.7z LocalBuilds\Engine
 
     # Step 6: Upload the .7z file as an artifact
-    - name: Upload 7z file
+    - name: Upload Installed Engine Archive
       uses: actions/upload-artifact@v3
       with:
-        name: UnrealEngine_with_submodules
-        path: ${{ github.workspace }}\UnrealEngine_with_submodules.7z
+        name: InstalledEngine
+        path: InstalledEngine.7z
