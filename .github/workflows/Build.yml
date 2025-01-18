@@ -29,6 +29,7 @@ jobs:
           $Dest = "C:\\tmp\\vs_community.exe"
           $Params = @(
               "--add Microsoft.VisualStudio.Workload.NativeDesktop", # Desktop development with C++
+              "--add Microsoft.VisualStudio.Component.Windows81SDK", # Windows 8.1 SDK
               "--add Microsoft.VisualStudio.Workload.ManagedDesktop", # .NET desktop development
               "--add Microsoft.VisualStudio.Workload.Universal", # Universal Windows Platform Development
               "--add Microsoft.VisualStudio.Component.Windows10SDK.17763", # Win10 SDK 17763
@@ -42,7 +43,7 @@ jobs:
           Start-Process -FilePath $Dest -ArgumentList ($Params -join " ") -Wait
           Remove-Item $Dest
 
-      # Step 5: Run Setup.bat
+      # Step 4: Run Setup.bat
       - name: Run Setup.bat
         shell: cmd
         run: |
@@ -50,35 +51,36 @@ jobs:
         timeout-minutes: 20
         continue-on-error: true
 
-      # Step 6: Run GenerateProjectFiles.bat
+      # Step 5: Run GenerateProjectFiles.bat
       - name: Run GenerateProjectFiles.bat
         shell: cmd
         run: |
           cd ${{ github.workspace }}
           .\GenerateProjectFiles.bat -2017
 
-      # Step 7: Build Unreal Engine Editor
+      # Step 6: Build Unreal Engine Editor
       - name: Build Unreal Engine Editor
         shell: powershell
         run: |
           $SolutionPath = "${{ github.workspace }}\UE4.sln"
           $Configuration = "Development Editor"
           $Platform = "Win64"
-          & "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\MSBuild\15.0\Bin\MSBuild.exe" `
-            $SolutionPath /p:Configuration="$Configuration" /p:Platform="$Platform" /m
+          $vswherePath = & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe
+          & $vswherePath $SolutionPath /p:Configuration="$Configuration" /p:Platform="$Platform" /m
         timeout-minutes: 120
 
-      # Step 8: Install 7-Zip
+      # Step 7: Install 7-Zip
       - name: Install 7-Zip
         shell: powershell
         run: choco install 7zip -y
 
-      # Step 9: Compress the installed engine into a .7z file
+      # Step 8: Compress the installed engine into a .7z file
       - name: Compress Installed Engine
         shell: cmd
         run: 7z a InstalledEngine.7z LocalBuilds\Engine
 
-      # Step 10: Upload the .7z file as an artifact
+      # Step 9: Upload the .7z file as an artifact
       - name: Upload Installed Engine Archive
         uses: actions/upload-artifact@v3
         with:
