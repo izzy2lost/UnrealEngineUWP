@@ -15,68 +15,59 @@ jobs:
         submodules: recursive
         fetch-depth: 1
 
-    # Step 2: Download and install Visual Studio 2017 Build Tools with required workloads and components
-    - name: Install Visual Studio 2017
+    # Step 2: Download and install Visual Studio 2017 Build Tools
+    - name: Download Visual Studio 2017 Build Tools
+      shell: bash
+      run: |
+        mkdir -p /c/tmp
+        curl -L -o /c/tmp/vs_buildtools.exe https://aka.ms/vs/15/release/vs_buildtools.exe
+
+    - name: Install Visual Studio 2017 Build Tools
       shell: powershell
       run: |
-        $Url = 'https://aka.ms/vs/15/release/vs_buildtools.exe'
-        $Exe = "vs_buildtools.exe"
-        $Dest = "c:\\tmp\\" + $Exe
-
-        # Retry logic
-        $maxRetries = 5
-        $retryCount = 0
-        $success = $false
-
-        while (-not $success -and $retryCount -lt $maxRetries) {
-            try {
-                Invoke-WebRequest -Uri $Url -OutFile $Dest -UseBasicParsing
-                $success = $true
-            } catch {
-                $retryCount++
-                Write-Host "Download failed, retrying ($retryCount/$maxRetries)..."
-                Start-Sleep -Seconds 5
-            }
-        }
-
-        if (-not $success) {
-            throw "Failed to download file after $maxRetries attempts."
-        }
-
-        $Params = "--add Microsoft.VisualStudio.Workload.NativeDesktop `
-        --add Microsoft.VisualStudio.Workload.ManagedDesktop `
-        --add Microsoft.VisualStudio.Workload.Universal `
-        --add Microsoft.VisualStudio.Workload.NativeGame `
-        --add Microsoft.Net.Component.4.6.2.TargetingPack `
-        --add Microsoft.VisualStudio.Component.Windows10SDK.17763 `
-        --add Microsoft.VisualStudio.Component.Windows10SDK.17134 `
-        --add Microsoft.VisualStudio.Component.Windows10SDK.16299 `
-        --add Microsoft.VisualStudio.Component.Windows81SDK `
-        --add Microsoft.VisualStudio.Workload.MSBuildTools `
-        --add Microsoft.VisualStudio.Workload.WebBuildTools `
-        --add Microsoft.Net.Component.4.7.SDK `
-        --add Microsoft.Net.Component.4.7.TargetingPack `
-        --add Microsoft.Net.ComponentGroup.4.7.DeveloperTools `
-        --quiet --wait"
-        Start-Process $Dest -ArgumentList $Params -Wait
+        $Dest = "C:\\tmp\\vs_buildtools.exe"
+        $Params = @(
+            "--add Microsoft.VisualStudio.Workload.NativeDesktop", # Desktop development with C++
+            "--add Microsoft.VisualStudio.Workload.ManagedDesktop", # .NET desktop development
+            "--add Microsoft.VisualStudio.Workload.Universal", # Universal Windows Platform Development
+            "--add Microsoft.VisualStudio.Component.Windows10SDK.17763", # Win10 SDK 17763
+            "--add Microsoft.VisualStudio.Component.Windows10SDK.17134", # Win10 SDK 17134
+            "--add Microsoft.VisualStudio.Component.Windows10SDK.16299", # Win10 SDK 16299
+            "--add Microsoft.VisualStudio.Component.Windows81SDK", # Windows 8.1 SDK
+            "--add Microsoft.VisualStudio.ComponentGroup.UCRT", # UCRT SDK
+            "--add Microsoft.VisualStudio.Workload.NativeGame", # Game development with C++
+            "--quiet",
+            "--wait"
+        )
+        Start-Process -FilePath $Dest -ArgumentList ($Params -join " ") -Wait
         Remove-Item $Dest
 
-    # Step 3: Run Unreal Build
-    - name: Run Unreal Build
+    # Step 3: Run Setup.bat
+    - name: Run Setup.bat
+      run: |
+        cmd /c ".\Setup.bat"
       shell: cmd
-      run: Engine\Build\BatchFiles\RunUAT.bat BuildGraph -script=Engine/Build/InstalledEngineBuild.xml -target="Make Installed Build Win64" -nosign -set:HostPlatformCompiler=VisualStudio2017 -set:Game
+      timeout-minutes: 20
+      continue-on-error: true
 
-    # Step 4: Install 7-Zip
+    # Step 4: Run GenerateProjectFiles.bat
+    - name: Run GenerateProjectFiles.bat
+      run: |
+        cd ${{ github.workspace }}
+        .\GenerateProjectFiles.bat
+      shell: cmd
+
+    # Step 5: Install 7-Zip
     - name: Install 7-Zip
       run: choco install 7zip -y
       shell: powershell
 
-    # Step 5: Compress the installed engine into a .7z file
+    # Step 6: Compress the installed engine into a .7z file
     - name: Compress Installed Engine
       shell: cmd
       run: 7z a InstalledEngine.7z LocalBuilds\Engine
 
-    # Step 6: Upload the .7z file as an artifact
+    # Step 7: Upload the .7z file as an artifact
     - name: Upload Installed Engine Archive
       uses: actions/upload-artifact@v3
       with:
