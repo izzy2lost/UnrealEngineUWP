@@ -8,8 +8,6 @@ jobs:
     runs-on: windows-2019
 
     steps:
-      - uses: actions/checkout@v4
-
       - name: Cache repository
         id: cache-repo
         uses: actions/cache@v4
