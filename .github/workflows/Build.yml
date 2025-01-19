@@ -8,6 +8,7 @@ jobs:
     runs-on: windows-2019
 
     steps:
+      # Step 1: Cache the repository
       - name: Cache repository
         id: cache-repo
         uses: actions/cache@v4
@@ -17,6 +18,7 @@ jobs:
             **/submodules
           key: windows-repo-cache
 
+      # Step 2: Checkout repository if cache is not found
       - name: Checkout repository
         if: steps.cache-repo.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
@@ -24,6 +26,7 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
+      # Step 3: Cache Setup.bat results
       - name: Cache Setup
         id: cache-setup
         uses: actions/cache@v4
@@ -31,6 +34,7 @@ jobs:
           path: ./.setup_cache
           key: windows-setup-cache
 
+      # Step 4: Run Setup.bat if cache is not found
       - name: Run Setup.bat
         if: steps.cache-setup.outputs.cache-hit != 'true'
         shell: cmd
@@ -39,12 +43,14 @@ jobs:
         timeout-minutes: 20
         continue-on-error: true
 
+      # Step 5: Run GenerateProjectFiles.bat
       - name: Run GenerateProjectFiles.bat
         shell: cmd
         run: |
           cd ${{ github.workspace }}
           .\GenerateProjectFiles.bat -2017
 
+      # Step 6: Build Unreal Engine Editor
       - name: Build Unreal Engine Editor
         shell: powershell
         run: |
@@ -56,10 +62,12 @@ jobs:
           & $vswherePath $SolutionPath /p:Configuration="$Configuration" /p:Platform="$Platform" /m
         timeout-minutes: 240
 
+      # Step 7: Compress Installed Engine
       - name: Compress Installed Engine
         shell: cmd
         run: 7z a InstalledEngine.7z LocalBuilds\Engine
 
+      # Step 8: Upload Installed Engine Archive
       - name: Upload Installed Engine Archive
         uses: actions/upload-artifact@v3
         with:
