@@ -40,34 +40,4 @@ jobs:
         shell: cmd
         run: |
           cmd /c ".\Setup.bat"
-
-      # Step 5: Run GenerateProjectFiles.bat
-      - name: Run GenerateProjectFiles.bat
-        shell: cmd
-        run: |
-          cd ${{ github.workspace }}
-          .\GenerateProjectFiles.bat -2017
-
-      # Step 6: Build Unreal Engine Editor
-      - name: Build Unreal Engine Editor
-        shell: powershell
-        run: |
-          $SolutionPath = "${{ github.workspace }}\UE4.sln"
-          $Configuration = "Development Editor"
-          $Platform = "Win64"
-          $vswherePath = & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" `
-            -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe
-          & $vswherePath $SolutionPath /p:Configuration="$Configuration" /p:Platform="$Platform" /m
-        timeout-minutes: 240
-
-      # Step 7: Compress Installed Engine
-      - name: Compress Installed Engine
-        shell: cmd
-        run: 7z a InstalledEngine.7z LocalBuilds\Engine
-
-      # Step 8: Upload Installed Engine Archive
-      - name: Upload Installed Engine Archive
-        uses: actions/upload-artifact@v3
-        with:
-          name: InstalledEngine
-          path: InstalledEngine.7z
+          
