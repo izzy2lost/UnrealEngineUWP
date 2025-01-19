@@ -16,7 +16,7 @@ jobs:
           path: |
             .git
             **/submodules
-          key: ${{ runner.os }}-repo-${{ hashFiles('**') }}
+          key: ${{ runner.os }}-repo-${{ hashFiles('**/*', '**/.*') }}
           restore-keys: |
             ${{ runner.os }}-repo-
 
@@ -28,7 +28,7 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      # Step 3: Save repository to cache
+      # Step 3: Save repository cache
       - name: Save repository cache
         if: steps.cache-repo.outputs.cache-hit != 'true'
         uses: actions/cache@v3
@@ -36,7 +36,7 @@ jobs:
           path: |
             .git
             **/submodules
-          key: ${{ runner.os }}-repo-${{ hashFiles('**') }}
+          key: ${{ runner.os }}-repo-${{ hashFiles('**/*', '**/.*') }}
 
       # Step 4: Download Visual Studio 2017 Community Edition
       - name: Download Visual Studio 2017 Community Edition
@@ -91,6 +91,7 @@ jobs:
         run: |
           mkdir -p ./.setup_cache
           # Save necessary files or directories to the cache
+          # Example: cp -r path/to/files ./.setup_cache
 
       # Step 7: Run GenerateProjectFiles.bat
       - name: Run GenerateProjectFiles.bat
