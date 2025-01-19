@@ -16,9 +16,9 @@ jobs:
           path: |
             .git
             **/submodules
-          key: ${{ runner.os }}-repo-${{ hashFiles('**/*', '**/.*') }}
+          key: windows-repo-cache
           restore-keys: |
-            ${{ runner.os }}-repo-
+            windows-repo-cache
 
       # Step 2: Checkout repository with submodules and depth 1
       - name: Checkout repository
@@ -36,7 +36,7 @@ jobs:
           path: |
             .git
             **/submodules
-          key: ${{ runner.os }}-repo-${{ hashFiles('**/*', '**/.*') }}
+          key: windows-repo-cache
 
       # Step 4: Download Visual Studio 2017 Community Edition
       - name: Download Visual Studio 2017 Community Edition
@@ -72,9 +72,9 @@ jobs:
         id: cache-setup
         with:
           path: ./.setup_cache
-          key: ${{ runner.os }}-setup-${{ hashFiles('Setup.bat') }}
+          key: windows-setup-cache
           restore-keys: |
-            ${{ runner.os }}-setup-
+            windows-setup-cache
 
       # Step 6.1: Run Setup.bat if cache is not found
       - name: Run Setup.bat
@@ -88,10 +88,10 @@ jobs:
       # Step 6.2: Save Setup.bat results to cache
       - name: Save Setup Cache
         if: steps.cache-setup.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p ./.setup_cache
-          # Save necessary files or directories to the cache
-          # Example: cp -r path/to/files ./.setup_cache
+        uses: actions/cache@v3
+        with:
+          path: ./.setup_cache
+          key: windows-setup-cache
 
       # Step 7: Run GenerateProjectFiles.bat
       - name: Run GenerateProjectFiles.bat
