@@ -132,3 +132,5 @@ if ((Get-ChildItem -Hidden | Where-Object {$_.Name -eq ".git"}) -ne $null)
 	Write-Output "Ensuring git submodules are up-to-date..." 
 	&git submodule update --init --recursive 2>&1 | Write-Verbose
 }
+
+exit
