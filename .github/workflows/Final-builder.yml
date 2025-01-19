@@ -1,0 +1,78 @@
+name: UnrealEngine Build and Archive
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2019
+
+    steps:
+
+    # Step 1: Checkout repository with submodules and depth 1
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 1
+
+    # Step 2: Download Visual Studio 2017 Community Edition
+    - name: Download Visual Studio 2017 Community Edition
+      shell: bash
+      run: |
+        mkdir -p /c/tmp
+        curl -L -o /c/tmp/vs_community.exe https://aka.ms/vs/15/release/vs_community.exe
+
+    # Step 3: Install Visual Studio 2017 Community Edition
+    - name: Install Visual Studio 2017 Community Edition
+      shell: powershell
+      run: |
+        $Dest = "C:\\tmp\\vs_community.exe"
+        $Params = @(
+          "--add Microsoft.VisualStudio.Workload.NativeDesktop", # Desktop development with C++
+          "--add Microsoft.VisualStudio.Component.Windows81SDK", # Windows 8.1 SDK
+          "--add Microsoft.VisualStudio.Workload.ManagedDesktop", # .NET desktop development
+          "--add Microsoft.VisualStudio.Workload.Universal", # Universal Windows Platform Development
+          "--add Microsoft.VisualStudio.Component.Windows10SDK.17763", # Win10 SDK 17763
+          "--add Microsoft.VisualStudio.ComponentGroup.UCRT", # UCRT SDK
+          "--add Microsoft.VisualStudio.Workload.NativeGame", # Game development with C++
+          "--add Microsoft.Component.MSBuild", # MSBuild
+          "--add Microsoft.VisualStudio.Component.NuGet", # NuGet Package Manager
+          "--quiet",
+          "--wait"
+        )
+        Start-Process -FilePath $Dest -ArgumentList ($Params -join " ") -Wait
+        Remove-Item $Dest
+
+    # Step 4: Setup Dependencies and Environment
+    - name: Run Setup.bat
+      shell: cmd
+      run: |
+        cmd /c ".\Setup.bat --exclude=Mac --exclude=osx64 --exclude=osx32 --exclude=iOS --exclude=IOS --exclude=ios --exclude=Linux --exclude=linux --exclude=Linux32 --exclude=linux32 --exclude=Linux64 --exclude=linux64 --exclude=linux_x64 --exclude=Android --exclude=android --exclude=HoloLens --exclude=TVOS --exclude=Win32 --exclude=WinRT --exclude=winrt --exclude=HTML5 --exclude=html5 --exclude=XboxOne --exclude=Switch --exclude=Dingo --exclude=PS4 --exclude=Win32 --exclude=win32 --exclude=Samples --exclude=FeaturePacks --exclude=Engine/Saved"
+      timeout-minutes: 20
+      continue-on-error: true
+
+    # Step 5: Generate Project Files
+    - name: Run GenerateProjectFiles.bat
+      shell: cmd
+      run: |
+        cd ${{ github.workspace }}
+        .\GenerateProjectFiles.bat -2017
+
+    # Step 6: Run Unreal Build with BuildGraph for Shipping and UWP64
+    - name: Run Unreal Build
+      shell: cmd
+      run: |
+        Engine\Build\BatchFiles\RunUAT.bat BuildGraph -target="Make Installed Build Win64" -script=Engine/Build/InstalledEngineBuild.xml -set:WithDDC=false -set:WithLinux=false -set:WithUWP64=true -set:WithLinuxArm64=false -set:WithWin64=true -set:WithMac=false -set:WithAndroid=false -set:WithIOS=false -set:WithHTML5=false -set:WithPS4=false -set:WithXboxOne=false -set:WithSwitch=false -set:WithLumin=false -set:WithWin32=false -set:WithWinRT=false -set:WithHoloLens=false -set:WithDingo=false -set:WithPython=false -set:GameConfigurations=Development;Shipping;DebugGame -exclude=Samples -exclude=FeaturePacks -exclude=Engine/Saved
+
+    # Step 7: Compress the installed engine into a .7z file
+    - name: Compress Installed Engine
+      shell: cmd
+      run: 7z a InstalledEngine.7z LocalBuilds\Engine
+
+    # Step 8: Upload the .7z file as an artifact
+    - name: Upload Installed Engine Archive
+      uses: actions/upload-artifact@v3
+      with:
+        name: InstalledEngine
+        path: InstalledEngine.7z
