@@ -34,7 +34,7 @@ start /wait Engine\Extras\Redist\en-us\UE4PrereqSetup_x64.exe /quiet
 
 rem @ATG_CHANGE - BEGIN Sync dependencies custom to the UWP fork
 echo Installing dependencies custom to the UWP fork...
-powershell -NoProfile -ExecutionPolicy Bypass -File %~dp0\GetUWPDependencies.ps1 -wait
+powershell -NoProfile -ExecutionPolicy Bypass -File %~dp0\GetUWPDependencies.ps1
 rem @ARG_CHANGE - END
 
 rem Register the engine installation...
