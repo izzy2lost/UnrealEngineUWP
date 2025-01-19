@@ -8,21 +8,34 @@ jobs:
     runs-on: windows-2019
 
     steps:
-      # Step 1: Checkout repository with submodules and depth 1
+      # Step 1: Cache the repository
+      - name: Cache repository
+        uses: actions/cache@v3
+        id: cache-repo
+        with:
+          path: |
+            .git
+            **/submodules
+          key: ${{ runner.os }}-repo-${{ hashFiles('**') }}
+          restore-keys: |
+            ${{ runner.os }}-repo-
+
+      # Step 2: Checkout repository with submodules and depth 1
       - name: Checkout repository
+        if: steps.cache-repo.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 1
 
-      # Step 2: Download Visual Studio 2017 Community Edition
+      # Step 3: Download Visual Studio 2017 Community Edition
       - name: Download Visual Studio 2017 Community Edition
         shell: bash
         run: |
           mkdir -p /c/tmp
           curl -L -o /c/tmp/vs_community.exe https://aka.ms/vs/15/release/vs_community.exe
 
-      # Step 3: Install Visual Studio 2017 Community Edition
+      # Step 4: Install Visual Studio 2017 Community Edition
       - name: Install Visual Studio 2017 Community Edition
         shell: powershell
         run: |
@@ -43,7 +56,7 @@ jobs:
           Start-Process -FilePath $Dest -ArgumentList ($Params -join " ") -Wait
           Remove-Item $Dest
 
-      # Step 4: Cache Setup.bat results
+      # Step 5: Cache Setup.bat results
       - name: Cache Setup
         uses: actions/cache@v3
         id: cache-setup
@@ -53,7 +66,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-setup-
 
-      # Step 4.1: Run Setup.bat if cache is not found
+      # Step 5.1: Run Setup.bat if cache is not found
       - name: Run Setup.bat
         if: steps.cache-setup.outputs.cache-hit != 'true'
         shell: cmd
@@ -62,7 +75,7 @@ jobs:
         timeout-minutes: 20
         continue-on-error: true
 
-      # Step 4.2: Save Setup.bat results to cache
+      # Step 5.2: Save Setup.bat results to cache
       - name: Save Setup Cache
         if: steps.cache-setup.outputs.cache-hit != 'true'
         run: |
@@ -70,14 +83,14 @@ jobs:
           # Save necessary files or directories to the cache
           # Example: cp -r path/to/files ./.setup_cache
 
-      # Step 5: Run GenerateProjectFiles.bat
+      # Step 6: Run GenerateProjectFiles.bat
       - name: Run GenerateProjectFiles.bat
         shell: cmd
         run: |
           cd ${{ github.workspace }}
           .\GenerateProjectFiles.bat -2017
 
-      # Step 6: Build Unreal Engine Editor
+      # Step 7: Build Unreal Engine Editor
       - name: Build Unreal Engine Editor
         shell: powershell
         run: |
