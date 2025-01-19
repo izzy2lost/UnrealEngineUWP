@@ -1,4 +1,4 @@
-name: UnrealEngine Build and Archive
+name: UnrealEngine Build
 
 on:
   workflow_dispatch:
