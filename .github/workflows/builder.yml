@@ -48,8 +48,7 @@ jobs:
     - name: Check and Install Xbox Live Extensions SDK
       shell: powershell
       run: |
-        .\check_install_xbox_live_sdk.ps1
-        
+        .\check_install_xbox_live_sdk.ps1    
 
     # Step 5: Setup Dependencies and Environment
     - name: Run Setup.bat
