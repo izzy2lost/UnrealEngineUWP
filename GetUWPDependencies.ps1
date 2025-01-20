@@ -87,21 +87,35 @@ Write-Output "Skipping installing Windows Device Portal Wrapper from Nuget... be
 #$wdpwrapperInstallPath = [System.IO.Path]::Combine($startupPath, "Engine", "Binaries", "ThirdParty", "WindowsDevicePortalWrapper")
 #Install-Package $nuget windowsdeviceportalwrapper $wdpwrapperInstallPath @("lib\net452\*")
 
-# Check for Live Extensions SDK
 Write-Output "Checking for Xbox Live Extensions SDK..."
-$windowsSdkLocationValue = (Get-ItemProperty "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0" -Name InstallationFolder).InstallationFolder
-$existingLiveExtSdk = get-childitem $windowsSdkLocationValue -recurse | where-object {$_.Name -like "XboxLive"}
-if ($existingLiveExtSdk -eq $null)
-{
-	Write-Output "Xbox Live Extensions SDK not found.  Installing..."
 
-	# Downloading Xbox Live Extensions SDK
-	$xblextzip = $ossLivePath + "\XboxLiveExtensionSDK.zip"
-	$xblextfolder = $ossLivePath + "\XboxLiveExtensionSDK"
-	$webClient.DownloadFile("https://aka.ms/xblextsdk", $xblextzip )
+try {
+    # Get Windows SDK location
+    $windowsSdkLocationValue = (Get-ItemProperty "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0" -Name InstallationFolder).InstallationFolder
+    if (-not $windowsSdkLocationValue) {
+        throw "Unable to locate the Windows SDK installation folder."
+    }
 
-	# Unpack and install
-	Expand-Archive $xblextzip -DestinationPath $xblextfolder -Force
+    # Check for existing Xbox Live Extensions SDK
+    $existingLiveExtSdk = Get-ChildItem $windowsSdkLocationValue -Recurse | Where-Object { $_.Name -like "XboxLive" }
+    if ($existingLiveExtSdk -eq $null) {
+        Write-Output "Xbox Live Extensions SDK not found. Installing..."
+
+        # Define paths
+        $ossLivePath = $env:TEMP # Default to TEMP directory if not defined elsewhere
+        $xblextzip = Join-Path $ossLivePath "XboxLiveExtensionSDK.zip"
+        $xblextfolder = Join-Path $ossLivePath "XboxLiveExtensionSDK"
+
+        # Initialize WebClient and download the SDK
+        $webClient = New-Object System.Net.WebClient
+        $webClient.DownloadFile("https://aka.ms/xblextsdk", $xblextzip)
+
+        # Unpack and install the SDK
+        Expand-Archive -Path $xblextzip -DestinationPath $xblextfolder -Force
+        Write-Output "Xbox Live Extensions SDK has been downloaded and installed at $xblextfolder."
+    } else {
+        Write-Output "Xbox Live Extensions SDK is already installed."
+    }
 
 	# Attempt to match the latest installed Windows SDK
 	$highestSdkVersion = Get-ChildItem ([System.IO.Path]::Combine($windowsSdkLocationValue, "Include")) -Name | Convert-String -Example '"10.0.10240.0"=10240' | measure-object -maximum
