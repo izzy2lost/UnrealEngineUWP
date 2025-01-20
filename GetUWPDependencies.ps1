@@ -89,7 +89,6 @@ Write-Output "Skipping installing Windows Device Portal Wrapper from Nuget... be
 
 Write-Output "Checking for Xbox Live Extensions SDK..."
 
-try {
     # Get Windows SDK location
     $windowsSdkLocationValue = (Get-ItemProperty "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0" -Name InstallationFolder).InstallationFolder
     if (-not $windowsSdkLocationValue) {
