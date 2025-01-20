@@ -137,7 +137,6 @@ Write-Output "Checking for Xbox Live Extensions SDK..."
 	# Cleanup
 	Remove-Item $xblextzip
 	Remove-Item $xblextfolder -Recurse -Force
-}
 
 # Init git submodules if possible (external projects we consume in source format)
 if ((Get-ChildItem -Hidden | Where-Object {$_.Name -eq ".git"}) -ne $null)
